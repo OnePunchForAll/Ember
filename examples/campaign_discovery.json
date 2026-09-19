@@ -1,0 +1,16 @@
+{
+  "query": "research_campaign",
+  "problems": [
+    {
+      "query": "transition_count",
+      "matrix": [[1, 1], [1, 0]],
+      "initial": [1, 0],
+      "terminal": [0, 1],
+      "horizon": 12
+    }
+  ],
+  "discover_after_solving": true,
+  "max_attempts": 1,
+  "attempt_work": 1000000,
+  "name": "Solve a finite question, then autonomously propose an all-step law"
+}

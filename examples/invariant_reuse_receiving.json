@@ -1,0 +1,28 @@
+{
+  "query": "discover_invariant",
+  "domain": "QQ",
+  "variables": [
+    "u",
+    "v"
+  ],
+  "transition": [
+    "u+2",
+    "v+6*u*u+12*u+8"
+  ],
+  "max_degree": 3,
+  "focus": [
+    "u",
+    "v"
+  ],
+  "initial": [
+    [
+      1,
+      2
+    ],
+    [
+      7,
+      3
+    ]
+  ],
+  "name": "Check the learned cubic law against a renamed step-two system"
+}

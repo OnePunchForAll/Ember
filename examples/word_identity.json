@@ -1,0 +1,6 @@
+{
+  "query": "word_avoidance_identity",
+  "patterns": ["01001", "001011"],
+  "formula": "full_overlap",
+  "check_through": 14
+}

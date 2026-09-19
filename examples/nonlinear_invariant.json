@@ -1,0 +1,10 @@
+{
+  "query": "discover_invariant",
+  "domain": "QQ",
+  "variables": ["x", "y"],
+  "transition": ["x+1", "y+3*x*x+3*x+1"],
+  "max_degree": 3,
+  "focus": ["y"],
+  "initial": [[2, 1], [11, 1]],
+  "name": "Discover a cubic conserved quantity for a nonlinear transition"
+}

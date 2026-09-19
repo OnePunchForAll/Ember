@@ -1,0 +1,24 @@
+{
+  "query": "polynomial_consequence",
+  "domain": "QQ",
+  "variables": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "l1",
+    "l2"
+  ],
+  "assumptions": [
+    "a+c-b-d",
+    "(l1*(1+d-b)+l2*(1+a-c))*(1+a+c)-(l1+l2)*((1+a)*(1+d)-b*c)"
+  ],
+  "nonzero": [
+    "(1+a)*(1+d)-b*c",
+    "1+a+c"
+  ],
+  "goal": "(l1-l2)*(c-b)",
+  "multiplier_degree": 2,
+  "counterexample_radius": 1,
+  "name": "Converse of the original Organon two-pattern column-shortcut repair"
+}

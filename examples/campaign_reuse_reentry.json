@@ -1,0 +1,48 @@
+{
+  "query": "research_campaign",
+  "problems": [
+    {
+      "query": "discover_invariant",
+      "domain": "QQ",
+      "variables": [
+        "r",
+        "s",
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      "transition": [
+        "s",
+        "-r",
+        "a+1",
+        "b+2",
+        "c+3",
+        "d+4"
+      ],
+      "max_degree": 3,
+      "focus": [
+        "r",
+        "s"
+      ]
+    },
+    {
+      "query": "discover_invariant",
+      "domain": "QQ",
+      "variables": [
+        "r",
+        "s"
+      ],
+      "transition": [
+        "s",
+        "-r"
+      ],
+      "max_degree": 2
+    }
+  ],
+  "attempt_work": 10000,
+  "max_attempts": 4,
+  "policy": "fixed",
+  "reuse_invariants": true,
+  "name": "Learn a later law, then revisit an earlier unresolved original question"
+}

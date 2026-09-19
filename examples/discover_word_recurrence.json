@@ -1,0 +1,5 @@
+{
+  "query": "discover_word_recurrence",
+  "patterns": ["01001", "001011"],
+  "name": "Discover an all-length law for the original forbidden words"
+}

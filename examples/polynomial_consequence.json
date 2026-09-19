@@ -1,0 +1,11 @@
+{
+  "query": "polynomial_consequence",
+  "domain": "QQ",
+  "variables": ["x", "y", "z"],
+  "assumptions": ["x-y", "y-z"],
+  "nonzero": [],
+  "goal": "x*x-z*z",
+  "multiplier_degree": 1,
+  "counterexample_radius": 1,
+  "name": "Transport a squared-value identity through two equalities"
+}

@@ -1,0 +1,28 @@
+{
+  "query": "discover_invariant",
+  "domain": "QQ",
+  "variables": [
+    "x",
+    "y"
+  ],
+  "transition": [
+    "x+1",
+    "y+3*x*x+3*x+1"
+  ],
+  "max_degree": 3,
+  "focus": [
+    "x",
+    "y"
+  ],
+  "initial": [
+    [
+      2,
+      1
+    ],
+    [
+      11,
+      1
+    ]
+  ],
+  "name": "Discover a cubic law from the original step-one system"
+}

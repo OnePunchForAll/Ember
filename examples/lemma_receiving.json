@@ -1,0 +1,10 @@
+{
+  "query": "polynomial_consequence",
+  "domain": "QQ",
+  "variables": ["u", "v", "w"],
+  "assumptions": ["u-v", "v-w"],
+  "nonzero": [],
+  "goal": "u**3-w**3",
+  "multiplier_degree": 2,
+  "counterexample_radius": 1
+}

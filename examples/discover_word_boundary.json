@@ -1,0 +1,6 @@
+{
+  "query": "test_overlap_shortcut",
+  "claim": "equal_column_sums_imply_weighted_shortcut",
+  "max_pattern_length": 6,
+  "check_through": 8
+}

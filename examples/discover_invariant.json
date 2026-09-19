@@ -1,0 +1,10 @@
+{
+  "query": "discover_invariant",
+  "domain": "QQ",
+  "variables": ["x", "y"],
+  "transition": ["y", "-x"],
+  "max_degree": 2,
+  "focus": ["x", "y"],
+  "initial": [[3, 1], [4, 1]],
+  "name": "Generate a conserved polynomial for a quarter turn"
+}

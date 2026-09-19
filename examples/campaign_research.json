@@ -1,0 +1,25 @@
+{
+  "query": "research_campaign",
+  "name": "Original claims and checked repairs",
+  "attempt_work": 1000000,
+  "max_attempts": 64,
+  "policy": "structure_first",
+  "problems": [
+    {
+      "query": "polynomial_consequence",
+      "domain": "QQ",
+      "variables": ["x", "y"],
+      "assumptions": ["x-y"],
+      "nonzero": [],
+      "goal": "x*x-y*y+2*y-1",
+      "multiplier_degree": 2,
+      "counterexample_radius": 1
+    },
+    {
+      "query": "word_avoidance_identity",
+      "patterns": ["01001", "001011"],
+      "formula": "column_shortcut",
+      "check_through": 14
+    }
+  ]
+}

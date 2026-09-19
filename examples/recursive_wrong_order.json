@@ -1,0 +1,561 @@
+{
+  "query": "prove_recursive_identity",
+  "domain": "NatList",
+  "definitions": [
+    {
+      "name": "add",
+      "inputs": [
+        "Nat",
+        "Nat"
+      ],
+      "output": "Nat",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "add",
+            [
+              "zero"
+            ],
+            {
+              "v": "m",
+              "sort": "Nat"
+            }
+          ],
+          "rhs": {
+            "v": "m",
+            "sort": "Nat"
+          }
+        },
+        {
+          "lhs": [
+            "add",
+            [
+              "succ",
+              {
+                "v": "n",
+                "sort": "Nat"
+              }
+            ],
+            {
+              "v": "m",
+              "sort": "Nat"
+            }
+          ],
+          "rhs": [
+            "succ",
+            [
+              "add",
+              {
+                "v": "n",
+                "sort": "Nat"
+              },
+              {
+                "v": "m",
+                "sort": "Nat"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "append",
+      "inputs": [
+        "List",
+        "List"
+      ],
+      "output": "List",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "append",
+            [
+              "nil"
+            ],
+            {
+              "v": "ys",
+              "sort": "List"
+            }
+          ],
+          "rhs": {
+            "v": "ys",
+            "sort": "List"
+          }
+        },
+        {
+          "lhs": [
+            "append",
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ],
+            {
+              "v": "ys",
+              "sort": "List"
+            }
+          ],
+          "rhs": [
+            "cons",
+            {
+              "v": "h",
+              "sort": "Nat"
+            },
+            [
+              "append",
+              {
+                "v": "xs",
+                "sort": "List"
+              },
+              {
+                "v": "ys",
+                "sort": "List"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rev",
+      "inputs": [
+        "List"
+      ],
+      "output": "List",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "rev",
+            [
+              "nil"
+            ]
+          ],
+          "rhs": [
+            "nil"
+          ]
+        },
+        {
+          "lhs": [
+            "rev",
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ]
+          ],
+          "rhs": [
+            "append",
+            [
+              "rev",
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ],
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              [
+                "nil"
+              ]
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "qrev",
+      "inputs": [
+        "List",
+        "List"
+      ],
+      "output": "List",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "qrev",
+            [
+              "nil"
+            ],
+            {
+              "v": "ys",
+              "sort": "List"
+            }
+          ],
+          "rhs": {
+            "v": "ys",
+            "sort": "List"
+          }
+        },
+        {
+          "lhs": [
+            "qrev",
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ],
+            {
+              "v": "ys",
+              "sort": "List"
+            }
+          ],
+          "rhs": [
+            "qrev",
+            {
+              "v": "xs",
+              "sort": "List"
+            },
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "ys",
+                "sort": "List"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "length",
+      "inputs": [
+        "List"
+      ],
+      "output": "Nat",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "length",
+            [
+              "nil"
+            ]
+          ],
+          "rhs": [
+            "zero"
+          ]
+        },
+        {
+          "lhs": [
+            "length",
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ]
+          ],
+          "rhs": [
+            "succ",
+            [
+              "length",
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "lenAcc",
+      "inputs": [
+        "List",
+        "Nat"
+      ],
+      "output": "Nat",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "lenAcc",
+            [
+              "nil"
+            ],
+            {
+              "v": "n",
+              "sort": "Nat"
+            }
+          ],
+          "rhs": {
+            "v": "n",
+            "sort": "Nat"
+          }
+        },
+        {
+          "lhs": [
+            "lenAcc",
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ],
+            {
+              "v": "n",
+              "sort": "Nat"
+            }
+          ],
+          "rhs": [
+            "lenAcc",
+            {
+              "v": "xs",
+              "sort": "List"
+            },
+            [
+              "succ",
+              {
+                "v": "n",
+                "sort": "Nat"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sum",
+      "inputs": [
+        "List"
+      ],
+      "output": "Nat",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "sum",
+            [
+              "nil"
+            ]
+          ],
+          "rhs": [
+            "zero"
+          ]
+        },
+        {
+          "lhs": [
+            "sum",
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ]
+          ],
+          "rhs": [
+            "add",
+            {
+              "v": "h",
+              "sort": "Nat"
+            },
+            [
+              "sum",
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sumAcc",
+      "inputs": [
+        "List",
+        "Nat"
+      ],
+      "output": "Nat",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "sumAcc",
+            [
+              "nil"
+            ],
+            {
+              "v": "n",
+              "sort": "Nat"
+            }
+          ],
+          "rhs": {
+            "v": "n",
+            "sort": "Nat"
+          }
+        },
+        {
+          "lhs": [
+            "sumAcc",
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ],
+            {
+              "v": "n",
+              "sort": "Nat"
+            }
+          ],
+          "rhs": [
+            "sumAcc",
+            {
+              "v": "xs",
+              "sort": "List"
+            },
+            [
+              "add",
+              {
+                "v": "n",
+                "sort": "Nat"
+              },
+              {
+                "v": "h",
+                "sort": "Nat"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bump",
+      "inputs": [
+        "List"
+      ],
+      "output": "List",
+      "recursion": 0,
+      "equations": [
+        {
+          "lhs": [
+            "bump",
+            [
+              "nil"
+            ]
+          ],
+          "rhs": [
+            "nil"
+          ]
+        },
+        {
+          "lhs": [
+            "bump",
+            [
+              "cons",
+              {
+                "v": "h",
+                "sort": "Nat"
+              },
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ]
+          ],
+          "rhs": [
+            "cons",
+            [
+              "succ",
+              {
+                "v": "h",
+                "sort": "Nat"
+              }
+            ],
+            [
+              "bump",
+              {
+                "v": "xs",
+                "sort": "List"
+              }
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "goal": {
+    "lhs": [
+      "rev",
+      [
+        "append",
+        {
+          "v": "xs",
+          "sort": "List"
+        },
+        {
+          "v": "ys",
+          "sort": "List"
+        }
+      ]
+    ],
+    "rhs": [
+      "append",
+      [
+        "rev",
+        {
+          "v": "xs",
+          "sort": "List"
+        }
+      ],
+      [
+        "rev",
+        {
+          "v": "ys",
+          "sort": "List"
+        }
+      ]
+    ]
+  }
+}

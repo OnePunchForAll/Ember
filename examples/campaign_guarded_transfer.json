@@ -1,0 +1,47 @@
+{
+  "query": "research_campaign",
+  "problems": [
+    {
+      "query": "polynomial_consequence",
+      "domain": "QQ",
+      "variables": [
+        "x",
+        "y"
+      ],
+      "assumptions": [
+        "x*y"
+      ],
+      "nonzero": [
+        "x"
+      ],
+      "goal": "y",
+      "multiplier_degree": 0,
+      "counterexample_radius": 1
+    },
+    {
+      "query": "polynomial_consequence",
+      "domain": "QQ",
+      "variables": [
+        "u",
+        "v",
+        "w"
+      ],
+      "assumptions": [
+        "u*v-w",
+        "w"
+      ],
+      "nonzero": [
+        "u"
+      ],
+      "goal": "v+w",
+      "multiplier_degree": 1,
+      "counterexample_radius": 1
+    }
+  ],
+  "reuse_guarded_polynomials": true,
+  "localize_polynomials": true,
+  "max_attempts": 1,
+  "attempt_work": 1000000,
+  "policy": "fixed",
+  "name": "Learn a guarded source and establish a changed receiving claim"
+}

@@ -1,0 +1,9 @@
+{
+  "query": "discover_recurrence",
+  "domain": "QQ",
+  "matrix": [[1, 1], [1, 0]],
+  "initial": [1, 0],
+  "terminal": [0, 1],
+  "max_order": 2,
+  "name": "Discover a recurrence from the original transition system"
+}

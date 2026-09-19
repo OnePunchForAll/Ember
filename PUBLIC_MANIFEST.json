@@ -1,0 +1,284 @@
+{
+  "files": [
+    {
+      "bytes": 5576,
+      "path": "CREDITS.md",
+      "sha256": "e403cfccff113b82debef344ad421c7c7c3a0a5fa362e43eab5e5c92bebdcfed"
+    },
+    {
+      "bytes": 1078,
+      "path": "LICENSE",
+      "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
+    },
+    {
+      "bytes": 39634,
+      "path": "README.md",
+      "sha256": "36d33b805caac7cbcb74fc77eece1c5534650ea2e6ad9e5353b541f7d34d5c0b"
+    },
+    {
+      "bytes": 1633,
+      "path": "THIRD_PARTY_NOTICES.md",
+      "sha256": "88b621357e7f2677281eca67b3a3c825e590c74764a438e790eeb2935db6805a"
+    },
+    {
+      "bytes": 64204,
+      "path": "algebra.py",
+      "sha256": "94c654c128cdf4a944e3410e312d4b304bc426845cc4a5d2fac8774023336804"
+    },
+    {
+      "bytes": 10311,
+      "path": "algebra_check.py",
+      "sha256": "44571acbcb6e7516f3b974d7b7a8f6f7eb709bde4ed3ac811d259d63dc0ca54e"
+    },
+    {
+      "bytes": 29214,
+      "path": "campaign.py",
+      "sha256": "7fd9fc038f003b879d5ea60d31d5d27ac2188f7d82c65875858c4d1d33f7d352"
+    },
+    {
+      "bytes": 42890,
+      "path": "ember.py",
+      "sha256": "eebf1a227219d06ab44af7d41b18f40e26942fe837219ea6a993d69e665332ac"
+    },
+    {
+      "bytes": 370,
+      "path": "examples/campaign_discovery.json",
+      "sha256": "60c31c73e6c069bf9903f121f3941e76b0e13a590a0d786df05842a425d6fb39"
+    },
+    {
+      "bytes": 897,
+      "path": "examples/campaign_guarded_transfer.json",
+      "sha256": "242fde5f59b09b6a5fbf086e7086731a13f782df6149414132edd5ef725f16a4"
+    },
+    {
+      "bytes": 357,
+      "path": "examples/campaign_invariant.json",
+      "sha256": "1621009689b31bdaafecdd1db1b1bde4d3d2769bd34675d93a7346ea4d8a8149"
+    },
+    {
+      "bytes": 524,
+      "path": "examples/campaign_localization.json",
+      "sha256": "cbde9b7423a50962f83840c8c9026f1203a720dc35242b95b65e8a8d46e62127"
+    },
+    {
+      "bytes": 12070,
+      "path": "examples/campaign_recursive_identity.json",
+      "sha256": "f3c05ee0eaf0aa89f3c1a2926b4afc7ecd122c84a3b0755df60ea52efe3a60ea"
+    },
+    {
+      "bytes": 592,
+      "path": "examples/campaign_research.json",
+      "sha256": "1c68250eaf7255c4ef0db053a6b3abf4a896c1f90b74ab8ba045b2232839f5dc"
+    },
+    {
+      "bytes": 810,
+      "path": "examples/campaign_reuse_reentry.json",
+      "sha256": "06fad2c80a1a08ae5dd2099e92f214b3eeb4ae47ab93bfcb1c802b86427e8ebb"
+    },
+    {
+      "bytes": 256,
+      "path": "examples/discover_affine_guards.json",
+      "sha256": "5ee83d7013da2d596550d495cccb29a2cb94e4bd7a4ca8c8bb396e6bc41b1c05"
+    },
+    {
+      "bytes": 375,
+      "path": "examples/discover_algebra_guards.json",
+      "sha256": "a2672e10e4fdc745f332aaf33e6a6ebee9e26cd4033dec7aebb22a164bf554c8"
+    },
+    {
+      "bytes": 247,
+      "path": "examples/discover_invariant.json",
+      "sha256": "c4888d6842ea6793ba32dd699522805aa40dd61adc2abf3b7cbc4cd1c4de5099"
+    },
+    {
+      "bytes": 217,
+      "path": "examples/discover_recurrence.json",
+      "sha256": "3f8075aa6c0a76dfe585d4049f42e6e461cdf7e2f1d12b259e89fdbd3ae289e4"
+    },
+    {
+      "bytes": 144,
+      "path": "examples/discover_word_boundary.json",
+      "sha256": "ae83827bfb357cca3384ebe16fbcf364f50de5e6741628b65abd4bbff5e3ad9c"
+    },
+    {
+      "bytes": 150,
+      "path": "examples/discover_word_recurrence.json",
+      "sha256": "68bf0871f748a3c0c00e54df65b93e606292d6d88c53871ca64afac808c9aa8f"
+    },
+    {
+      "bytes": 202,
+      "path": "examples/graph_count.json",
+      "sha256": "92b4c26c785be4d248460aa340826ce2fbdc44cae2e5608a38824fab2787336d"
+    },
+    {
+      "bytes": 252,
+      "path": "examples/guarded_receiving.json",
+      "sha256": "d27364a261dba92aff741f188978c5b3d81a9daee29cb5029264c54b20a3e8e2"
+    },
+    {
+      "bytes": 218,
+      "path": "examples/hidden_mode_recurrence.json",
+      "sha256": "d28421f6f197838e732c06c1a29f4a85ef23aa687485c27ec80561e21cd195fe"
+    },
+    {
+      "bytes": 237,
+      "path": "examples/invariant_cancellation.json",
+      "sha256": "31a7fd72c6766f9313bf53fc47998189396c6f4bf30b0ae7440698969b2f268f"
+    },
+    {
+      "bytes": 356,
+      "path": "examples/invariant_reuse_receiving.json",
+      "sha256": "d964aef9c1481ae005b2afd6923854f307a4ba07c79df2791ed68a1bcc69b41b"
+    },
+    {
+      "bytes": 349,
+      "path": "examples/invariant_reuse_source.json",
+      "sha256": "246db5316dd4db09cd30a058404e29754c9921c6d42b903ab835702de6e40d5e"
+    },
+    {
+      "bytes": 219,
+      "path": "examples/lemma_receiving.json",
+      "sha256": "3e0d906664eeefca9b6226447b71cdc82e73bf9271d0961192c347b1cc10603a"
+    },
+    {
+      "bytes": 205,
+      "path": "examples/lemma_source.json",
+      "sha256": "608b08a8c62dcae6e69958321b7212ec324625549e74c3ceaf651c205c55c3bc"
+    },
+    {
+      "bytes": 230,
+      "path": "examples/localized_cancellation.json",
+      "sha256": "84f412c69a2ef72296ea65ddd0762cafb78c7dec032f5f66eea1ec45713d1820"
+    },
+    {
+      "bytes": 457,
+      "path": "examples/localized_consequence.json",
+      "sha256": "02b1f1ff0f363613069370bcba64625096933fa80245bf15089085cd14fa68b6"
+    },
+    {
+      "bytes": 268,
+      "path": "examples/nonlinear_invariant.json",
+      "sha256": "dfe4b7770cab7af72f3fce9625f499b11c91755841208c704994c28d8620c033"
+    },
+    {
+      "bytes": 194,
+      "path": "examples/obligation_receiving.json",
+      "sha256": "f177d645b84ddb63598c8bfec2cb562024ebe9159204e5456c254629b2d84197"
+    },
+    {
+      "bytes": 187,
+      "path": "examples/obligation_source.json",
+      "sha256": "5ab79ce13910f38dc6d80d58e563743512df55984af1604d5289b0b295287c7b"
+    },
+    {
+      "bytes": 288,
+      "path": "examples/polynomial_consequence.json",
+      "sha256": "33a5a417cda2b6aeb4056907728020679706f1f5f31591dc184218210bef69cd"
+    },
+    {
+      "bytes": 244,
+      "path": "examples/rational_repair.json",
+      "sha256": "d6d307cbf6a1ea4256731c9185337c1c1379cc9a7fe06d5dc95bb4b34cc74e8b"
+    },
+    {
+      "bytes": 9678,
+      "path": "examples/recursive_add_right_zero.json",
+      "sha256": "ffe33bfd6b9712f994fac29eff8fc426986c2aeb723559a680fdc328e0a1f0d9"
+    },
+    {
+      "bytes": 9715,
+      "path": "examples/recursive_qrev.json",
+      "sha256": "ea1c4405ee0b702a6aa7a5b0913365f9e457c1c2c8c70222207b31539cfbca0d"
+    },
+    {
+      "bytes": 9689,
+      "path": "examples/recursive_reverse_involution.json",
+      "sha256": "629916adecaa4a10d7c6ba4e0dd47c26aef2b6d5a5820115b9275f55af3d08ea"
+    },
+    {
+      "bytes": 9932,
+      "path": "examples/recursive_wrong_order.json",
+      "sha256": "44eb08de8ecc3f4a0eb4bb7324898734010a4d96a0c6b63c6dae4a395b87353f"
+    },
+    {
+      "bytes": 128,
+      "path": "examples/word_identity.json",
+      "sha256": "6477c47a9441cd0ed9cd09505766275ed4a9771dd6a86e498ea8d23705b84676"
+    },
+    {
+      "bytes": 128,
+      "path": "examples/word_shortcut.json",
+      "sha256": "09dc5b5d54780d01149e00b2c841e5034c7efb262d716675c2570ca4045e4f43"
+    },
+    {
+      "bytes": 21149,
+      "path": "invariant.py",
+      "sha256": "22635146ffb049269e67cee19e0dccbd935f4e79e7185373de30b30701ff1aa0"
+    },
+    {
+      "bytes": 5693,
+      "path": "invariant_check.py",
+      "sha256": "854538e9ff952b501a633f1c90769f5576628cc7aae44c60f92aa2ba3ae93c3f"
+    },
+    {
+      "bytes": 3704,
+      "path": "invariant_map.py",
+      "sha256": "ae6889b7c3f1b79aa34cc3f8616053309cd34f51d3289f8e962f1293350c7205"
+    },
+    {
+      "bytes": 18244,
+      "path": "obligations.py",
+      "sha256": "c92b470d7bf397933384eaec885427dad2464b175014b734b1010cf3bc6a0993"
+    },
+    {
+      "bytes": 4790,
+      "path": "recurrence.py",
+      "sha256": "2982db6969fa108dbc09cbfb05960324f9794588f57710fea6e2354e5de0bbd9"
+    },
+    {
+      "bytes": 6588,
+      "path": "recurrence_check.py",
+      "sha256": "61c47b71455ac668f1ba98330e1453840e0ae2970892ad84cf2062f9903aed4f"
+    },
+    {
+      "bytes": 41515,
+      "path": "recursive.py",
+      "sha256": "b420381ab6924d276935a5ce097995c2e32b447a43d6ef9504e858cb7d547a13"
+    },
+    {
+      "bytes": 19524,
+      "path": "recursive_check.py",
+      "sha256": "059bccf70002d226e07d40d1ecb30526eff149b98e21287aaaef42cca8de4beb"
+    },
+    {
+      "bytes": 77213,
+      "path": "tools/build_public_package.py",
+      "sha256": "df75987eed947d2d0073df862a10c13179ea5d8912f42f174f91ce1ba5b38ea8"
+    },
+    {
+      "bytes": 10525,
+      "path": "tools/helper_client.py",
+      "sha256": "ec7fbfe253188ac196f2acf27161e3f48a61246703b1330e7d8e4a0a97b65547"
+    },
+    {
+      "bytes": 9009,
+      "path": "word_check.py",
+      "sha256": "5aca980c9f924a3bc39ab443e3f57d7073a0491f1cd322e7980768bbbeb78e8f"
+    },
+    {
+      "bytes": 6485,
+      "path": "word_series.py",
+      "sha256": "9073c63d3d43c026001d9375b068ab829c504fb62c0de726c85a144e1f52520b"
+    }
+  ],
+  "license": "MIT",
+  "license_scope": "Newly authored Ember code and public documentation; adapted MIT example data attributed in THIRD_PARTY_NOTICES.md; donor archives and runtimes excluded.",
+  "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
+  "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
+  "python_requirement": "External standard-library Python; tested with Python 3.14.6 on Windows only.",
+  "runtime_source_bytes": 283320,
+  "schema": "ember.public_source_manifest.v1",
+  "standing": "EXPERIMENTAL / SELF_ISOLATED",
+  "task_api": "ember.task.v1",
+  "version": "ember-pyramid-14"
+}

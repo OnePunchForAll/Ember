@@ -1,0 +1,11 @@
+{
+  "query": "discover_guards",
+  "domain": "QQ",
+  "variables": ["x", "y"],
+  "assumptions": ["x-y"],
+  "nonzero": [],
+  "goal": "x*x-y*y+2*y-1",
+  "multiplier_degree": 2,
+  "counterexample_radius": 1,
+  "guard_grammar": "assumption_slices"
+}

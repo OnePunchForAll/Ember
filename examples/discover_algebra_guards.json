@@ -1,0 +1,11 @@
+{
+  "query": "discover_guards",
+  "domain": "QQ",
+  "variables": ["a", "b", "c", "d", "l1", "l2"],
+  "assumptions": ["a+c-b-d"],
+  "nonzero": ["(1+a)*(1+d)-b*c", "1+a+c"],
+  "goal": "(l1*(1+d-b)+l2*(1+a-c))*(1+a+c)-(l1+l2)*((1+a)*(1+d)-b*c)",
+  "multiplier_degree": 2,
+  "counterexample_radius": 1,
+  "name": "Find sufficient guards for the two-by-two column-sum shortcut"
+}

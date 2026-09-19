@@ -1,0 +1,11 @@
+{
+  "query": "discover_guards",
+  "domain": "QQ",
+  "variables": ["x", "y", "u", "v"],
+  "assumptions": [],
+  "nonzero": [],
+  "goal": "x*u+y*u-u-x*v-y*v+v",
+  "multiplier_degree": 1,
+  "counterexample_radius": 1,
+  "guard_grammar": "coefficient_slices"
+}

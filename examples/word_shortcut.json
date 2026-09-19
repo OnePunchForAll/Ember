@@ -1,0 +1,6 @@
+{
+  "query": "word_avoidance_identity",
+  "patterns": ["0001", "0100"],
+  "formula": "column_shortcut",
+  "check_through": 12
+}

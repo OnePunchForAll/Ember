@@ -1,0 +1,9 @@
+{
+  "query": "discover_recurrence",
+  "domain": "QQ",
+  "matrix": [[2, 0], [0, 3]],
+  "initial": [1, 0],
+  "terminal": [1, 1],
+  "max_order": 2,
+  "name": "Observe one mode while preserving the full original system"
+}
