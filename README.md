@@ -503,6 +503,82 @@ Residual invention cost more than direct search, which left four tasks unresolve
 resuming single stages added replay and checkpoint costs. Neither faster unresolved
 calls nor this small comparison establish a general speed advantage.
 
+## Research related questions from structured sources
+
+```text
+python -I -B -X utf8 ember.py examples/source_research_episode.json --state source-instance.json --source-steps 64 --work 4000000
+python -I -B -X utf8 tools/helper_client.py examples/source_research_episode.json --state source-instance.json --source-steps 64 --work 4000000
+```
+
+The example contains two original questions: reverse involution and accumulator
+reversal. A `source_research_episode` task contains exactly `query` and `sources`.
+Each source supplies an `id`, the SHA-256 of its literal UTF-8 text, and that text
+in `utf8`. The runtime interprets bounded JSON data; it does not execute source
+code or open a supplied path. The supported formats are `pie-problem-v1` and
+`ember.recursive_claim.v1`. The latter contains exactly `format`, an original
+recursive `task`, and `claim`, which is `question`, `holds` or `fails`. Neither
+format accepts supplied proofs or an authoritative expected answer.
+
+The controller preserves every source association and all original definitions.
+Identical mathematical questions share one root. Opposite source assertions
+create an explicit tension; extra copies add no truth weight. Its typed graph
+connects sources, claims, original questions, attempts, gaps and checked bridges.
+Unsupported source formats remain visible and prevent a complete outer result.
+
+A proof produced within the episode can supply auxiliary statements to another
+question with exactly the same complete ordered definitions. Ember rechecks the
+source proof, retains every needed earlier lemma, and checks the assembled
+receiving prefix. The final receiving certificate includes its own proof
+dependencies and replays against the original question without the source graph.
+Changed unused definitions still prevent transfer. Reused lemmas are counted
+separately from newly generated lemmas.
+
+`--source-policy native_isolated` solves each original without the graph or
+cross-question transfer. `graph_isolated` adds the graph. `fixed_bridge` proposes
+checked transfers in original source order. The default `gap_bridge` first
+inspects a bounded proof attempt for each original, then ranks unresolved
+questions by source tension, actual typed matches to the remaining proof terms,
+function-dependency count and source order. Ranking selects work; it does not
+prove a statement. This implements a bounded part of Theory Pyramid Mapping,
+with no claim that the full source collection or general scientific method has
+been absorbed.
+
+`--source-steps` is 1..64, default 8. Use the same task, policy and state path to
+resume. The episode permits eight sources, 64 KiB per source, four distinct
+originals, eight selected seed entries, 64 graph nodes, 128 edges and 64 actions.
+Each original has a cumulative two-million-unit allowance, and the complete
+episode shares at most two million times its number of distinct originals.
+Parsing, checking, graph construction and persistence consume work. Returned
+`work_accounts` separate common work from work charged to each original.
+Callers enforcing a total allowance across calls must subtract every returned
+`work`, including a failed call whose previous checkpoint was preserved.
+
+`CHECKED_SOURCE_EPISODE` means every supplied source was adapted and every
+distinct original received a freshly checked proof or counterexample. It can
+therefore include a source assertion marked `CONTRADICTED`. Inspect each source's
+assessment and each original result. `UNKNOWN` retains gaps or exhausted work;
+malformed source hashes, invalid proof evidence and incompatible state are
+refused. This interface currently handles the declared recursive JSON grammar,
+not arbitrary papers, prose or scientific subjects.
+
+On the exposed eight-episode development bank, all five compared configurations
+settled every episode: sixteen known identity-proof occurrences and one original
+counterexample per bank traversal. Across three rotated repetitions, median
+complete time for the whole bank was 2.969 seconds for `native_isolated`, 2.985
+for `graph_isolated`, 3.268 for `fixed_bridge`, 3.706 for `gap_bridge`, and 4.877
+for one-stage gap-guided resumption. The gap-guided policy was slower on every
+individual case median and charged about 69% more total work than isolation.
+These are one-host development measurements including original proof replay;
+they do not justify a performance promotion. The default remains an experimental
+research policy; `native_isolated` is the cheaper measured option on this bank.
+
+A separate constructed control kept two receiving questions and their actual
+unresolved proof terms fixed. Changing the checked source lemma changed the
+gap-guided choice from one receiver to the other. Disabling residual scoring
+kept the same choice. This verifies a causal selection mechanism, not better
+subsequent progress, generalization or speed. The eight-episode bank does not
+provide a competing-receiver experiment for measuring that score's benefit.
+
 ## Task and result interface
 
 The CLI accepts a JSON task filename, optional `--state`, and optional `--work`.
@@ -538,6 +614,7 @@ bound does not impose a child-process disk quota.
 | `discover_word_recurrence` | Discover an all-length recurrence for counts avoiding two original binary patterns. |
 | `discover_invariant` | Generate a nonconstant polynomial conserved by the original polynomial transition, with optional initial orbit value. |
 | `prove_recursive_identity` | Attempt an original Nat/List equation using explicit rewriting, structural induction and bounded checked lemma invention, or return an original counterexample. |
+| `source_research_episode` | Interpret bounded structured sources, preserve original claims and questions, and attempt checked same-definition proof transfer. |
 | `research_campaign` | Persist a bounded sequence of original-task and repair attempts across calls. |
 
 Exit code `0` means the returned result is closed within its stated scope. Exit
@@ -608,6 +685,11 @@ Recursive checks cover original induction, an actual false original equation,
 helper status handling, forged saved evidence, zero-work replay and campaign
 restart. They also exercise original reverse-involution proposal progress across
 processes, checked auxiliary proofs, parent re-entry and a standalone final replay.
+Source-episode checks cover literal capsule hashes, actual checked seed use,
+CLI/helper continuation, preserved checkpoints on refusal or exhaustion, and
+original certificate replay with only the checker present. The public example
+also executes under the same network/external-file audit hook. That hook is a
+development observation, not operating-system sandboxing.
 
 ## Credit and license
 

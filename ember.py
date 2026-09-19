@@ -13,7 +13,7 @@ from pathlib import Path
 import time
 from types import SimpleNamespace
 
-VERSION='ember-pyramid-14'
+VERSION='ember-pyramid-15'
 STATE_LIMIT=1_048_576
 _MODULES={}
 
@@ -42,7 +42,7 @@ def load_json(path):
     return json.loads(raw.decode('utf-8'),object_pairs_hook=pairs,parse_constant=constant)
 
 def local_module(name):
-    if name not in ('algebra','algebra_check','word_series','word_check','campaign','recurrence','recurrence_check','invariant','invariant_check','invariant_map','obligations','recursive','recursive_check'): raise Refused('unknown owned module')
+    if name not in ('algebra','algebra_check','word_series','word_check','campaign','recurrence','recurrence_check','invariant','invariant_check','invariant_map','obligations','recursive','recursive_check','source_episode'): raise Refused('unknown owned module')
     if name not in _MODULES:
         spec=importlib.util.spec_from_file_location('ember_'+name,Path(__file__).with_name(name+'.py'))
         module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
@@ -54,7 +54,7 @@ def read_state(path):
     state={'version':VERSION,'observations':[]}
     if path is not None and Path(path).exists():
         state=load_json(path)
-        if type(state) is not dict or state.get('version') not in (VERSION,'ember-pyramid-2','ember-pyramid-3','ember-pyramid-4','ember-pyramid-5','ember-pyramid-6','ember-pyramid-7','ember-pyramid-8','ember-pyramid-9','ember-pyramid-10','ember-pyramid-11','ember-pyramid-12','ember-pyramid-13'):
+        if type(state) is not dict or state.get('version') not in (VERSION,'ember-pyramid-2','ember-pyramid-3','ember-pyramid-4','ember-pyramid-5','ember-pyramid-6','ember-pyramid-7','ember-pyramid-8','ember-pyramid-9','ember-pyramid-10','ember-pyramid-11','ember-pyramid-12','ember-pyramid-13','ember-pyramid-14'):
             raise Refused('incompatible experience generation')
         if type(state.get('observations')) is not list or len(state['observations'])>128:
             raise Refused('experience shape')
@@ -473,10 +473,16 @@ def solve_matrix(task,state_path=None,limit=10_000_000,strategy='auto'):
 
 def solve(task,state_path=None,limit=10_000_000,strategy='auto',guard_policy='residual_first',
           proof_policy='auto',lemma_records=(),invariant_policy='full',invariant_records=(),obligation_steps=4,
-          recursive_policy='residual',recursive_steps=4):
+          recursive_policy='residual',recursive_steps=4,source_policy='gap_bridge',source_steps=8):
     if type(limit) is not int or limit<0: raise Refused('nonnegative integer work budget required')
     if type(task) is not dict: raise Refused('task object')
     query=task.get('query')
+    if source_policy not in ('native_isolated','graph_isolated','fixed_bridge','gap_bridge'):
+        raise Refused('source episode policy')
+    if type(source_steps) is not int or not 1<=source_steps<=64:
+        raise Refused('source steps must be 1..64')
+    if query!='source_research_episode' and (source_policy!='gap_bridge' or source_steps!=8):
+        raise Refused('source options apply only to source research episodes')
     if recursive_policy not in ('direct','enumerate','residual'):raise Refused('recursive identity search policy')
     if type(recursive_steps) is not int or not 1<=recursive_steps<=64:raise Refused('recursive steps must be 1..64')
     if query!='prove_recursive_identity' and (recursive_policy!='residual' or recursive_steps!=4):
@@ -492,6 +498,16 @@ def solve(task,state_path=None,limit=10_000_000,strategy='auto',guard_policy='re
     if invariant_records and query!='discover_invariant':raise Refused('invariant observations apply only to invariant discovery')
     if query=='transition_count': return solve_matrix(task,state_path,limit,strategy)
     if strategy!='auto': raise Refused('matrix strategy supplied for another query')
+    if query=='source_research_episode':
+        if lemma_records or invariant_records:
+            raise Refused('source episodes accept original source questions, not supplied proof observations')
+        if guard_policy!='residual_first':raise Refused('guard policy supplied for a source episode')
+        names=('Refused','Exhausted','Budget','STATE_LIMIT','VERSION','canonical','digest','local_module','read_state')
+        host=SimpleNamespace(**{name:globals()[name] for name in names})
+        result=local_module('source_episode').run(task,state_path,limit,host,policy=source_policy,steps=source_steps)
+        if type(result) is not dict or result.get('status') not in ('CHECKED_SOURCE_EPISODE','UNKNOWN'):
+            raise Refused('source episode returned an unsupported result status')
+        return result
     if query=='test_overlap_shortcut': return discover(task,state_path,limit)
     if query=='research_campaign':
         names=('Refused','Exhausted','Budget','STATE_LIMIT','bind','bind_discovery','local_module',
@@ -639,7 +655,10 @@ def solve(task,state_path=None,limit=10_000_000,strategy='auto',guard_policy='re
 def capabilities():
     return {'status':'CAPABILITIES','api_version':'ember.task.v1','runtime_version':VERSION,
         'queries':['transition_count','test_overlap_shortcut','polynomial_consequence',
-                   'discover_guards','word_avoidance_identity','research_campaign','discover_recurrence','discover_word_recurrence','discover_invariant','prove_recursive_identity'],
+                   'discover_guards','word_avoidance_identity','research_campaign','discover_recurrence','discover_word_recurrence','discover_invariant','prove_recursive_identity','source_research_episode'],
+        'source_episode_policies':['native_isolated','graph_isolated','fixed_bridge','gap_bridge'],
+        'source_episode_formats':['pie-problem-v1','ember.recursive_claim.v1'],
+        'source_episode_scope':'Bounded inert structured sources; original Nat/List questions, explicit source claims and checked same-definition proof transfer',
         'recursive_identity_policies':['direct','enumerate','residual'],
         'recursive_identity_certificate_kinds':['recursive_identity','recursive_counterexample'],
         'recursive_identity_scope':'Nat and finite List(Nat); original structural recursion and separately checked induction; finite survivors remain unproved',
@@ -658,7 +677,9 @@ def capabilities():
                   'invariant_source_candidates':8,'invariant_renamings_per_source':16,
                   'obligation_nodes':64,'obligation_edges':128,'obligation_steps_per_call':64,
                   'recursive_functions':16,'recursive_lemmas':16,'recursive_episode_nodes':64,
-                  'recursive_episode_edges':128,'recursive_steps_per_call':64},
+                  'recursive_episode_edges':128,'recursive_steps_per_call':64,
+                  'source_records':8,'source_record_bytes':65536,'source_total_bytes':524288,
+                  'source_distinct_roots':4,'source_seed_entries':8,'source_steps_per_call':64},
         'exit_codes':{'0':'closed result or capabilities','2':'refused input','3':'UNKNOWN'},
         'state':'one writer per state file; resume requires the same explicit state path',
         'standing':'EXPERIMENTAL_SELF_ISOLATED','runtime_dependencies':'Python standard library',
@@ -678,11 +699,13 @@ def main():
     parser.add_argument('--invariant-policy',choices=['full','mapped','reuse_first'],default='full')
     parser.add_argument('--recursive-policy',choices=['direct','enumerate','residual'],default='residual')
     parser.add_argument('--recursive-steps',type=int,default=4)
+    parser.add_argument('--source-policy',choices=['native_isolated','graph_isolated','fixed_bridge','gap_bridge'],default='gap_bridge')
+    parser.add_argument('--source-steps',type=int,default=8)
     args=parser.parse_args()
     if args.capabilities:
         print(json.dumps(capabilities(),indent=2)); return 0
     if args.task is None: parser.error('a task file or --capabilities is required')
-    try: result=solve(load_json(args.task),args.state,args.work,args.strategy,args.guard_policy,args.proof_policy,invariant_policy=args.invariant_policy,obligation_steps=args.obligation_steps,recursive_policy=args.recursive_policy,recursive_steps=args.recursive_steps)
+    try: result=solve(load_json(args.task),args.state,args.work,args.strategy,args.guard_policy,args.proof_policy,invariant_policy=args.invariant_policy,obligation_steps=args.obligation_steps,recursive_policy=args.recursive_policy,recursive_steps=args.recursive_steps,source_policy=args.source_policy,source_steps=args.source_steps)
     except (Refused,ValueError,KeyError,TypeError) as e:
         result={'status':'REFUSED','reason':str(e)}
     print(json.dumps(result,indent=2))

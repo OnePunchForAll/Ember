@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 5576,
+      "bytes": 6057,
       "path": "CREDITS.md",
-      "sha256": "e403cfccff113b82debef344ad421c7c7c3a0a5fa362e43eab5e5c92bebdcfed"
+      "sha256": "776f82d1d1cbfefac072d5d3de5022b611053946fa99e2843186d951b1e89aac"
     },
     {
       "bytes": 1078,
@@ -11,9 +11,9 @@
       "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
     },
     {
-      "bytes": 39634,
+      "bytes": 45144,
       "path": "README.md",
-      "sha256": "36d33b805caac7cbcb74fc77eece1c5534650ea2e6ad9e5353b541f7d34d5c0b"
+      "sha256": "e571f7c407edc4cc14c1a7adcbcefefc8465e6970356e70541c00ce93744d30f"
     },
     {
       "bytes": 1633,
@@ -36,9 +36,9 @@
       "sha256": "7fd9fc038f003b879d5ea60d31d5d27ac2188f7d82c65875858c4d1d33f7d352"
     },
     {
-      "bytes": 42890,
+      "bytes": 45041,
       "path": "ember.py",
-      "sha256": "eebf1a227219d06ab44af7d41b18f40e26942fe837219ea6a993d69e665332ac"
+      "sha256": "d42df189786b5355a8e0ceb5130c4e41442225445e2ffdfd456ebae7c4e602b1"
     },
     {
       "bytes": 370,
@@ -201,6 +201,11 @@
       "sha256": "44eb08de8ecc3f4a0eb4bb7324898734010a4d96a0c6b63c6dae4a395b87353f"
     },
     {
+      "bytes": 7970,
+      "path": "examples/source_research_episode.json",
+      "sha256": "8b8f6d4fc425cb34b941b6b4b8c3f6d5c8991fbbe52c87fecbd66f38a5a8fbaf"
+    },
+    {
       "bytes": 128,
       "path": "examples/word_identity.json",
       "sha256": "6477c47a9441cd0ed9cd09505766275ed4a9771dd6a86e498ea8d23705b84676"
@@ -241,9 +246,9 @@
       "sha256": "61c47b71455ac668f1ba98330e1453840e0ae2970892ad84cf2062f9903aed4f"
     },
     {
-      "bytes": 41515,
+      "bytes": 55899,
       "path": "recursive.py",
-      "sha256": "b420381ab6924d276935a5ce097995c2e32b447a43d6ef9504e858cb7d547a13"
+      "sha256": "33c36b23c81860ff1d9140bf9ff3e2c4e979ae5c5b0a57cd5f0a14bd1d03d231"
     },
     {
       "bytes": 19524,
@@ -251,14 +256,19 @@
       "sha256": "059bccf70002d226e07d40d1ecb30526eff149b98e21287aaaef42cca8de4beb"
     },
     {
-      "bytes": 77213,
-      "path": "tools/build_public_package.py",
-      "sha256": "df75987eed947d2d0073df862a10c13179ea5d8912f42f174f91ce1ba5b38ea8"
+      "bytes": 37070,
+      "path": "source_episode.py",
+      "sha256": "5996e841943e8631d4bf4984bb7ad6c7af67949d92471fcbbc4709e73ba1ede8"
     },
     {
-      "bytes": 10525,
+      "bytes": 90529,
+      "path": "tools/build_public_package.py",
+      "sha256": "98ae379fde4db8742586f61f04c8fdc9372e255f446677c37ee23d7c397f866f"
+    },
+    {
+      "bytes": 11494,
       "path": "tools/helper_client.py",
-      "sha256": "ec7fbfe253188ac196f2acf27161e3f48a61246703b1330e7d8e4a0a97b65547"
+      "sha256": "bedfe6e90a86281f942759954f1aeccf9f07c00b3d838a6f5a21d62b44de3c18"
     },
     {
       "bytes": 9009,
@@ -276,9 +286,9 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python; tested with Python 3.14.6 on Windows only.",
-  "runtime_source_bytes": 283320,
+  "runtime_source_bytes": 336925,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",
-  "version": "ember-pyramid-14"
+  "version": "ember-pyramid-15"
 }

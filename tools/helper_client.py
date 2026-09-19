@@ -20,7 +20,7 @@ INPUT_LIMIT=1_048_576
 CLOSED={'EXACT_DIRECT','CHECKED_EXACT','CHECKED_COUNTEREXAMPLE',
         'CHECKED_IMPLICATION','CHECKED_GUARDS','CHECKED_WORD_IDENTITY',
         'CHECKED_WORD_COUNTEREXAMPLE','CHECKED_CAMPAIGN','CHECKED_RECURRENCE','CHECKED_INVARIANT',
-        'CHECKED_RECURSIVE_IDENTITY','CHECKED_RECURSIVE_COUNTEREXAMPLE'}
+        'CHECKED_RECURSIVE_IDENTITY','CHECKED_RECURSIVE_COUNTEREXAMPLE','CHECKED_SOURCE_EPISODE'}
 
 
 class ClientError(ValueError): pass
@@ -97,7 +97,7 @@ class EmberClient:
             'elapsed_ns':time.perf_counter_ns()-started,**fields}
 
     def call(self,task,work=None,proof_policy='auto',obligation_steps=4,
-             recursive_policy='residual',recursive_steps=4):
+             recursive_policy='residual',recursive_steps=4,source_policy='gap_bridge',source_steps=8):
         started=time.perf_counter_ns()
         try:
             limit=self.work if work is None else work
@@ -110,6 +110,10 @@ class EmberClient:
                 raise ClientError('unsupported recursive identity policy')
             if type(recursive_steps) is not int or not 1<=recursive_steps<=64:
                 raise ClientError('recursive steps must be 1..64')
+            if source_policy not in ('native_isolated','graph_isolated','fixed_bridge','gap_bridge'):
+                raise ClientError('unsupported source episode policy')
+            if type(source_steps) is not int or not 1<=source_steps<=64:
+                raise ClientError('source steps must be 1..64')
             self.capabilities()
             try: raw=json.dumps(task,sort_keys=True,separators=(',',':'),allow_nan=False).encode('utf-8')
             except (TypeError,ValueError,RecursionError) as exc: raise ClientError('task is not finite serializable JSON') from exc
@@ -121,6 +125,8 @@ class EmberClient:
                 if obligation_steps!=4:args+=['--obligation-steps',str(obligation_steps)]
                 if recursive_policy!='residual':args+=['--recursive-policy',recursive_policy]
                 if recursive_steps!=4:args+=['--recursive-steps',str(recursive_steps)]
+                if source_policy!='gap_bridge':args+=['--source-policy',source_policy]
+                if source_steps!=8:args+=['--source-steps',str(source_steps)]
                 if self.state is not None: args+=['--state',str(self.state)]
                 code,result=self._invoke(args)
             status=result.get('status')
@@ -134,13 +140,14 @@ class EmberClient:
             return self._receipt('CLIENT_ERROR','client_error',4,started,reason=str(exc))
 
     def call_file(self,path,work=None,proof_policy='auto',obligation_steps=4,
-                  recursive_policy='residual',recursive_steps=4):
+                  recursive_policy='residual',recursive_steps=4,source_policy='gap_bridge',source_steps=8):
         started=time.perf_counter_ns()
         try:
             with Path(path).open('rb') as handle: raw=handle.read(INPUT_LIMIT+1)
             if len(raw)>INPUT_LIMIT: raise ClientError('task JSON exceeds 1 MiB')
             result=self.call(decode_json(raw),work=work,proof_policy=proof_policy,obligation_steps=obligation_steps,
-                             recursive_policy=recursive_policy,recursive_steps=recursive_steps)
+                             recursive_policy=recursive_policy,recursive_steps=recursive_steps,
+                             source_policy=source_policy,source_steps=source_steps)
             result['elapsed_ns']=time.perf_counter_ns()-started
             return result
         except (ClientError,OSError) as exc:
@@ -157,6 +164,8 @@ def main():
     parser.add_argument('--obligation-steps',type=int,default=4)
     parser.add_argument('--recursive-policy',choices=['direct','enumerate','residual'],default='residual')
     parser.add_argument('--recursive-steps',type=int,default=4)
+    parser.add_argument('--source-policy',choices=['native_isolated','graph_isolated','fixed_bridge','gap_bridge'],default='gap_bridge')
+    parser.add_argument('--source-steps',type=int,default=8)
     parser.add_argument('--timeout',type=float,default=30)
     parser.add_argument('--max-response',type=int,default=16_777_216)
     parser.add_argument('--capabilities',action='store_true')
@@ -167,7 +176,8 @@ def main():
             result=client._receipt('CAPABILITIES','metadata',0,started,capabilities=client.capabilities())
         elif args.task is None: raise ClientError('a task JSON file or --capabilities is required')
         else: result=client.call_file(args.task,proof_policy=args.proof_policy,obligation_steps=args.obligation_steps,
-                                      recursive_policy=args.recursive_policy,recursive_steps=args.recursive_steps)
+                                      recursive_policy=args.recursive_policy,recursive_steps=args.recursive_steps,
+                                      source_policy=args.source_policy,source_steps=args.source_steps)
     except (ClientError,OSError) as exc:
         result={'api_version':API_VERSION,'status':'CLIENT_ERROR','outcome':'client_error',
                 'exit_code':4,'reason':str(exc)}

@@ -18,7 +18,7 @@ import zipfile
 RUNTIME = ('ember.py', 'algebra.py', 'algebra_check.py', 'word_series.py',
            'word_check.py', 'campaign.py', 'recurrence.py', 'recurrence_check.py',
            'invariant.py', 'invariant_check.py', 'invariant_map.py', 'obligations.py',
-           'recursive.py', 'recursive_check.py')
+           'recursive.py', 'recursive_check.py', 'source_episode.py')
 EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'polynomial_consequence.json', 'discover_algebra_guards.json',
             'discover_affine_guards.json', 'word_identity.json', 'word_shortcut.json',
@@ -33,7 +33,7 @@ EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'guarded_receiving.json', 'campaign_guarded_transfer.json',
             'recursive_reverse_involution.json', 'recursive_qrev.json',
             'recursive_wrong_order.json', 'recursive_add_right_zero.json',
-            'campaign_recursive_identity.json')
+            'campaign_recursive_identity.json', 'source_research_episode.json')
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 PRIVATE_PATH = re.compile(rb'(?<![A-Za-z0-9_])[A-Za-z]:[\\/]|/(?:home|Users)/')
 
@@ -183,6 +183,12 @@ def verify(payload, files, manifest, python, receipt):
         check('capabilities_recursive_interface', 'prove_recursive_identity' in capabilities.get('queries', [])
               and capabilities.get('recursive_identity_policies') == ['direct', 'enumerate', 'residual']
               and capabilities.get('recursive_identity_certificate_kinds') == ['recursive_identity', 'recursive_counterexample'])
+        check('capabilities_source_episode_interface', 'source_research_episode' in capabilities.get('queries', [])
+              and capabilities.get('source_episode_policies') == ['native_isolated', 'graph_isolated', 'fixed_bridge', 'gap_bridge']
+              and capabilities.get('source_episode_formats') == ['pie-problem-v1', 'ember.recursive_claim.v1'])
+        check('capabilities_source_episode_bounds', all(capabilities.get('limits', {}).get(key) == value
+              for key, value in {'source_records': 8, 'source_record_bytes': 65536, 'source_total_bytes': 524288,
+                                 'source_distinct_roots': 4, 'source_seed_entries': 8, 'source_steps_per_call': 64}.items()))
         check('adapted_recursive_data_has_original_notice', b'Proof Invention Engine contributors' in files['THIRD_PARTY_NOTICES.md']
               and b'Permission is hereby granted' in files['THIRD_PARTY_NOTICES.md'])
         recursive_task = json.loads((root / 'examples/recursive_add_right_zero.json').read_bytes())
@@ -309,6 +315,145 @@ def verify(payload, files, manifest, python, receipt):
                      ['--state', 'recursive-campaign-research.json'])
         check('recursive_source_campaign_admission_replayed', replay['status'] == 'CHECKED_CAMPAIGN'
               and replay['executed_routes'] == [])
+        # The public source example is built from public task data only. No private
+        # bank, source path, supplied proof or controller state is a package input.
+        source_task = json.loads((root / 'examples/source_research_episode.json').read_bytes())
+        check('source_public_outer_fields', set(source_task) == {'query', 'sources'}
+              and source_task['query'] == 'source_research_episode'
+              and [s['id'] for s in source_task['sources']] == ['reverse', 'qrev'])
+        original_sources = {}
+        for source, example in zip(source_task['sources'], ('recursive_reverse_involution.json', 'recursive_qrev.json')):
+            check('source_public_record_fields_' + source['id'], set(source) == {'id', 'sha256', 'utf8'}
+                  and sha(source['utf8'].encode('utf-8')) == source['sha256'])
+            capsule = json.loads(source['utf8'])
+            original = json.loads((root / 'examples' / example).read_bytes())
+            check('source_public_owned_capsule_' + source['id'], set(capsule) == {'format', 'task', 'claim'}
+                  and capsule['format'] == 'ember.recursive_claim.v1' and capsule['claim'] == 'question'
+                  and capsule['task'] == original and len(original['definitions']) == 9)
+            identity = sha(json.dumps(original, sort_keys=True, separators=(',', ':'), allow_nan=False).encode())
+            original_sources[identity] = original
+        first_source = cli('source_first_checked_question', 'examples/source_research_episode.json',
+            ['--state', 'source-pair.json', '--source-policy', 'fixed_bridge', '--source-steps', '1', '--work', '4000000'], expected_code=3)
+        check('source_first_stage_keeps_original_obligations', first_source['status'] == 'UNKNOWN'
+              and len(first_source['roots']) == 2
+              and sum(row.get('result') is not None for row in first_source['roots']) == 1
+              and all(row['task'] == original_sources[row['task_id']] for row in first_source['roots']))
+        first_source_state = (root / 'source-pair.json').read_bytes()
+        zero_source = cli('source_zero_work_preserved', 'examples/source_research_episode.json',
+            ['--state', 'source-pair.json', '--source-policy', 'fixed_bridge', '--work', '0'], expected_code=3)
+        check('source_zero_work_does_not_admit_stored_flags', zero_source['status'] == 'UNKNOWN'
+              and (root / 'source-pair.json').read_bytes() == first_source_state)
+        remaining_source_work = 4000000 - first_source['work'] - zero_source['work']
+        check('source_resume_keeps_real_remaining_allowance', remaining_source_work > 0)
+
+        def source_helper(label, extra, expected_code, expected_status, expected_outcome):
+            began = time.perf_counter_ns()
+            process = subprocess.run([python, '-I', '-B', '-X', 'utf8', str(root / 'tools/helper_client.py'),
+                'examples/source_research_episode.json', *extra], cwd=root, capture_output=True, text=True,
+                encoding='utf-8', timeout=90, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            envelope = json.loads(process.stdout)
+            receipt['cli_runs'].append({'case': label, 'returncode': process.returncode,
+                'status': envelope.get('status'), 'elapsed_ns': time.perf_counter_ns() - began, 'stderr': process.stderr})
+            check(label, process.returncode == expected_code and not process.stderr
+                  and envelope.get('status') == expected_status and envelope.get('outcome') == expected_outcome)
+            return envelope
+
+        source_finished = source_helper('source_helper_actual_restart',
+            ['--state', 'source-pair.json', '--source-policy', 'fixed_bridge', '--source-steps', '64',
+             '--work', str(remaining_source_work)], 0, 'CHECKED_SOURCE_EPISODE', 'closed')['result']
+        check('source_restart_checked_both_unchanged_originals', len(source_finished['roots']) == 2
+              and all(row['task'] == original_sources[row['task_id']]
+                      and row['result']['status'] == 'CHECKED_RECURSIVE_IDENTITY'
+                      and row['result']['certificate']['task_id'] == row['task_id'] for row in source_finished['roots'])
+              and [row['source_id'] for row in source_finished['sources']] == ['reverse', 'qrev']
+              and all(row['assessment'] == 'ANSWERED' for row in source_finished['sources']))
+        check('source_restart_installs_checked_seed_prefix', bool(source_finished['source_episode']['bridges'])
+              and any(attempt['seed_count'] > 0 for attempt in source_finished['source_episode']['attempts']))
+        def source_references(proof):
+            if proof['rule'] == 'induction':
+                result = set()
+                for case in proof['cases'].values():
+                    result.update(source_references(case['proof']))
+                return result
+            return {step['source']['index'] for step in proof['left'] + proof['right']
+                    if step['source']['kind'] == 'lemma'}
+
+        used_seed = False
+        for row in source_finished['roots']:
+            prefix_count = max((attempt['seed_count'] for attempt in source_finished['source_episode']['attempts']
+                                if attempt['root_id'] == row['task_id']), default=0)
+            certificate = row['result']['certificate']
+            used = source_references(certificate['proof']); pending = list(used)
+            while pending:
+                for index in source_references(certificate['lemmas'][pending.pop()]['proof']):
+                    if index not in used:
+                        used.add(index); pending.append(index)
+            used_seed = used_seed or bool(used & set(range(prefix_count)))
+        check('source_final_original_proof_actually_uses_a_checked_seed', used_seed)
+        for label, result in (('first', first_source), ('zero', zero_source), ('resumed', source_finished)):
+            check('source_disjoint_work_accounting_' + label,
+                  result['work_accounts']['common'] + sum(result['work_accounts']['roots'].values()) == result['work'])
+        source_replayed = cli('source_fresh_closed_episode_replay', 'examples/source_research_episode.json',
+            ['--state', 'source-pair.json', '--source-policy', 'fixed_bridge', '--source-steps', '64'])
+        check('source_closed_restart_checks_originals_without_new_actions', source_replayed['status'] == 'CHECKED_SOURCE_EPISODE'
+              and source_replayed['source_episode']['actions'] == source_finished['source_episode']['actions']
+              and not source_replayed['source_episode']['executed']
+              and [r['result']['certificate'] for r in source_replayed['roots']]
+                  == [r['result']['certificate'] for r in source_finished['roots']])
+        current_source_state = (root / 'source-pair.json').read_bytes()
+        source_helper('source_helper_zero_budget_status',
+            ['--state', 'source-pair.json', '--source-policy', 'fixed_bridge', '--work', '0'], 3, 'UNKNOWN', 'unknown')
+        check('source_helper_zero_preserves_checkpoint', (root / 'source-pair.json').read_bytes() == current_source_state)
+        bad_source = json.loads(json.dumps(source_task))
+        bad_source['sources'][0]['utf8'] += ' '
+        (root / 'source-bad-hash.json').write_bytes(encoded(bad_source))
+        refused_source = cli('source_literal_hash_refusal', 'source-bad-hash.json',
+            ['--state', 'source-pair.json', '--source-policy', 'fixed_bridge'], expected_code=2)
+        check('source_changed_literal_refused_without_state_damage', refused_source['status'] == 'REFUSED'
+              and (root / 'source-pair.json').read_bytes() == current_source_state)
+        bad_source = json.loads(json.dumps(source_task))
+        capsule = json.loads(bad_source['sources'][0]['utf8']); capsule['proof'] = {'claimed': True}
+        bad_source['sources'][0]['utf8'] = json.dumps(capsule, sort_keys=True, separators=(',', ':'))
+        bad_source['sources'][0]['sha256'] = sha(bad_source['sources'][0]['utf8'].encode())
+        (root / 'source-supplied-proof.json').write_bytes(encoded(bad_source))
+        refused_source = cli('source_supplied_proof_refusal', 'source-supplied-proof.json', expected_code=2)
+        check('source_proof_input_cannot_become_authority', refused_source['status'] == 'REFUSED')
+        bad_source_steps = cli('source_zero_steps_refusal', 'examples/source_research_episode.json',
+                               ['--source-steps', '0'], expected_code=2)
+        check('source_stage_bound_refused', bad_source_steps['status'] == 'REFUSED')
+        foreign_source_option = cli('source_options_wrong_query', 'examples/graph_count.json',
+                                     ['--source-steps', '1'], expected_code=2)
+        check('source_options_stay_in_original_domain', foreign_source_option['status'] == 'REFUSED')
+        # Check final receiving bundles where only the checker and original public
+        # tasks/certificates exist. Source/controller files are not dependencies.
+        standalone = root / 'source-standalone'; standalone.mkdir()
+        (standalone / 'recursive_check.py').write_bytes(files['recursive_check.py'])
+        packet = [{'task': original_sources[row['task_id']], 'certificate': row['result']['certificate']}
+                  for row in source_finished['roots']]
+        (standalone / 'evidence.json').write_bytes(encoded(packet))
+        standalone_code = r'''import json, pathlib, runpy
+root = pathlib.Path.cwd()
+checker = runpy.run_path(str(root / 'recursive_check.py'))
+class Budget:
+    def __init__(self): self.work = 0
+    def use(self, n=1):
+        self.work += n
+        if self.work > 2000000: raise RuntimeError('standalone replay work limit')
+answers = [checker['check'](row['task'], row['certificate'], Budget())
+           for row in json.loads((root / 'evidence.json').read_text(encoding='utf-8'))]
+print(json.dumps(answers))
+'''
+        began = time.perf_counter_ns()
+        standalone_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', standalone_code],
+            cwd=standalone, capture_output=True, text=True, encoding='utf-8', timeout=90,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'source_standalone_original_bundles', 'returncode': standalone_run.returncode,
+            'elapsed_ns': time.perf_counter_ns() - began, 'stderr': standalone_run.stderr})
+        standalone_checks = json.loads(standalone_run.stdout)
+        check('source_final_bundles_replay_without_producer_or_source_context', standalone_run.returncode == 0
+              and not standalone_run.stderr and len(standalone_checks) == 2
+              and all(row['ok'] and row['kind'] == 'recursive_identity' for row in standalone_checks)
+              and {row['task_id'] for row in standalone_checks} == set(original_sources))
         graph = cli('fresh_graph', 'examples/graph_count.json', ['--state', 'graph-state.json'])
         check('original_graph_answer', graph.get('answer') == 2**64)
         polynomial = cli('fresh_polynomial', 'examples/polynomial_consequence.json', ['--state', 'polynomial-state.json'])
@@ -864,6 +1009,24 @@ runpy.run_path(str(root / 'ember.py'), run_name='__main__')
                   and not audited_recursive.stderr and original_result['status'] == 'CHECKED_RECURSIVE_IDENTITY'
                   and len(original_result['certificate']['lemmas']) > 0
                   and bool(original_result.get('reused_after_fresh_check')) == bool(index))
+        source_audit = audit.replace("'examples/word_identity.json', '--state', 'audited-state.json'",
+            "'examples/source_research_episode.json', '--state', 'audited-source-state.json', '--source-policy', 'fixed_bridge', '--source-steps', '64'")
+        for index in range(2):
+            began = time.perf_counter_ns()
+            audited_source = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', source_audit],
+                cwd=root, capture_output=True, text=True, encoding='utf-8', timeout=90,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            source_result = json.loads(audited_source.stdout)
+            receipt['cli_runs'].append({'case': 'audited_relocated_source_episode_' + str(index),
+                'returncode': audited_source.returncode, 'status': source_result.get('status'),
+                'elapsed_ns': time.perf_counter_ns() - began, 'stderr': audited_source.stderr})
+            check('audited_relocated_source_episode_' + str(index), audited_source.returncode == 0
+                  and not audited_source.stderr and source_result['status'] == 'CHECKED_SOURCE_EPISODE'
+                  and len(source_result['roots']) == 2 and bool(source_result['source_episode']['bridges'])
+                  and all(row['task'] == original_sources[row['task_id']]
+                          and row['result']['status'] == 'CHECKED_RECURSIVE_IDENTITY' for row in source_result['roots']))
+            if index:
+                check('audited_source_restart_replays_without_new_invention', not source_result['source_episode']['executed'])
         localization_audit = audit.replace("'examples/word_identity.json', '--state', 'audited-state.json'",
             "'examples/localized_consequence.json', '--state', 'audited-localization-state.json', '--proof-policy', 'localized_first'")
         audited_localization = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', localization_audit], cwd=root,

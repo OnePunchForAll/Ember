@@ -8,6 +8,7 @@ import copy
 import hashlib
 import itertools
 import json
+import re
 from pathlib import Path
 
 CAPS=dict(depth=4,candidates=1400,formal_attempts=100,repairs=8,
@@ -447,14 +448,150 @@ def generation():
     return hashlib.sha256(b''.join((root/name).read_bytes() for name in ('recursive.py','recursive_check.py'))).hexdigest()
 
 
-def episode_id(task,host,policy='residual'):
-    identity=host.local_module('recursive_check').bind(task)['identity']
-    return host.digest(dict(kind='recursive_episode',root_task_id=identity,policy=policy))
+def _seed_records(seed_records,checker,budget=None):
+    checker.need(type(seed_records) in (list,tuple) and len(seed_records)<=8,'seed record bound')
+    count=0
+    for item in seed_records:
+        if budget is not None:budget.use()
+        checker.need(type(item) is dict and set(item)=={'source_task','source_certificate',
+            'selected_indices','source_id','source_commit_id'},'seed record fields')
+        checker.need(type(item['source_id']) is str and re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]{0,63}',item['source_id']) is not None,'seed source identifier')
+        checker.need(type(item['source_commit_id']) is str and re.fullmatch(r'[0-9a-f]{64}',item['source_commit_id']) is not None,'seed source commit digest')
+        indices=item['selected_indices']
+        checker.need(type(indices) is list and bool(indices) and all(type(i) is int and 0<=i<=16 for i in indices),'seed indices')
+        checker.need(indices==sorted(set(indices)),'seed indices must be distinct and ascending')
+        count+=len(indices)
+    checker.need(count<=8,'seed candidate bound')
 
 
-def progress_context(task,state,host,policy='residual'):
-    identity=episode_id(task,host,policy)
-    return host.digest([o for o in state['observations'] if o.get('task_id')==identity])
+def seed_context(task,seed_records,host,budget=None):
+    """Context only, never a checked flag; callers charge this to common work."""
+    checker=host.local_module('recursive_check');_seed_records(seed_records,checker,budget)
+    if not seed_records:return None
+    identity=checker.bind(task,budget)['identity']
+    value=dict(schema='ember.recursive_seed.v1',receiving_task_id=identity,records=list(seed_records))
+    if budget is not None:
+        raw=checker._bytes(value,budget,host.STATE_LIMIT)
+    else:raw=canonical(value).encode()
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _episode_key(identity,policy,context,host):
+    value=dict(kind='recursive_episode',root_task_id=identity,policy=policy)
+    if context is not None:value['seed_context']=context
+    return host.digest(value)
+
+
+def episode_id(task,host,policy='residual',seed_records=(),budget=None):
+    context=seed_context(task,seed_records,host,budget)
+    identity=host.local_module('recursive_check').bind(task,budget)['identity']
+    return _episode_key(identity,policy,context,host)
+
+
+def progress_context(task,state,host,policy='residual',seed_records=(),budget=None):
+    identity=episode_id(task,host,policy,seed_records,budget)
+    content=[o for o in state['observations'] if o.get('task_id')==identity]
+    if budget is not None:budget.use(len(host.canonical(content).encode()))
+    return host.digest(content)
+
+
+def _proof_references(proof,budget):
+    """Traverse an already checked proof; IH references never leave their case."""
+    pending=[proof];refs=set()
+    while pending:
+        node=pending.pop();budget.use()
+        if node['rule']=='induction':pending.extend(case['proof'] for case in node['cases'].values())
+        else:
+            for step in node['left']+node['right']:
+                budget.use()
+                if step['source']['kind']=='lemma':refs.add(step['source']['index'])
+    return refs
+
+
+def _rebase_proof(proof,index_map,budget):
+    result=copy.deepcopy(proof);pending=[result]
+    while pending:
+        node=pending.pop();budget.use()
+        if node['rule']=='induction':pending.extend(case['proof'] for case in node['cases'].values())
+        else:
+            for step in node['left']+node['right']:
+                budget.use()
+                if step['source']['kind']=='lemma':step['source']['index']=index_map[step['source']['index']]
+    return result
+
+
+def prepare_seeds(task,seed_records,budget,host):
+    """Rebuild checked closures under the receiving ORIGINAL full definitions.
+
+    No rebased proof or checked flag is accepted. Source checking, extraction,
+    rebasing and receiving prefix replay all use the receiving caller budget.
+    """
+    start=budget.work;checker=host.local_module('recursive_check')
+    _seed_records(seed_records,checker,budget)
+    result=dict(library=[],origins=[],candidates=[],skipped=[],phase_work={})
+    if not seed_records:return dict(result,work=budget.work-start)
+    checker.bind(task,budget);theory=Theory(task,budget)
+    dependencies=theory.dependencies(read_goal(task['goal']))-set(CONSTRUCTORS)
+    budget.use(sum(size(read(eq['rhs'])) for d in task['definitions'] for eq in d['equations'])+
+               sum(size(t) for t in read_goal(task['goal'])))
+    source_cache={};included={};selected=set()
+    for record_index,item in enumerate(seed_records):
+        source=item['source_task'];certificate=item['source_certificate'];began=budget.work
+        raw=checker._bytes(dict(task=source,certificate=certificate),budget,host.STATE_LIMIT)
+        source_key=raw
+        if source_key not in source_cache:
+            checked=checker.check(source,certificate,budget)
+            checker.need(checked['kind']=='recursive_identity','a seed source must prove an identity')
+            checker.need(source['domain']==task['domain'] and source['definitions']==task['definitions'],
+                         'seed requires exact complete original definitions')
+            entries=certificate['lemmas']+[dict(goal=source['goal'],proof=certificate['proof'])]
+            certificate_digest=digest(certificate);budget.use(len(canonical(certificate).encode()))
+            source_cache[source_key]=(checked['task_id'],certificate_digest,entries)
+        source_id,certificate_digest,entries=source_cache[source_key]
+        result['phase_work']['source_check']=result['phase_work'].get('source_check',0)+budget.work-began
+        for index in item['selected_indices']:
+            began=budget.work;checker.need(index<len(entries),'seed index outside original certificate')
+            key=(source_id,certificate_digest,index)
+            if key in selected:continue
+            statement=read_goal(entries[index]['goal']);symbols=set()
+            for term in statement:
+                for _,part in positions(term):
+                    budget.use()
+                    if not variable(part) and part[0] not in CONSTRUCTORS:symbols.add(part[0])
+            if not symbols&dependencies:
+                result['skipped'].append(dict(source_record=record_index,entry_index=index,reason='no receiving dependency intersection'))
+                continue
+            closure=set();pending=[index]
+            while pending:
+                current=pending.pop();budget.use()
+                if current in closure:continue
+                checker.need(0<=current<len(entries),'seed dependency outside source')
+                refs=_proof_references(entries[current]['proof'],budget)
+                checker.need(all(type(i) is int and 0<=i<current for i in refs),'seed dependency must be earlier')
+                closure.add(current);pending.extend(refs)
+            new=[i for i in sorted(closure) if (source_id,certificate_digest,i) not in included]
+            if len(result['library'])+len(new)>8:
+                result['skipped'].append(dict(source_record=record_index,entry_index=index,reason='complete seed closure exceeds eight entries'))
+                continue
+            index_map={i:included[(source_id,certificate_digest,i)] for i in closure if (source_id,certificate_digest,i) in included}
+            for i in new:
+                index_map[i]=len(result['library'])
+                entry=dict(goal=copy.deepcopy(entries[i]['goal']),proof=_rebase_proof(entries[i]['proof'],index_map,budget))
+                result['library'].append(entry);included[(source_id,certificate_digest,i)]=index_map[i]
+                result['origins'].append(dict(source_task_id=source_id,source_certificate_digest=certificate_digest,
+                    entry_index=i,source_id=item['source_id'],source_commit_id=item['source_commit_id']))
+            selected.add(key)
+            candidate=dict(source_task_id=source_id,source_certificate_digest=certificate_digest,entry_index=index)
+            candidate.update(id=digest(candidate),goal=copy.deepcopy(entries[index]['goal']),prefix_index=included[key])
+            result['candidates'].append(candidate)
+            result['phase_work']['closure_and_rebase']=result['phase_work'].get('closure_and_rebase',0)+budget.work-began
+    if result['library']:
+        began=budget.work;last=result['library'][-1]
+        _,result['check']=check_bundle(task,read_goal(last['goal']),last['proof'],result['library'][:-1],budget,checker)
+        result['phase_work']['receiving_prefix_check']=budget.work-began
+    result['work']=budget.work-start
+    result['phase_work']['other']=result['work']-sum(result['phase_work'].values())
+    return result
 
 
 def checkpoint(state,path,record,host):
@@ -490,7 +627,9 @@ def validate_episode(record,task,theory,budget,checker,root,policy):
                     ('parent_reentries',100),('counterexamples',1401)):
         n=record['totals'].get(key)
         checker.need(type(n) is int and 0<=n<=cap,'recursive total '+key)
-    checker.need(record['totals']['commits']==len(library),'recursive library count')
+    seed_count=record.get('seed_count',0)
+    checker.need(type(seed_count) is int and 0<=seed_count<=8,'recursive seed count')
+    checker.need(record['totals']['commits']==len(library)-seed_count,'recursive invented library count')
     checker.need(type(record.get('attempts_dropped')) is int and record['attempts_dropped']>=0,'history dropped count')
     checker.need(len(set(record['frontier']))==len(record['frontier']),'recursive frontier cycle')
     incoming={identity:[] for identity in nodes}
@@ -538,7 +677,7 @@ def validate_episode(record,task,theory,budget,checker,root,policy):
                 checker.check(task,record['final_certificate'],budget)
             else:
                 i=node.get('lemma_index')
-                checker.need(type(i) is int and 0<=i<len(library) and library[i]['goal']==node['goal'],'proved child lacks checked library evidence')
+                checker.need(type(i) is int and seed_count<=i<len(library) and library[i]['goal']==node['goal'],'proved child lacks checked invented library evidence')
         if 'residual' in node:
             count=node.get('residual_library_count')
             checker.need(node['residual']==residual_for(identity,count),'saved residual changed')
@@ -562,14 +701,107 @@ def validate_episode(record,task,theory,budget,checker,root,policy):
     checker.need(all(incoming[n] for n in nodes if n!=root),'orphan recursive child')
     for parent,child in zip(record['frontier'],record['frontier'][1:]):
         checker.need(parent in incoming[child],'frontier is not a parent-child chain')
+    if record['schema']=='ember.recursive_episode.v2':
+        invented={n.get('lemma_index') for key,n in nodes.items() if key!=root and n['status']=='PROVED'}
+        checker.need(invented==set(range(seed_count,len(library))),'seeded invented library lacks producer nodes')
 
 
-def run(task,state,state_path,budget,host,policy='residual',steps=4):
+def _replay_record(prior,task,identity,saved_id,policy,context,seeds,theory,budget,checker,root,gen):
+    checker.need(type(prior) is dict and prior.get('task_id')==saved_id and prior.get('kind')=='recursive_episode','recursive episode identity')
+    schema='ember.recursive_episode.v1' if context is None else 'ember.recursive_episode.v2'
+    checker.need(prior.get('schema')==schema,'recursive episode schema')
+    checker.need(type(prior.get('nodes')) is dict and len(prior['nodes'])<=CAPS['nodes'],'recursive node cap')
+    checker.need(type(prior.get('edges')) is list and len(prior['edges'])<=CAPS['edges'],'recursive edge cap')
+    checker.need(type(prior.get('library')) is list and len(prior['library'])<=CAPS['lemmas'],'recursive library cap')
+    checker.need(type(prior.get('attempts')) is list and len(prior['attempts'])<=CAPS['history'],'recursive history cap')
+    checker.need(prior.get('original_task_id')==identity and prior.get('task')==task,'recursive original context')
+    if context is None:
+        checker.need(not any(key in prior for key in ('seed_context','seed_records','seed_count','seed_origins')),'empty episode cannot contain seed metadata')
+    else:
+        checker.need(prior.get('seed_context')==context and type(prior.get('seed_count')) is int and
+            prior['seed_count']==len(seeds['library']) and prior.get('seed_origins')==seeds['origins'],
+            'seeded episode context or origins changed')
+        checker.need(prior['library'][:prior['seed_count']]==seeds['library'],'saved seed prefix differs from reconstructed proof')
+    if prior.get('generation')!=gen or prior.get('grammar')!=CAPS or prior.get('policy')!=policy:return None,0
+    record=copy.deepcopy(prior);replayed=0
+    if record['library']:
+        last=record['library'][-1]
+        check_bundle(task,read_goal(last['goal']),last['proof'],record['library'][:-1],budget,checker)
+        replayed=len(record['library'])
+    checker.need(root in record['nodes'] and record['nodes'][root]['goal']==task['goal'],'recursive root node')
+    checker.need(type(record.get('frontier')) is list and bool(record['frontier']) and record['frontier'][0]==root and
+        len(record['frontier'])<=CAPS['depth']+1 and all(n in record['nodes'] for n in record['frontier']),'recursive frontier')
+    validate_episode(record,task,theory,budget,checker,root,policy)
+    return record,replayed
+
+
+def inspect_episode(task,state,budget,host,policy='residual',seed_records=(),context_budget=None):
+    """Fresh replay only: no native stage, candidate generation advance or write."""
+    checker=host.local_module('recursive_check');checker.need(policy in ('direct','enumerate','residual'),'recursive policy')
+    common=budget if context_budget is None else context_budget
+    context=seed_context(task,seed_records,host,common)
+    binding=checker.bind(task,budget);identity=binding['identity'];saved_id=_episode_key(identity,policy,context,host)
+    seeds=prepare_seeds(task,seed_records,budget,host);theory=Theory(task,budget)
+    root=goal_id(read_goal(task['goal']))
+    prior=next((o for o in state['observations'] if o.get('task_id')==saved_id),None)
+    record=None
+    if prior is not None:
+        if context is not None:checker.need(prior.get('seed_records')==list(seed_records),'saved seed records changed')
+        record,_=_replay_record(prior,task,identity,saved_id,policy,context,seeds,theory,budget,checker,root,generation())
+    residual=None if record is None else copy.deepcopy(record['nodes'][root].get('residual'))
+    budget.use(sum(size(read(eq['rhs'])) for d in task['definitions'] for eq in d['equations'])+
+               sum(size(t) for t in read_goal(task['goal'])))
+    return dict(episode_id=saved_id,record=record,residual=residual,
+        closure_count=len(theory.dependencies(read_goal(task['goal']))-set(CONSTRUCTORS)),seed_info=seeds)
+
+
+def match_residual(residual,seed_info,task,budget,host):
+    """Scheduling proposals only; inputs must come from this call's replay/preparation.
+
+    This helper admits no theorem and advances no saved native cursor. Only source
+    statement variables are quantified; receiving eigenvariables remain rigid.
+    """
+    start=budget.work;matched=[];details=[]
+    if residual is None:return dict(count=0,matched_ids=[],matches=[],work=0,residual_present=False)
+    checker=host.local_module('recursive_check');checker.bind(task,budget);theory=Theory(task,budget)
+    sides=read_goal(residual['residual']);checker.need(all(bounded_term(t) for t in sides),'residual term bound')
+    candidates_=seed_info['candidates'];checker.need(len(candidates_)<=8,'residual candidate bound')
+    for candidate in candidates_:
+        goal=read_goal(candidate['goal']);quantified=set(goal_vars(goal));hit=None
+        for direction in (1,-1):
+            a,b=goal if direction==1 else goal[::-1]
+            if variable(a) or not quantified.issubset(vars_of(a)):continue
+            for side,t in enumerate(sides):
+                for path,part in positions(t):
+                    budget.use();env=match(a,part,quantified,theory,budget)
+                    if env is None or set(env)!=quantified:continue
+                    replacement=subst(b,env,budget)
+                    if replacement==part:continue
+                    hit=dict(candidate_id=candidate['id'],direction=direction,side=side,at=list(path),
+                        subst={name:data(value) for name,value in sorted(env.items())});break
+                if hit:break
+            if hit:break
+        if hit and candidate['id'] not in matched:matched.append(candidate['id']);details.append(hit)
+    return dict(count=len(matched),matched_ids=matched,matches=details,work=budget.work-start,residual_present=True)
+
+
+def residual_matches(task,state,budget,host,seed_records=(),policy='residual',episode_seed_records=(),context_budget=None):
+    common=budget if context_budget is None else context_budget
+    inspection=inspect_episode(task,state,common,host,policy,episode_seed_records,common)
+    seeds=prepare_seeds(task,seed_records,budget,host)
+    result=match_residual(inspection['residual'],seeds,task,common,host)
+    result.update(episode_id=inspection['episode_id'],residual=inspection['residual'],
+                  closure_count=inspection['closure_count'],seed_info=seeds)
+    return result
+
+
+def run(task,state,state_path,budget,host,policy='residual',steps=4,seed_records=(),context_budget=None):
     checker=host.local_module('recursive_check')
     checker.need(policy in ('direct','enumerate','residual'),'recursive policy')
     checker.need(type(steps) is int and 1<=steps<=64,'recursive steps must be in 1..64')
     start=budget.work;binding=checker.bind(task,budget);identity=binding['identity']
-    saved_id=host.digest(dict(kind='recursive_episode',root_task_id=identity,policy=policy))
+    context=seed_context(task,seed_records,host,budget if context_budget is None else context_budget)
+    saved_id=_episode_key(identity,policy,context,host)
     budget.use(len(host.canonical(task).encode()))
     theory=Theory(task,budget);original=read_goal(task['goal']);root=goal_id(original);gen=generation()
     prior=next((o for o in state['observations'] if o.get('task_id')==saved_id),None)
@@ -579,33 +811,25 @@ def run(task,state,state_path,budget,host,policy='residual',steps=4):
                         finite=dict(goal=goal_data(original),filter_cursor=0))},edges=[],library=[],
         frontier=[root],attempts=[],attempts_dropped=0,
         totals=dict(candidates=0,formal_attempts=0,counterexamples=0,commits=0,parent_reentries=0))
+    seeds=prepare_seeds(task,seed_records,budget,host) if context is not None else None
+    if context is not None:
+        record.update(schema='ember.recursive_episode.v2',seed_context=context,seed_records=copy.deepcopy(list(seed_records)),
+                      seed_count=len(seeds['library']),seed_origins=copy.deepcopy(seeds['origins']),library=copy.deepcopy(seeds['library']))
     replayed=0;invalidated=False
     if prior:
-        checker.need(type(prior) is dict and prior.get('schema')==record['schema'],'recursive episode schema')
-        checker.need(type(prior.get('nodes')) is dict and len(prior['nodes'])<=CAPS['nodes'],'recursive node cap')
-        checker.need(type(prior.get('edges')) is list and len(prior['edges'])<=CAPS['edges'],'recursive edge cap')
-        checker.need(type(prior.get('library')) is list and len(prior['library'])<=CAPS['lemmas'],'recursive library cap')
-        checker.need(type(prior.get('attempts')) is list and len(prior['attempts'])<=CAPS['history'],'recursive history cap')
-        checker.need(prior.get('original_task_id')==identity and prior.get('task')==task,'recursive original context')
-        if prior.get('generation')==gen and prior.get('grammar')==CAPS and prior.get('policy')==policy:
-            record=copy.deepcopy(prior)
-            if record['library']:
-                last=record['library'][-1]
-                check_bundle(task,read_goal(last['goal']),last['proof'],record['library'][:-1],budget,checker)
-                replayed=len(record['library'])
-            checker.need(root in record['nodes'] and record['nodes'][root]['goal']==task['goal'],'recursive root node')
-            checker.need(type(record.get('frontier')) is list and bool(record['frontier']) and record['frontier'][0]==root and
-                         len(record['frontier'])<=CAPS['depth']+1 and
-                         all(n in record['nodes'] for n in record['frontier']),'recursive frontier')
-            validate_episode(record,task,theory,budget,checker,root,policy)
+        if context is not None:checker.need(prior.get('seed_records')==list(seed_records),'saved seed records changed')
+        restored,replayed=_replay_record(prior,task,identity,saved_id,policy,context,seeds,theory,budget,checker,root,gen)
+        if restored is not None:record=restored
         else:invalidated=True
     cache={};executed=[];final=None;reason='bounded stages complete';changed=False
     phase_work={'input_and_replay':budget.work-start}
     if record.get('final_certificate'):
         checked=checker.check(task,record['final_certificate'],budget)
         status='CHECKED_RECURSIVE_IDENTITY' if checked['kind']=='recursive_identity' else 'CHECKED_RECURSIVE_COUNTEREXAMPLE'
-        return dict(status=status,certificate=record['final_certificate'],check=checked,
+        result=dict(status=status,certificate=record['final_certificate'],check=checked,
                     recursive=dict(replayed_lemmas=replayed,original_evidence_replay=True,episode_id=saved_id))
+        if context is not None:result['recursive'].update(seed_context=context,seed_count=record['seed_count'],seed_info=seeds)
+        return result
     for _ in range(steps):
         if not record['frontier']:reason='bounded grammar exhausted';break
         current=record['frontier'][-1];node=record['nodes'][current]
@@ -730,4 +954,5 @@ def run(task,state,state_path,budget,host,policy='residual',steps=4):
         frontier=list(record['frontier']),node_count=len(record['nodes']),edge_count=len(record['edges']),
         library_count=len(record['library']),state_bytes=len(host.canonical(record).encode()),
         work=budget.work-start,phase_work=phase_work,invalidated_generation=invalidated,grammar=CAPS)
+    if context is not None:result['recursive'].update(seed_context=context,seed_count=record['seed_count'],seed_info=seeds)
     return result

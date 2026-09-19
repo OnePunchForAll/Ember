@@ -77,6 +77,13 @@ the Proof Invention Engine contributors under their MIT License; their notice
 is retained in THIRD_PARTY_NOTICES.md. No donor executable module or proof script
 is included. Local adversarial reviews share the same model lineage.
 
+The source-research controller and checked recursive seed transport were authored
+by collaborating Codex agents from Seth's original TPM requirements for explicit
+sources, claims, tension, unresolved questions and checked synthesis. The proof
+transfer uses freshly replayed original evidence and complete dependency closure.
+The public source-episode example wraps the attributed recursive question data;
+it includes no donor program, supplied proof or private source provenance.
+
 The current runtime was authored here; it does not import donor programs
 or copy their private runtimes. Newly authored code and public documentation
 in this package use the MIT License. Adapted recursive example definitions
