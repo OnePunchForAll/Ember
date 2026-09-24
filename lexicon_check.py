@@ -739,10 +739,38 @@ def check_ufrac(data, budget):
 
 
 def family_polys(data, budget):
-    need(set(data) == {'a', 'm', 'r', 'k0', 'x'}, 'family fields')
+    """A family's class and denominators. A classical family may name its parameters p = [type, u, v, e or w]: its
+    denominators are then rebuilt here, and must equal x when x is given as well."""
+    need({'a', 'm', 'r', 'k0'} <= set(data) <= {'a', 'm', 'r', 'k0', 'x', 'p'} and ('x' in data or 'p' in data),
+         'family fields')
     a, m, r = class_of(data); k0 = integer(data['k0'], 0, 10 ** 6)
-    xs = data['x']; need(type(xs) is list and 1 <= len(xs) <= 6, 'family term count')
-    return a, m, r, k0, [family_poly(e, budget) for e in xs]
+    xs = None
+    if 'x' in data:
+        need(type(data['x']) is list and 1 <= len(data['x']) <= 6, 'family term count')
+        xs = [family_poly(e, budget) for e in data['x']]
+    if 'p' in data:
+        rebuilt = classical_denominators(a, m, r, data['p'], budget)
+        need(xs is None or [u_trim(x) for x in xs] == rebuilt, 'the named parameters give other denominators')
+        xs = rebuilt
+    return a, m, r, k0, xs
+
+
+def classical_denominators(a, m, r, params, budget):
+    """Denominators of the classical family with the given parameters on its own class n = m*k + r, which must be the
+    coarsest class the parameters need. Type II (u, v, e): a*u*v = m, n = -e (mod m), e | u+v, w = (u+v)/e,
+    d = (n+e)/m, x = (u*v*d, u*w*d*n, v*w*d*n). Type I (u, v, w): q = a*u*v*w, m = q/gcd(q, u+v),
+    d = ((u+v)*n + w)/q, x = (u*v*d*n, u*w*d, v*w*d)."""
+    need(type(params) is list and len(params) == 4 and params[0] in ('I', 'II')
+         and all(type(x) is int and 1 <= x <= 10 ** 12 for x in params[1:]), 'classical parameters')
+    kind, u, v, z = params; n = [Q(r), Q(m)]; budget.use(16)
+    if kind == 'II':
+        need(u <= v and m == a * u * v and (u + v) % z == 0 and (r + z) % m == 0, 'Type II parameters and class')
+        w = (u + v) // z; d = [Q(r + z, m), Q(1)]; dn = _umul(d, n, budget)
+        return [u_trim([c * u * v for c in d]), u_trim([c * u * w for c in dn]), u_trim([c * v * w for c in dn])]
+    q = a * u * v * z; s = u + v
+    need(u <= v and (s * m) % q == 0 and m == q // gcd(q, s) and (s * r + z) % q == 0, 'Type I parameters and class')
+    d = [Q(s * r + z, q), Q(s * m, q)]; dn = _umul(d, n, budget)
+    return [u_trim([c * u * v for c in dn]), u_trim([c * u * z for c in d]), u_trim([c * v * z for c in d])]
 
 
 def family_poly(e, budget):
@@ -802,7 +830,7 @@ def check_cover(data, budget, families_checked=None):
     for entry in entries:
         need(type(entry) is dict and set(entry) == {'family'}, 'cover entry fields')
         family = entry['family']
-        need(family['a'] == a and len(family['x']) == terms, 'family belongs to another question')
+        need(family['a'] == a and (len(family['x']) if 'x' in family else 3) == terms, 'family belongs to another question')
         checked = check_ufam(family, budget)
         need(M % family['m'] == 0, 'family modulus must divide the cover modulus')
         need(bound >= checked['bound'], 'cover bound below a family threshold')
@@ -1128,7 +1156,7 @@ def _type1_index(a, m, budget):
     u'+v', so u'*v' | m and d*w divides (u'+v')*m/(a*u'*v'): a finite set, enumerated completely. For each set,
     (u+v)*r + w = 0 (mod q), q = a*u*v*w, has solutions exactly when g = gcd(u+v, q) divides w, and then they form
     one class modulo q/g, which divides m. Kept as {q/g: {residue: (u, v, w)}} for a few moduli (the parameter
-    list itself is not kept); each use is charged the full enumeration."""
+    list itself is not kept). The enumeration is charged when it is computed, and each use its lookups."""
     if (a, m) not in _TYPE1_INDEX:
         index = {}; count = 0; ds = _divisors(m)
         for up in ds:
@@ -1143,14 +1171,61 @@ def _type1_index(a, m, budget):
                         if w % g: continue
                         mod = q // g; r0 = (-(w // g) * pow(s // g, -1, mod)) % mod if mod > 1 else 0
                         index.setdefault(mod, {}).setdefault(r0, (u, v, w))
+        budget.use(count)
         if len(_TYPE1_INDEX) >= 4: _TYPE1_INDEX.clear()
         _TYPE1_INDEX[(a, m)] = (count, dict(sorted(index.items())))
     count, index = _TYPE1_INDEX[(a, m)]
-    budget.use(count)
+    budget.use(len(index))
     return index
 
 
+def classical_reach(a, m, budget):
+    """Every class a fixed-parameter classical family with class modulus dividing m reaches, as (modulus, residue,
+    parameters): Type II on -e modulo a*u*v, for every a*u*v | m and e | u+v; Type I from the complete index."""
+    out = []
+    for D in _divisors(m):
+        if D % a: continue
+        uv = D // a
+        for u in _divisors(uv):
+            v = uv // u
+            if u > v: continue
+            for e in _divisors(u + v):
+                budget.use(); out.append((D, (-e) % D, ('II', u, v, e)))
+    for mod, row in _type1_index(a, m, budget).items():
+        out += [(mod, r0, ('I',) + params) for r0, params in row.items()]
+    return out
+
+
+def check_obstruction(data, budget):
+    """No classical fixed-parameter family reaches a coprime square class modulo m."""
+    need(set(data) == {'a', 'terms', 'm', 'rule'} and data['rule'] == 'classical_reach_nonsquare', 'obstruction fields')
+    a = integer(data['a'], 1, 64); m = integer(data['m'], 1, 10 ** 12); need(data['terms'] == 3, 'three unit fractions')
+    reached = classical_reach(a, m, budget); units = 0
+    for mod, r0, params in reached:
+        if gcd(r0, mod) != 1: continue
+        units += 1; budget.use()
+        need(nonresidue_primes(r0, _prime_powers(mod)), 'a classical family reaches the square class ' + str(r0) +
+             ' mod ' + str(mod) + ': ' + str(params))
+    return dict(ok=True, kind='obstruction', reached=len(reached), reached_units=units,
+                scope='No fixed-parameter family of either classical type, with any parameters and a class modulus '
+                      'dividing m, reaches a coprime square class modulo m: every coprime class such a family reaches is '
+                      'a quadratic non-residue modulo its own modulus. Families whose parameters vary with k are not covered.',
+                proof='The reached classes are enumerated completely (Type II over a*u*v | m and e | u+v; Type I through '
+                      'the finite parametrization) and each coprime one is shown to be a non-residue modulo a prime-power '
+                      'factor of its modulus. A square class modulo m projects to a square class modulo any divisor, so no '
+                      'reached class contains one.')
+
+
 def check_nofamily(data, budget):
+    if 'rs' in data:
+        # A batch of walls on one modulus: the conjunction of one wall for each listed residue.
+        need(set(data) == {'a', 'terms', 'm', 'rs', 'bound'}, 'no-family batch fields')
+        rs = data['rs']
+        need(type(rs) is list and 1 <= len(rs) <= 200_000 and rs == sorted(set(rs)), 'batch residues sorted and distinct')
+        for r in rs: check_nofamily(dict({k: v for k, v in data.items() if k != 'rs'}, r=r), budget)
+        return dict(ok=True, kind='nofamily', bound=data['bound'], complete=data['bound'] == 0, walls=len(rs),
+                    scope='Each listed class is a wall in the sense of the single-class claim below.',
+                    proof='Each residue is checked as its own wall.')
     need(set(data) == {'a', 'terms', 'm', 'r', 'bound'}, 'no-family fields')
     a, m, r = class_of(data); need(data['terms'] == 3, 'three unit fractions')
     need(m <= 10 ** 12, 'no-family modulus bound'); bound = integer(data['bound'], 0, 120)
@@ -1402,6 +1477,21 @@ def check_refutation(data, budget):
         need(a[i + 1] * u_eval([rat(x) for x in cd['q']], Q(i)) != a[i] * u_eval([rat(x) for x in cd['p']], Q(i)),
              'term ratio holds at the index')
         return dict(ok=True, kind='refutation', refutes=kind, index=i)
+    if kind == 'obstruction':
+        a, m = integer(cd.get('a'), 1, 64), integer(cd.get('m'), 1, 10 ** 12)
+        mod, r0, params = integer(w.get('modulus'), 1, m), integer(w.get('residue'), 0), w.get('params')
+        need(m % mod == 0 and r0 < mod and gcd(r0, mod) == 1, 'witness class must divide the modulus and be coprime')
+        need(type(params) is list and len(params) == 4 and params[0] in ('I', 'II')
+             and all(type(x) is int and x >= 1 for x in params[1:]), 'witness parameters')
+        kind_, u, v, z = params; budget.use(8)
+        if kind_ == 'II':
+            need(mod == a * u * v and (u + v) % z == 0 and (r0 + z) % mod == 0, 'Type II parameters must reach the class')
+        else:
+            q = a * u * v * z; s = u + v; g = gcd(s, q)
+            need(((s * m) % q == 0) and z % g == 0 and mod == q // g and (s * r0 + z) % q == 0,
+                 'Type I parameters must reach the class')
+        need(not nonresidue_primes(r0, _prime_powers(mod)), 'the witness class is not a square')
+        return dict(ok=True, kind='refutation', refutes=kind, residue=r0, modulus=mod)
     if kind == 'pattern' and cd.get('rule') == 'uncovered_coprime_local_images':
         check_cover(cd['cover'], budget); M = cd['cover']['modulus']; x = integer(w.get('residue'), 0, M - 1)
         need(gcd(x, M) == 1 and not reaches(cd['cover'], x, budget), 'witness must be an uncovered coprime residue')
@@ -1441,12 +1531,15 @@ def question(kind, data):
     if kind in ('invariant', 'semi', 'fixed', 'inverse', 'map'): return digest(dict(q='map', vars=data.get('vars'), map=data.get('map')))
     if kind in ('exclusion', 'reach'): return digest(dict(q='orbit', orbit=data.get('orbit')))
     if kind == 'orbit': return digest(dict(q='orbit', orbit=data))
+    if kind == 'nofamily' and 'rs' in data:
+        return digest(dict(q='esq', a=data.get('a'), terms=data.get('terms')))
     if kind in ('ufam', 'eclass', 'nofamily'):
         return digest(dict(q='eclass', a=data.get('a'), m=data.get('m'), r=data.get('r'),
-                           terms=len(data['x']) if 'x' in data else data.get('terms')))
+                           terms=len(data['x']) if 'x' in data else 3 if 'p' in data else data.get('terms')))
     if kind == 'ufrac': return digest(dict(q='en', a=data.get('a'), n=data.get('n'), terms=len(data.get('x', []))))
     if kind == 'en': return digest(dict(q='en', a=data.get('a'), n=data.get('n'), terms=data.get('terms')))
     if kind == 'pattern': return digest(dict(q='esq', a=data['cover'].get('a'), terms=data['cover'].get('terms')))
+    if kind == 'obstruction': return digest(dict(q='esq', a=data.get('a'), terms=data.get('terms')))
     if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem'):
         body = data.get('cover', data) if kind == 'density' else data
         return digest(dict(q='esq', a=body.get('a'), terms=body.get('terms')))
@@ -1474,7 +1567,7 @@ CHECKS = dict(law=check_law, gf=check_gf, closed=check_closed, period=check_peri
               rootmod=check_rootmod, nosolmod=check_nosolmod, nosol=check_nosol, descent=check_descent,
               introot=check_introot, eigen=check_eigen, cycle=check_cycle,
               dcover=check_dcover, cfinite=check_cfinite, refutation=check_refutation, nofamily=check_nofamily,
-              theorem=check_theorem)
+              theorem=check_theorem, obstruction=check_obstruction)
 
 
 def check(kind, data, budget):

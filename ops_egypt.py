@@ -53,13 +53,18 @@ def family_data(a, m, r, k0, polys):
 
 
 def family_polys(data):
-    """Denominators as coefficient lists; saved families may still use expression trees."""
-    return [L.univariate(e, 'k') if e and type(e[0]) is str else [Q(n, d) for n, d in e] for e in data['x']]
+    """Denominators as coefficient lists; saved families may still use expression trees or name their parameters."""
+    xs = data['x'] if 'x' in data else L.classical_x(data['a'], data['m'], data['r'], data['p'])
+    return [L.univariate(e, 'k') if e and type(e[0]) is str else [Q(n, d) for n, d in e] for e in xs]
 
 
 def compact_family(data):
-    """The same family with every denominator as a coefficient list: a shorter certificate for the same claim."""
-    return dict(data, x=[[[c.numerator, c.denominator] for c in L.ptrim(p)] for p in family_polys(data)])
+    """The shortest certificate for the same family: its parameters when it is classical, else every denominator
+    as a coefficient list."""
+    if 'p' in data: return {k: v for k, v in data.items() if k != 'x'}
+    x = [[[c.numerator, c.denominator] for c in L.ptrim(p)] for p in family_polys(data)]
+    named = L.classical_params_of(data['a'], data['m'], data['r'], x) if len(x) == 3 else None
+    return dict({k: v for k, v in data.items() if k != 'x'}, p=named) if named else dict(data, x=x)
 
 
 def least_start(polys, limit=64):
@@ -332,7 +337,7 @@ def classical_family(a, m, r, params):
         d = [Q((u + v) * r + w, q), Q((u + v) * m, q)]
         polys = [L.pscale(L.pmul(d, n), u * v), L.pscale(d, u * w), L.pscale(d, v * w)]
     k0 = least_start(polys + [n])
-    return family_data(a, m, r, 0 if k0 is None else k0, polys)
+    return dict(family_data(a, m, r, 0 if k0 is None else k0, polys), p=[kind, u, v, e if kind == 'II' else w])
 
 
 def local_nonresidues(x, powers):
@@ -578,6 +583,26 @@ def egypt_classical_exclusion(rt, cls):
     if terms != 3 or m > WALL_CAP: return []
     claim = rt.propose('nofamily', dict(a=a, terms=terms, m=m, r=r, bound=CLASSICAL_BOUND), (cls,))
     return [claim] if rt.check(claim) else []
+
+
+@op('egypt_classical_obstruction', 'NWS', ('esq',), ('obstruction', 'refutation'),
+    'Claim that no classical fixed-parameter family reaches a coprime square class modulo the question modulus; the '
+    'checker enumerates every reached class, and a reached square class refutes the claim.')
+def egypt_classical_obstruction(rt, esq):
+    d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
+    if terms != 3 or M > WALL_CAP: return []
+    claim = rt.propose('obstruction', dict(a=a, terms=terms, m=M, rule='classical_reach_nonsquare'), (esq,))
+    if rt.check(claim): return [claim]
+    for table in classical_tables(a, M, CLASSICAL_BOUND):
+        for mod, row in table.items():
+            for r0, params in row.items():
+                rt.budget.use()
+                if gcd(r0, mod) != 1 or local_nonresidues(r0, L.factor(mod)): continue
+                kind, u, v = params[:3]
+                witness = dict(modulus=mod, residue=r0, params=[kind, u, v, params[4] if kind == 'II' else params[3]])
+                refutation = rt.refute(claim, witness)
+                if refutation is not None: return [claim, refutation]
+    return [claim]
 
 
 @op('egypt_class_split', 'N', ('eclass',), ('eclass',),
@@ -884,6 +909,7 @@ FIXTURES = {
     'egypt_finite_verify': [lambda rt: [_esq(rt, 24, verify_to=400)], lambda rt: [_esq(rt, 24, terms=4, verify_to=5)]],
     'egypt_classical_family': [lambda rt: [_cls(rt, 840, 11)], lambda rt: [_cls(rt, 840, 1)]],
     'egypt_classical_exclusion': [lambda rt: [_cls(rt, 840, 1)]],
+    'egypt_classical_obstruction': [lambda rt: [_esq(rt, 840)], lambda rt: [_esq(rt, 840, a=5)]],
     'egypt_signature_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_local_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_reduction_theorem': [lambda rt: egypt_finite_verify(rt, _esq(rt, 24, verify_to=400))

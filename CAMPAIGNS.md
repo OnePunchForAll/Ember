@@ -301,6 +301,26 @@ The run resumed the round-3 state with the instruments above. Each of the
     checker and the verdict enumerate Type I completely (commit fcf1925,
     fingerprint 4873ff1e), and new walls are complete claims.
 
+### Round 5, first attempt (fingerprint f37fad1c, stopped after 20 CPU minutes)
+
+The problem statement changed so that she may choose up to three refinement
+primes herself. It is a new problem, so her checked families and walls
+carried over by the warm start.
+
+- **Failure mining.** A live profile showed that 22% of the time went to
+  recomputing her square/non-square context on every candidate move, and
+  15% to walls. The run also predated the complete classical enumeration.
+  It was stopped and restarted at the current fingerprint rather than left
+  to finish with instruments already superseded.
+
+### Round 5, second attempt (fingerprint 5d9d835b, stopped after about 22 CPU minutes)
+
+- **Failure mining.** Her first call ended at its work allowance, which my
+  runner treated as final; it now resumes on either resource limit. A live
+  profile of the resumed call then showed 55% of the time recomputing a
+  level's whole open-class list after every new family, which is quadratic
+  at deep levels. It was stopped for the instruments below.
+
 ## Campaign 2: Sierpiński's 5/n (the related problem she offered)
 
 **Problem supplied.** 5/n = 1/x + 1/y + 1/z for every n >= 2 (open;
@@ -394,3 +414,86 @@ rounds 1 and 2, through the warm start.
   for a few moduli, and never the parameter lists. A wall is now a few
   hundred lookups. Three moduli near 2 x 10^7 take 10 s with a peak of
   110 MB, and the three implementations agree on every sampled class.
+
+### Round 3 (fingerprint 5d9d835b, five calls: 28,329 moves, 853 s)
+
+After the two stopped attempts she ran on the fixed code, with my runner
+resuming her whenever a call ended at its work allowance.
+
+- **Result.**
+  - She chose the primes 13, 19 and 29 herself.
+  - She stated and proved her theorem at 20,540,520: every n >= 2 outside
+    131 residue classes mod 20,540,520 has a representation
+    5/n = 1/x + 1/y + 1/z. The theorem rests on a sieved cover of 549
+    families, which covers 20,540,389 of the residues. The open fraction
+    fell from 29/1,081,080 to 131/20,540,520 (0.00064%).
+  - At her third level, 595,675,080, 1,624 coprime classes stayed open
+    (206 squares and 1,418 non-squares), with 1,744 walls certified. She
+    found 1,557 families in all.
+- **Verdict.** Self-test passed. 3,150 claims VERIFIED, both theorems
+  included. Bit: verified.
+- **Failure mining.**
+  - Her cover at 595,675,080 could not be stated: it exceeded 256 KiB.
+    Most of her families there come from her own divisor grammar, with
+    denominators of degree 1, 2 and 4 in k, at about 290 bytes each.
+  - Her state file reached 1,037,587 bytes of its 1 MiB bound. Walls took
+    one object each, and the saved range carried a second copy of the
+    cover.
+  - Each complete wall was charged the full Type I enumeration
+    (8.7 million units at 595,675,080), although the class index had been
+    built once. Every wall therefore failed its first allocation and
+    succeeded only on the retry.
+
+## Campaign 3: the Collatz stopping-time sieve to 2^18 (a closed check)
+
+**Problem supplied.** The map T(n) = n/2 or (3n+1)/2: certify descent class
+by class modulo 2^18, and check every n below 10^6. The open counts at each
+level are known. She was given only the map, the depth and the range. Her
+counts are compared with an independent parity simulation that she never
+sees: 1, 1, 2, 3, 4, 8, 13, 19, 38, 64, 128, 226, 367, 734, 1,295, 2,114,
+4,228 and 7,495 for k = 1 to 18.
+
+### First attempt (fingerprint 5d9d835b, stopped after 32 CPU minutes)
+
+- **Failure mining.** A live profile showed 51% of the time rebuilding the
+  open-class list and 22% rebuilding the descent index on every step. At
+  depth 18 both are quadratic. It was stopped for the instruments below.
+
+## Instruments added after these runs (fingerprint 0bf025cf)
+
+- **A lemma instead of 2,430 walls (authorship).** The `obstruction` claim
+  says that no classical fixed-parameter family, of either type and with any
+  parameters and a class modulus dividing m, reaches a coprime square class
+  mod m. The checker enumerates every reached class completely and requires
+  each coprime one to be a local non-residue. A refutation names the
+  parameters and a reached square class. For 4/n the lemma holds at 840,
+  83,160, 1,580,040 and 20,540,520 (68,734 reached classes, none a square).
+  For 5/n it is refuted: Type II (1, 1, 1) reaches the square class 4 mod 5.
+  When the lemma is checked at her finest level, square classes need no
+  individual walls. A family that reached one would also reach its square
+  lifts.
+- **Incremental bookkeeping.** An open class leaves her list only when a
+  family (or a descent) found since the last step reaches it. New classes
+  are tested against everything, and the runtime keeps objects in creation
+  order so that only new ones are read. The results were compared with the
+  full recomputation on every call of three runs: 5,146 calls, no
+  difference. At Collatz depth 14 the run was 3.3 times faster, with the
+  same open counts at every level.
+- **Honest work accounting.** The complete Type I enumeration is charged
+  when it is computed, and each later wall its lookups: 8.7 million units
+  for the first wall at 595,675,080, about 25 thousand for the next.
+- **Shorter certificates.** A classical family may name its parameters
+  (type, u, v, e or w). The checker and the verdict each rebuild the
+  denominators with their own formulas, so covers and saved states keep only
+  the parameters. For older families her producer recovers the parameters
+  from the denominators and uses them only when the rebuild is exact
+  (224 of 224 in a test, none wrong). Walls are saved one batch per modulus,
+  and a saved range names its cover by digest. Every one of these is
+  expanded and admitted again on resume. Her 5/n state fell from 1,037,587
+  to 726,964 bytes with nothing lost.
+- **A larger bound on one claim.** One claim may now take 1 MiB instead of
+  256 KiB. The 1 MiB bound on her whole state file is unchanged.
+- **A readable verdict.** The verdict lists every claim other than a
+  verified wall, and summarizes the walls. Before this, it listed only the
+  first 512 claims.
+

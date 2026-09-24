@@ -83,10 +83,36 @@ def taylor_shift(p, t):
 
 # ------------------------------------------------------------- unit-fraction claims
 
+def classical_denominators(f):
+    """The denominators a family's named classical parameters give on its own class, derived here independently, or
+    None when the parameters do not fit the class."""
+    a, m, r = f['a'], f['m'], f['r']; kind, u, v, z = f['p']; n = [F(r), F(m)]
+    if kind == 'II':
+        if u > v or m != a * u * v or (u + v) % z or (r + z) % m: return None
+        w = (u + v) // z; d = [F(r + z, m), F(1)]; dn = mul(d, n)
+        return [trim([c * u * v for c in d]), trim([c * u * w for c in dn]), trim([c * v * w for c in dn])]
+    q = a * u * v * z; s = u + v
+    if kind != 'I' or u > v or (s * m) % q or m != q // gcd(q, s) or (s * r + z) % q: return None
+    d = [F(s * r + z, q), F(s * m, q)]; dn = mul(d, n)
+    return [trim([c * u * v for c in dn]), trim([c * u * z for c in d]), trim([c * v * z for c in d])]
+
+
+def denominators(f):
+    """A family's denominators: stated, or rebuilt from its named classical parameters."""
+    return [expand(e) for e in f['x']] if 'x' in f else classical_denominators(f)
+
+
 def family_verdict(f):
     """VERIFIED when a*prod(x) = n*sum(prod others) as polynomials in k, each x_i is integer on Z, and each x_i
-    is positive for k >= k0; REFUTED with a witness k where a denominator is non-integral or nonpositive."""
-    a, m, r, k0 = f['a'], f['m'], f['r'], f['k0']; xs = [expand(e) for e in f['x']]; n = [F(r), F(m)]
+    is positive for k >= k0; REFUTED with a witness k where a denominator is non-integral or nonpositive. A family
+    that names classical parameters is rebuilt from them (and must match its stated denominators)."""
+    a, m, r, k0 = f['a'], f['m'], f['r'], f['k0']; n = [F(r), F(m)]
+    xs = [expand(e) for e in f['x']] if 'x' in f else None
+    if 'p' in f:
+        rebuilt = classical_denominators(f)
+        if rebuilt is None: return 'REFUTED', 'named parameters do not fit the class'
+        if xs is not None and [trim(x) for x in xs] != rebuilt: return 'REFUTED', 'named parameters give other denominators'
+        xs = rebuilt
     left = [F(a)]
     for x in xs: left = mul(left, x)
     right = []
@@ -174,7 +200,7 @@ def finite_verdict(d):
         verdict, detail = cover_verdict(d['cover'])
         if verdict != 'VERIFIED': return verdict, 'cover: ' + detail
         for e in d['cover']['entries']:
-            f = e['family']; rows.setdefault(f['m'], []).append((f['r'], f['m'] * f['k0'] + f['r'], [expand(x) for x in f['x']]))
+            f = e['family']; rows.setdefault(f['m'], []).append((f['r'], f['m'] * f['k0'] + f['r'], denominators(f)))
     done = set()
     for n in range(lo, hi):
         hit = None
@@ -328,7 +354,35 @@ def type1_reach(a, m):
     return _REACH[(a, m)]
 
 
+def obstruction_verdict(d):
+    """Every coprime class a classical fixed-parameter family reaches (modulus dividing m) must be a non-residue modulo
+    its own modulus; a reached square class is the refuting witness."""
+    a, m = d['a'], d['m']
+    if m > 10 ** 12: return 'UNRESOLVED', 'modulus beyond the independent enumeration bound'
+    classes = []
+    for D in divisor_list(m):
+        if D % a: continue
+        for u in divisor_list(D // a):
+            v = D // a // u
+            if u <= v: classes += [(D, (-e) % D, ('II', u, v, e)) for e in divisor_list(u + v)]
+    for modulus, residues in type1_reach(a, m).items():
+        classes += [(modulus, r0, ('I',) + p) for r0, p in residues.items()]
+    for modulus, r0, p in classes:
+        if gcd(r0, modulus) == 1 and not nonresidue_set(r0, modulus):
+            return 'REFUTED', 'classical family ' + str(p) + ' reaches the square class ' + str(r0) + ' mod ' + str(modulus)
+    return 'VERIFIED', str(len(classes)) + ' reached classes, none a coprime square'
+
+
 def nofamily_verdict(d):
+    if 'rs' in d:
+        for r in d['rs']:
+            verdict_, detail = nofamily_verdict(dict({k: v for k, v in d.items() if k != 'rs'}, r=r))
+            if verdict_ != 'VERIFIED': return verdict_, 'residue ' + str(r) + ': ' + detail
+        return 'VERIFIED', str(len(d['rs'])) + ' walls'
+    return single_wall_verdict(d)
+
+
+def single_wall_verdict(d):
     if d['m'] > 10 ** 12: return 'UNRESOLVED', 'modulus beyond the independent enumeration bound'
     hit = classical_hit(d['a'], d['m'], d['r'], d['bound'])
     return ('REFUTED', 'classical family ' + str(hit)) if hit else ('VERIFIED', 'no classical parameters')
@@ -442,6 +496,7 @@ def verdict(kind, data):
         if kind == 'density': return density_verdict(data)
         if kind == 'theorem': return theorem_verdict(data)
         if kind == 'nofamily': return nofamily_verdict(data)
+        if kind == 'obstruction': return obstruction_verdict(data)
         if kind == 'descent': return descent_verdict(data['map'], data['modulus'], data['residue'], data['steps'], data['bound'])
         if kind == 'cfinite': return cfinite_verdict(data)
         if kind == 'cycle': return cycle_verdict(data)
@@ -475,6 +530,10 @@ def self_test():
                                              (theorem_case(good, 0)['finite']['cover'], theorem_case(good, 5)['finite']['cover'])),
         'sieved theorem chain verifies': verdict('theorem', sieved(theorem_case(good, 0)))[0] == 'VERIFIED',
         'sieved theorem chain with a gap refuted': verdict('theorem', sieved(theorem_case(good, 5)))[0] == 'REFUTED',
+        'obstruction holds for 4/n at 840': verdict('obstruction', dict(a=4, terms=3, m=840, rule='classical_reach_nonsquare'))[0] == 'VERIFIED',
+        'obstruction refuted for 5/n at 840': verdict('obstruction', dict(a=5, terms=3, m=840, rule='classical_reach_nonsquare'))[0] == 'REFUTED',
+        'named classical parameters verify': verdict('ufam', dict(a=4, m=4, r=3, k0=0, p=['II', 1, 1, 1]))[0] == 'VERIFIED',
+        'misfit classical parameters refuted': verdict('ufam', dict(a=4, m=4, r=1, k0=0, p=['II', 1, 1, 1]))[0] == 'REFUTED',
         'broken sieve chain refuted': verdict('cover', dict(theorem_case(good, 0)['finite']['cover'], chain=[3, 4]))[0] == 'REFUTED',
     }
     return all(checks.values()), checks
@@ -514,10 +573,20 @@ def claims_of(state):
                     yield record['task_id'], kind, dict(unresolvable='cover reference not saved'); continue
                 data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=covers[data['cover_ref']])
             if type(data) is dict and 'finite_ref' in data:
-                ranges = {digest(r['data']): r['data'] for r in record.get('objects', []) if r.get('kind') == 'finite'}
+                ranges = {}
+                for r in record.get('objects', []):
+                    if r.get('kind') != 'finite': continue
+                    body = r['data']
+                    if 'cover_ref' in body and body['cover_ref'] in covers:
+                        body = dict({k: v for k, v in body.items() if k != 'cover_ref'}, cover=covers[body['cover_ref']])
+                    ranges[digest(body)] = body
                 if data['finite_ref'] not in ranges:
                     yield record['task_id'], kind, dict(unresolvable='range reference not saved'); continue
                 data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=ranges[data['finite_ref']])
+            if kind == 'nofamily' and type(data) is dict and 'rs' in data:
+                for r in data['rs']:
+                    yield record['task_id'], 'nofamily', dict({k: v for k, v in data.items() if k != 'rs'}, r=r)
+                continue
             if kind == 'descent_rows':
                 for M, r, steps, bound in data['rows']:
                     yield record['task_id'], 'descent', dict(map=data['map'], modulus=M, residue=r, steps=steps, bound=bound)
@@ -534,8 +603,11 @@ def main(argv):
         rows.append(dict(task_id=task[:16], kind=kind, verdict=v, detail=detail))
     counts = {k: sum(r['verdict'] == k for r in rows) for k in ('VERIFIED', 'REFUTED', 'UNRESOLVED')}
     bit = 'verified' if rows and counts['VERIFIED'] == len(rows) else 'no, keep thinking'
+    walls = [r for r in rows if r['kind'] == 'nofamily']
+    listed = [r for r in rows if r['kind'] != 'nofamily' or r['verdict'] != 'VERIFIED']
     print(json.dumps(dict(status='VERDICT', version=VERSION, bit=bit, self_test=dict(ok=ok, checks=tests), counts=counts,
-                          claims=rows[:512],
+                          walls=dict(total=len(walls), verified=sum(r['verdict'] == 'VERIFIED' for r in walls)),
+                          claims=listed[:4096],
                           limits='Independent exact recomputation of saved claims only; a VERIFIED claim is correct in its '
                                  'stated scope, not a proof of the open problem.'), indent=1))
     return 0 if bit == 'verified' else 3

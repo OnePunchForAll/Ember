@@ -29,9 +29,9 @@ Q = Fraction
 OP_MODULES = ('ops_seq', 'ops_poly', 'ops_orbit', 'ops_egypt', 'ops_arith', 'ops_word', 'ops_matrix', 'ops_collatz')
 DIRECTIONS = ('N', 'W', 'S', 'E')
 # Checked objects of these kinds refute an existence or reachability claim.
-EVIDENCE_KINDS = ('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle', 'nofamily')
+EVIDENCE_KINDS = ('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle', 'nofamily', 'obstruction')
 RESIDUAL_KINDS = ('residual',)
-MAX_OBJECT_BYTES = 262_144
+MAX_OBJECT_BYTES = 1_048_576  # one claim; a state file stays bounded by the host's STATE_LIMIT
 
 
 def canonical(value):
@@ -333,6 +333,43 @@ def square_divisors(v):
     return sorted(out)
 
 
+def classical_x(a, m, r, params):
+    """Denominators, as [[num, den], ...] lists, of the classical family with parameters [type, u, v, e or w] on the
+    class n = m*k + r (Type II: d = (n+e)/m, x = u*v*d, u*w*d*n, v*w*d*n; Type I: d = ((u+v)*n + w)/(a*u*v*w),
+    x = u*v*d*n, u*w*d, v*w*d)."""
+    kind, u, v, z = params; n = [Fraction(r), Fraction(m)]
+    if kind == 'II':
+        w = (u + v) // z; d = [Fraction(r + z, m), Fraction(1)]; dn = pmul(d, n)
+        polys = [pscale(d, u * v), pscale(dn, u * w), pscale(dn, v * w)]
+    else:
+        q = a * u * v * z; d = [Fraction((u + v) * r + z, q), Fraction((u + v) * m, q)]; dn = pmul(d, n)
+        polys = [pscale(dn, u * v), pscale(d, u * z), pscale(d, v * z)]
+    return [[[c.numerator, c.denominator] for c in ptrim(p)] for p in polys]
+
+
+def classical_params_of(a, m, r, x):
+    """Classical parameters [type, u, v, e or w] that rebuild exactly these denominators on n = m*k + r, or None.
+    Type II has a linear first denominator: u*v = m/a and e = -r (mod m). Type I has a quadratic first one: u/v is
+    the ratio of the leading coefficients of y and z, w/t follows from x(0)/y(0), and the scale t from the modulus.
+    Only a parameter set whose rebuild equals the family is returned."""
+    try: polys = [ptrim([Fraction(n, d) for n, d in e]) for e in x]
+    except (TypeError, ValueError, ZeroDivisionError): return None
+    if len(polys) != 3 or a < 1 or m < 1: return None
+    target = [[[c.numerator, c.denominator] for c in p] for p in polys]; found = []
+    if [len(p) for p in polys] == [2, 3, 3] and m % a == 0:
+        uv = m // a; e = (-r) % m or m
+        found = [['II', u, uv // u, e] for u in divisors(uv) if u <= uv // u and (u + uv // u) % e == 0]
+    elif [len(p) for p in polys] == [3, 2, 2] and r and polys[0][0]:
+        ratio = polys[1][1] / polys[2][1]; slope = Fraction(r * ratio.denominator) * polys[1][0] / polys[0][0]
+        for t in range(1, 5001):
+            u, v, w = ratio.numerator * t, ratio.denominator * t, slope * t
+            if u > v or w <= 0: break
+            if w.denominator != 1: continue
+            q = a * u * v * int(w)
+            if q // gcd(q, u + v) == m and ((u + v) * r + int(w)) % q == 0: found = [['I', u, v, int(w)]]; break
+    return next((p for p in found if classical_x(a, m, r, p) == target), None)
+
+
 def factor(v):
     """Prime factorization as {prime: exponent}, primes increasing. Trial division removes primes below 1000; what
     remains is split by Pollard's rho (Brent's variant) and certified prime by Miller-Rabin with the first thirteen
@@ -587,17 +624,19 @@ class Runtime:
         self.checker = checker; self.budget = budget
         self.objects = workspace if workspace is not None else {}
         self.events = []
+        # Identities in order of creation, so readers can index only what is new (a removed object is skipped).
+        self.order = list(self.objects)
 
     def _make(self, kind, data, parents, status):
         data = json.loads(canonical(data))
-        if len(canonical(data)) > MAX_OBJECT_BYTES: raise ValueError('object exceeds 256 KiB')
+        if len(canonical(data)) > MAX_OBJECT_BYTES: raise ValueError('object exceeds 1 MiB')
         question = self.checker.question(kind, data)
         identity = digest(dict(kind=kind, data=data))
         existing = self.objects.get(identity)
         if existing is not None: return existing, False
         obj = dict(id=identity, kind=kind, data=data, question=question, status=status,
                    parents=[p['id'] for p in parents])
-        self.objects[identity] = obj
+        self.objects[identity] = obj; self.order.append(identity)
         return obj, True
 
     def given(self, kind, data, status='given'):

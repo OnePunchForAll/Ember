@@ -1452,13 +1452,19 @@ print(json.dumps(answers))
         def by_digest(kind):
             return {hashlib.sha256(json.dumps(row['data'], sort_keys=True, separators=(',', ':')).encode()).hexdigest():
                     row['data'] for row in saved_objects if row['kind'] == kind}
-        saved_covers, saved_ranges = by_digest('cover'), by_digest('finite')
+        saved_covers = by_digest('cover')
+
+        def with_cover(data):
+            if 'cover_ref' in data:
+                data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=saved_covers[data['cover_ref']])
+            return data
+        # A saved range may itself name its cover; the theorem names the range by the digest of its full form.
+        saved_ranges = {hashlib.sha256(json.dumps(with_cover(row['data']), sort_keys=True, separators=(',', ':')).encode())
+                        .hexdigest(): with_cover(row['data']) for row in saved_objects if row['kind'] == 'finite'}
 
         def expand(row):
             # Compact claims name their cover or range by digest; expanding a reference is plumbing, the checker decides.
-            data = row['data']
-            if 'cover_ref' in data:
-                data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=saved_covers[data['cover_ref']])
+            data = with_cover(row['data'])
             if 'finite_ref' in data:
                 data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=saved_ranges[data['finite_ref']])
             return dict(kind=row['kind'], data=data)
@@ -1535,12 +1541,15 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
         code, verdict = verdict_run('verdict_agent_state', 'lift-state.json')
         check('verdict_verifies_every_saved_claim', code == 0 and verdict['bit'] == 'verified' and verdict['self_test']['ok']
               and verdict['counts']['VERIFIED'] >= 9 and not verdict['counts']['REFUTED'] and not verdict['counts']['UNRESOLVED']
-              and {row['kind'] for row in verdict['claims']} >= {'cover', 'finite', 'pattern', 'density', 'nofamily', 'theorem'})
+              and verdict['walls']['total'] == verdict['walls']['verified'] > 0
+              and {row['kind'] for row in verdict['claims']} >= {'cover', 'finite', 'pattern', 'density', 'theorem'})
         forged_lift = json.loads((root / 'lift-state.json').read_bytes())
         lift_record = next(row for row in forged_lift['observations'] if row.get('kind') == 'autonomous_research')
-        next(row for row in lift_record['objects'] if row['kind'] == 'cover')['data']['entries'][0]['family']['x'][1] = \
-            ['num', 7, 1]
-        next(row for row in lift_record['objects'] if row['kind'] == 'nofamily')['data']['r'] = 11
+        forged_family = next(row for row in lift_record['objects'] if row['kind'] == 'cover')['data']['entries'][0]['family']
+        if 'x' in forged_family: forged_family['x'][1] = ['num', 7, 1]
+        else: forged_family['p'][1] += 1
+        forged_walls = next(row for row in lift_record['objects'] if row['kind'] == 'nofamily')['data']
+        forged_walls['rs'] = sorted(set(forged_walls['rs']) | {11})
         (root / 'lift-forged.json').write_bytes(encoded(forged_lift))
         code, forged_verdict = verdict_run('verdict_forged_state', 'lift-forged.json')
         check('verdict_refutes_forged_claims', code == 3 and forged_verdict['bit'] == 'no, keep thinking'
@@ -1585,6 +1594,9 @@ mixed['finite']['cover']['bound'] = 15
 def admits(data):
     try: return C.check_theorem(data, B())['ok']
     except C.Invalid: return False
+def admits_kind(kind, data):
+    try: return C.check(kind, data, B())['ok']
+    except C.Invalid: return False
 theorem = (admits(mixed) and V.verdict('theorem', mixed)[0] == 'VERIFIED' and not admits(V.theorem_case(good, 5))
            and V.verdict('theorem', V.theorem_case(good, 5))[0] == 'REFUTED')
 def unpruned(a, m, r, bound):
@@ -1607,7 +1619,17 @@ complete = (C.classical_parameters(4, 1580040, 32881, 0, B())[:1] == [('I', 38, 
             and V.classical_hit(4, 1580040, 32881, 0) == ('I', 38, 297, 1)
             and C.classical_parameters(4, 1580040, 32881, 120, B()) == []
             and not C.classical_parameters(4, 1580040, 1, 0, B()) and V.classical_hit(4, 1580040, 1, 0) is None)
-print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete)))
+lemma = dict(a=4, terms=3, m=1580040, rule='classical_reach_nonsquare')
+counter = dict(a=5, terms=3, m=840, rule='classical_reach_nonsquare')
+def refutes(claim, witness):
+    try: return C.check_refutation(dict(claim=dict(kind='obstruction', data=claim), witness=witness), B())['ok']
+    except C.Invalid: return False
+obstruction = (C.check_obstruction(lemma, B())['ok'] and V.verdict('obstruction', lemma)[0] == 'VERIFIED'
+               and admits_kind('obstruction', counter) is False and V.verdict('obstruction', counter)[0] == 'REFUTED'
+               and refutes(counter, dict(modulus=5, residue=4, params=['II', 1, 1, 1]))
+               and not refutes(counter, dict(modulus=5, residue=3, params=['II', 1, 1, 2])))
+print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
+                      obstruction=obstruction)))
 """
         began = time.perf_counter_ns()
         sieve_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', sieve_code], cwd=root, capture_output=True,
@@ -1622,6 +1644,7 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('pruned_wall_search_matches_unpruned_search', sieve_result.get('walls') is True)
         check('retirement_spares_the_classical_generator_and_walls', sieve_result.get('retire') is True)
         check('complete_classical_enumeration_reaches_past_the_old_bound', sieve_result.get('complete') is True)
+        check('classical_obstruction_proved_for_4_and_refuted_for_5', sieve_result.get('obstruction') is True)
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',

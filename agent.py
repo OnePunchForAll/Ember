@@ -92,6 +92,26 @@ def record_sample(samples, row):
     return (kept + [row])[-MAX_SAMPLES:]
 
 
+def compact_range(L, obj, best):
+    """A saved range whose cover is the saved cover names it by digest; it is expanded again on resume."""
+    d = obj['data']
+    if best is None or d.get('cover') != best['data']: return obj
+    return dict(kind=obj['kind'], data=dict({k: v for k, v in d.items() if k != 'cover'}, cover_ref=L.digest(best['data'])))
+
+
+def lean_family(L, d):
+    """A classical family saved by its parameters only; parameters are recovered for families found without them."""
+    if 'p' not in d and 'x' in d and len(d['x']) == 3 and all(e and type(e[0]) is list for e in d['x']):
+        named = L.classical_params_of(d['a'], d['m'], d['r'], d['x'])
+        if named: d = dict(d, p=named)
+    return {k: v for k, v in d.items() if k != 'x'} if 'p' in d else d
+
+
+def full_family(L, d):
+    """A family in working form: parameters are kept, and the denominators rebuilt when they were left out."""
+    return dict(d, x=L.classical_x(d['a'], d['m'], d['r'], d['p'])) if 'x' not in d and 'p' in d else d
+
+
 def nonresidue_primes(x, powers):
     """Primes p of the modulus with x a quadratic non-residue modulo p**e (x coprime to the modulus)."""
     out = []
@@ -160,7 +180,7 @@ class CoverGoal(Goal):
     kind = 'unit_fraction_cover'
     persist = ('cover', 'finite')
     capped = ('eclass', 'en')
-    limit_kinds = ('nofamily',)
+    limit_kinds = ('nofamily', 'obstruction')
 
     def __init__(self, p, L):
         self.p, self.L = p, L
@@ -171,6 +191,7 @@ class CoverGoal(Goal):
         self.classes = []; self.classical_miss = set(); self._ready = None; self._powers = {}; self._contexts = {}
         # Incremental indexes: the step loop reads these instead of rescanning the workspace.
         self.results = []; self.covers_at = {}; self._open = {}; self.fam_count = 0
+        self.fam = {}; self.fam_log = []; self._fam_known = set()
 
     def init(self, rt):
         p = self.p; a, terms = p['a'], p['terms']
@@ -184,9 +205,9 @@ class CoverGoal(Goal):
 
     def update(self, rt):
         """Index new objects: checked family classes, residual marks, refinements and class targets."""
-        keys = list(rt.objects)
-        for identity in keys[self.seen:]:
-            o = rt.objects[identity]
+        for identity in rt.order[self.seen:]:
+            o = rt.objects.get(identity)
+            if o is None: continue
             if o['kind'] == 'residual':
                 self.residual.add(o['data']['of'])
                 if o['data']['note'] in FAMILY_MISSES:
@@ -205,23 +226,25 @@ class CoverGoal(Goal):
                 # Only a refinement onto a tracked level hands the parent's obligation to its subclasses.
                 self.classes.append(o)
                 for parent in o['parents']: self.refined.add(parent)
-            if o['kind'] == 'template' or o['kind'] in ('finite', 'cover', 'pattern', 'density', 'theorem'): self.results.append(o)
-        self.seen = len(keys)
-        self.fam = {}
+            if o['kind'] == 'template' or o['kind'] in ('finite', 'cover', 'pattern', 'density', 'theorem', 'obstruction'):
+                self.results.append(o)
+        self.seen = len(rt.order)
+        # Family classes only accumulate; the log keeps their order of discovery for incremental updates.
         for identity in self.family_ids(rt):
-            d = rt.objects[identity]['data']; self.fam.setdefault(d['m'], set()).add(d['r'])
-        self.fam_count = sum(len(v) for v in self.fam.values())
+            if identity in self._fam_known: continue
+            self._fam_known.add(identity); d = rt.objects[identity]['data']; rs = self.fam.setdefault(d['m'], set())
+            if d['r'] not in rs: rs.add(d['r']); self.fam_log.append((d['m'], d['r']))
+        self.fam_count = len(self.fam_log)
         for o in self.results:
             if o['kind'] == 'cover' and o['status'] == 'checked': self.covers_at[o['data']['modulus']] = o
 
     def family_ids(self, rt):
         if not hasattr(self, '_families'): self._families = []; self._scanned = 0
-        keys = list(rt.objects)
-        for identity in keys[self._scanned:]:
-            o = rt.objects[identity]
-            if o['kind'] == 'ufam' and o['data']['a'] == self.p['a'] and len(o['data']['x']) == self.p['terms']:
+        for identity in rt.order[self._scanned:]:
+            o = rt.objects.get(identity)
+            if o is not None and o['kind'] == 'ufam' and o['data']['a'] == self.p['a'] and len(o['data']['x']) == self.p['terms']:
                 self._families.append(identity)
-        self._scanned = len(keys)
+        self._scanned = len(rt.order)
         return [i for i in self._families if rt.objects[i]['status'] == 'checked']
 
     def families(self, rt):
@@ -257,14 +280,27 @@ class CoverGoal(Goal):
         return out
 
     def open_classes(self, M):
-        """Open class targets of one level, recomputed only when families, classes or refinements change."""
-        key = (self.fam_count, len(self.classes), len(self.refined))
+        """Open class targets of one level, sorted by residue, kept incrementally: a class that is open stays open until
+        a family found since the last call reaches it or it is refined, and new classes are tested against every family."""
         cached = self._open.get(M)
-        if cached is None or cached[0] != key:
-            cached = (key, [o for o in sorted((c for c in self.classes if c['data']['m'] == M), key=lambda c: c['data']['r'])
-                            if o['id'] not in self.refined and not self.covered(self.fam, M, o['data']['r'])])
-            self._open[M] = cached
-        return cached[1]
+        if cached is None:
+            opened = [o for o in sorted((c for c in self.classes if c['data']['m'] == M), key=lambda c: c['data']['r'])
+                      if o['id'] not in self.refined and not self.covered(self.fam, M, o['data']['r'])]
+            self._open[M] = (len(self.fam_log), len(self.classes), len(self.refined), opened)
+            return opened
+        fams, classes, refined, opened = cached
+        if (fams, classes, refined) == (len(self.fam_log), len(self.classes), len(self.refined)): return opened
+        fresh = {}
+        for m, r in self.fam_log[fams:]:
+            if M % m == 0: fresh.setdefault(m, set()).add(r)
+        if fresh: opened = [o for o in opened if not any(o['data']['r'] % m in rs for m, rs in fresh.items())]
+        if refined != len(self.refined): opened = [o for o in opened if o['id'] not in self.refined]
+        if classes != len(self.classes):
+            added = [c for c in self.classes[classes:] if c['data']['m'] == M and c['id'] not in self.refined
+                     and not self.covered(self.fam, M, c['data']['r'])]
+            if added: opened = sorted(opened + added, key=lambda c: c['data']['r'])
+        self._open[M] = (len(self.fam_log), len(self.classes), len(self.refined), opened)
+        return opened
 
     def version(self, rt, strategy, target):
         """What a workspace-reading move depends on: the family classes that divide its modulus."""
@@ -286,8 +322,12 @@ class CoverGoal(Goal):
         if strategy == 'egypt_finite_verify': return target['data']['modulus'] == self.levels[-1]
         if strategy in ('egypt_cover_lift', 'egypt_cover_merge'): return False
         if strategy == 'egypt_classical_exclusion':
-            # Certify a wall only where the classical generator already missed, at the finest level.
-            return target['kind'] == 'eclass' and target['data']['m'] == self.levels[-1] and target['id'] in self.classical_miss
+            # Certify a wall only where the classical generator already missed, at the finest level, and not for a
+            # square class once her obstruction lemma covers the level: the lemma already excludes it.
+            return (target['kind'] == 'eclass' and target['data']['m'] == self.levels[-1]
+                    and target['id'] in self.classical_miss and not self.obstructed(rt, target))
+        if strategy == 'egypt_classical_obstruction':
+            return target['kind'] == 'esq' and target['data']['modulus'] == self.levels[-1]
         if strategy == 'egypt_choose_lift':
             return (target['kind'] == 'esq' and target['data']['modulus'] == self.levels[-1]
                     and len(self.levels) < self.limit and self.top_ready(rt))
@@ -348,9 +388,18 @@ class CoverGoal(Goal):
             claims += [dict(kind='theorem', data=dict({k: v for k, v in o['data'].items() if k != 'finite'}, finite_ref=ref))
                        for o in rt.objects.values() if o['kind'] == 'theorem' and o['status'] == 'checked'
                        and o['data']['finite'] == finite[-1]['data']]
-        walls = [o for o in rt.objects.values() if o['kind'] == 'nofamily' and o['status'] == 'checked']
+        lemmas = [o for o in rt.objects.values() if o['kind'] == 'obstruction' and o['status'] == 'checked']
+        batches = {}
+        for o in rt.objects.values():
+            if o['kind'] == 'nofamily' and o['status'] == 'checked' and 'r' in o['data']:
+                d = o['data']; batches.setdefault((d['a'], d['terms'], d['m'], d['bound']), []).append(d['r'])
+        # Walls are saved one batch per modulus, and classical families by their parameters: shorter certificates for
+        # the same claims, expanded again when she resumes.
+        walls = [dict(kind='nofamily', data=dict(a=a, terms=terms, m=m, bound=bound, rs=sorted(rs)))
+                 for (a, terms, m, bound), rs in sorted(batches.items())]
+        families = [dict(kind='ufam', data=lean_family(self.L, o['data'])) for o in families]
         return ([self.tree(rt)] + [o for o in rt.objects.values() if o['kind'] == 'template'] + ([best] if best else [])
-                + families + finite[-1:] + claims + walls)
+                + families + [compact_range(self.L, o, best) for o in finite[-1:]] + claims + lemmas + walls)
 
     def tree(self, rt):
         """The refinement tree as bookkeeping, not a claim: every level (the agent's own included), the classes that
@@ -387,19 +436,37 @@ class CoverGoal(Goal):
         return any(family['m'] % e['family']['m'] == 0 and family['r'] % e['family']['m'] == e['family']['r']
                    for e in cover['entries'])
 
+    def expand(self, rows):
+        """Saved rows in the working form: a wall batch becomes one wall per residue, and a family saved by its
+        parameters regains its denominators (the checker then admits both again)."""
+        out = []
+        for row in rows:
+            d = row['data']
+            if row['kind'] == 'nofamily' and 'rs' in d:
+                out += [dict(kind='nofamily', data=dict({k: v for k, v in d.items() if k != 'rs'}, r=r)) for r in d['rs']]
+            elif row['kind'] == 'ufam': out.append(dict(kind='ufam', data=full_family(self.L, d)))
+            elif row['kind'] == 'cover':
+                out.append(dict(kind='cover', data=d))
+            else: out.append(row)
+        return out
+
     def restore(self, rt, saved):
         for row in saved:
             if row['kind'] == 'cover_tree': self.rebuild(rt, row['data'])
-        saved = [row for row in saved if row['kind'] != 'cover_tree']
+        saved = self.expand([row for row in saved if row['kind'] != 'cover_tree'])
         covers = {self.L.digest(row['data']): row['data'] for row in saved if row['kind'] == 'cover'}
-        ranges = {self.L.digest(row['data']): row['data'] for row in saved if row['kind'] == 'finite'}
-        expanded = []
+        with_covers = []
         for row in saved:
             data = row['data']
             if 'cover_ref' in data:
                 # A compact claim is rechecked against the saved cover it names; without that cover it is dropped.
                 if data['cover_ref'] not in covers: continue
                 data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=covers[data['cover_ref']])
+            with_covers.append(dict(kind=row['kind'], data=data))
+        ranges = {self.L.digest(row['data']): row['data'] for row in with_covers if row['kind'] == 'finite'}
+        expanded = []
+        for row in with_covers:
+            data = row['data']
             if 'finite_ref' in data:
                 if data['finite_ref'] not in ranges: continue
                 data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=ranges[data['finite_ref']])
@@ -412,7 +479,7 @@ class CoverGoal(Goal):
             if cover['status'] != 'checked': continue
             for entry in row['data']['entries']:
                 # The families were checked inside the cover check; restating them keeps coverage bookkeeping exact.
-                family = rt.propose('ufam', entry['family'])
+                family = rt.propose('ufam', full_family(self.L, entry['family']))
                 if rt.check(family): admitted += 1
         return admitted, refused
 
@@ -423,18 +490,18 @@ class CoverGoal(Goal):
         a, terms = self.p['a'], self.p['terms']
         def same(row):
             d = row['data']
-            if row['kind'] == 'ufam': return d.get('a') == a and len(d.get('x', ())) == terms
-            if row['kind'] in ('cover', 'nofamily'): return d.get('a') == a and d.get('terms') == terms
+            if row['kind'] == 'ufam': return d.get('a') == a and (len(d['x']) if 'x' in d else 3) == terms
+            if row['kind'] in ('cover', 'nofamily', 'obstruction'): return d.get('a') == a and d.get('terms') == terms
             return row['kind'] == 'template' and d.get('a') == a
         admitted = refused = 0
-        for row in rows:
-            if row['kind'] not in ('ufam', 'cover', 'nofamily', 'template') or not same(row): continue
+        for row in self.expand([r for r in rows if r['kind'] in ('ufam', 'cover', 'nofamily', 'obstruction', 'template')]):
+            if not same(row): continue
             obj = rt.propose(row['kind'], row['data'])
             if obj['kind'] == 'template' or rt.check(obj): admitted += 1
             else: refused += 1
             if row['kind'] == 'cover' and obj['status'] == 'checked':
                 for entry in row['data']['entries']:
-                    if rt.check(rt.propose('ufam', entry['family'])): admitted += 1
+                    if rt.check(rt.propose('ufam', full_family(self.L, entry['family']))): admitted += 1
         return admitted, refused
 
     def level_uncovered(self):
@@ -471,6 +538,24 @@ class CoverGoal(Goal):
                 return o['data']['images']
         return None
 
+    def obstructed(self, rt, target):
+        """A square class at this level whose walls her checked obstruction lemma at a finer or equal level implies."""
+        m, r = target['data']['m'], target['data']['r']
+        if gcd(r, m) != 1 or 'coprime:square' not in self.context(target): return False
+        return any(o['kind'] == 'obstruction' and o['status'] == 'checked' and o['data']['m'] % m == 0
+                   and o['data']['a'] == self.p['a'] for o in self.results)
+
+    def obstruction(self, rt, M):
+        for o in self.results:
+            if o['kind'] == 'obstruction' and o['data']['m'] == M:
+                if o['status'] == 'checked': return dict(status='checked', reached=o['evidence']['reached'])
+        for o in rt.objects.values():
+            if o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'obstruction' \
+                    and o['data']['claim']['data']['m'] == M:
+                w = o['data']['witness']
+                return dict(status='refuted', modulus=w['modulus'], residue=w['residue'], params=w['params'])
+        return dict(status='not attempted')
+
     def walls(self, rt, M):
         return sum(1 for o in rt.objects.values() if o['kind'] == 'nofamily' and o['status'] == 'checked'
                    and o['data']['m'] == M)
@@ -490,7 +575,7 @@ class CoverGoal(Goal):
                                square_pattern=self.pattern_status(rt, M),
                                signature_pattern=self.pattern_status(rt, M, 'uncovered_coprime_square_outside'),
                                local_images=self.local_images(rt, M),
-                               certified_walls=self.walls(rt, M)))
+                               certified_walls=self.walls(rt, M), obstruction=self.obstruction(rt, M)))
         return dict(levels=levels, families=sum(len(v) for v in index.values()))
 
     def failure_profile(self, rt):
@@ -518,7 +603,7 @@ class DescentGoal(Goal):
     def __init__(self, p, L):
         self.p, self.L = p, L; self.top = p['map']['d'] ** p['depth']
         self.index_ = {}; self.residual = set(); self.classes = []; self.refined = set(); self.seen = 0
-        self.results = []
+        self.results = []; self.pending = []; self.desc_log = []; self.dcovers = []; self._open = None; self.others = []
 
     def init(self, rt):
         d = self.p['map']['d']
@@ -526,19 +611,27 @@ class DescentGoal(Goal):
         for r in range(d): rt.given('cclass', dict(map=self.p['map'], modulus=d, residue=r))
 
     def update(self, rt):
-        keys = list(rt.objects)
-        for identity in keys[self.seen:]:
-            o = rt.objects[identity]
+        """Index new objects incrementally; results not yet checked are revisited until they are."""
+        for identity in rt.order[self.seen:]:
+            o = rt.objects.get(identity)
+            if o is None: continue
             if o['kind'] == 'residual': self.residual.add(o['data']['of'])
             elif o['kind'] == 'cclass' and o['data']['modulus'] <= self.top:
                 self.classes.append(o)
                 for parent in o['parents']: self.refined.add(parent)
-            elif o['kind'] in ('descent', 'dcover', 'cfinite', 'cycle'): self.results.append(o)
-        self.seen = len(keys)
-        self.index_ = {}
-        for o in self.results:
-            if o['kind'] == 'descent' and o['status'] == 'checked':
-                self.index_.setdefault(o['data']['modulus'], set()).add(o['data']['residue'])
+            elif o['kind'] in ('descent', 'dcover', 'cfinite', 'cycle'): self.results.append(o); self.pending.append(o)
+        self.seen = len(rt.order)
+        waiting = []
+        for o in self.pending:
+            if o['status'] != 'checked': waiting.append(o); continue
+            if o['kind'] == 'descent':
+                rs = self.index_.setdefault(o['data']['modulus'], set())
+                if o['data']['residue'] not in rs:
+                    rs.add(o['data']['residue']); self.desc_log.append((o['data']['modulus'], o['data']['residue']))
+            else:
+                self.others.append(o)
+                if o['kind'] == 'dcover': self.dcovers.append(o)
+        self.pending = waiting
 
     def descents(self, rt):
         self.update(rt); return self.index_
@@ -547,10 +640,22 @@ class DescentGoal(Goal):
         return any(M % fm == 0 and r % fm in rs for fm, rs in index.items())
 
     def targets(self, rt):
-        index = self.descents(rt)
-        out = [o for o in sorted(self.classes, key=lambda o: (o['data']['modulus'], o['data']['residue']))
-               if o['id'] not in self.refined and not self.covered(index, o['data']['modulus'], o['data']['residue'])]
-        return out + [self.root] + [o for o in self.results if o['kind'] == 'dcover' and o['status'] == 'checked'][-1:]
+        """Open classes sorted by modulus and residue, kept incrementally: an open class leaves the list when a descent
+        found since the last call reaches it or it is refined; new classes are tested against every descent."""
+        index = self.descents(rt); key = lambda o: (o['data']['modulus'], o['data']['residue'])
+        n_desc, n_cls, n_ref, opened = self._open or (0, 0, 0, [])
+        if (n_desc, n_cls, n_ref) != (len(self.desc_log), len(self.classes), len(self.refined)):
+            fresh = {}
+            for fm, r in self.desc_log[n_desc:]: fresh.setdefault(fm, set()).add(r)
+            if fresh:
+                opened = [o for o in opened if not any(o['data']['modulus'] % fm == 0 and o['data']['residue'] % fm in rs
+                                                       for fm, rs in fresh.items())]
+            if n_ref != len(self.refined): opened = [o for o in opened if o['id'] not in self.refined]
+            added = [o for o in self.classes[n_cls:] if o['id'] not in self.refined
+                     and not self.covered(index, o['data']['modulus'], o['data']['residue'])]
+            if added: opened = sorted(opened + added, key=key)
+            self._open = (len(self.desc_log), len(self.classes), len(self.refined), opened)
+        return opened + [self.root] + self.dcovers[-1:]
 
     def allowed(self, strategy, target, rt):
         if strategy == 'collatz_split':
@@ -558,9 +663,8 @@ class DescentGoal(Goal):
         return True
 
     def progress(self, rt):
-        index = self.descents(rt)
-        return (sum(len(v) for v in index.values()),
-                tuple(sorted(o['kind'] for o in self.results if o['status'] == 'checked' and o['kind'] != 'descent')))
+        self.descents(rt)
+        return len(self.desc_log), tuple(sorted(o['kind'] for o in self.others))
 
     def persisted(self, rt):
         rows = [[o['data']['modulus'], o['data']['residue'], o['data']['steps'], o['data']['bound']]
@@ -729,12 +833,12 @@ class Agent:
 
     def index(self):
         """Incrementally index new workspace objects by kind and by parent."""
-        keys = list(self.rt.objects)
-        for identity in keys[self.indexed:]:
-            o = self.rt.objects[identity]
+        for identity in self.rt.order[self.indexed:]:
+            o = self.rt.objects.get(identity)
+            if o is None: continue
             self.by_kind.setdefault(o['kind'], []).append(identity)
             for parent in o['parents']: self.children.setdefault(parent, []).append(identity)
-        self.indexed = len(keys)
+        self.indexed = len(self.rt.order)
 
     # -- move table: operators, the verify move, and invented or proposed macros
     def strategies(self):

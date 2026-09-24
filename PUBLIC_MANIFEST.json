@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 22562,
+      "bytes": 29161,
       "path": "CAMPAIGNS.md",
-      "sha256": "43b0515c97e53d00182c9ab8ea007e72469498c0297f74baa57e6a6fa31b03b1"
+      "sha256": "a01fd02234f9649395881643e4d2cb403741d19680ed7ffa87db7adeb8aefffc"
     },
     {
       "bytes": 9709,
@@ -26,9 +26,9 @@
       "sha256": "88b621357e7f2677281eca67b3a3c825e590c74764a438e790eeb2935db6805a"
     },
     {
-      "bytes": 65944,
+      "bytes": 73012,
       "path": "agent.py",
-      "sha256": "1008cc6b59e7e55afe9227ca1e878c70fc6ec87f3cced5ee54dedbf867e81c0c"
+      "sha256": "49cde459296a4218c9c6cb1a76ad4dddafca4e4c11ccb7a054717b0020e8b99d"
     },
     {
       "bytes": 64204,
@@ -341,14 +341,14 @@
       "sha256": "ae6889b7c3f1b79aa34cc3f8616053309cd34f51d3289f8e962f1293350c7205"
     },
     {
-      "bytes": 24999,
+      "bytes": 27591,
       "path": "lexicon.py",
-      "sha256": "b995d063f27c7c492e83e774819988a05e3f5440fe7425dd72907b2e4a7b9ed7"
+      "sha256": "c2ef618814be4bf9814128c2858a7aac23d9a38a385346d6d39d753ba7d4097e"
     },
     {
-      "bytes": 79329,
+      "bytes": 85700,
       "path": "lexicon_check.py",
-      "sha256": "adac42541f7714983675073a309e2eacfdaa1da1d1b73084e903a9754241afef"
+      "sha256": "1679962f0d285f653238e568471d0a6f0193ca49449aac11fda2cdf4254a195f"
     },
     {
       "bytes": 3884,
@@ -371,9 +371,9 @@
       "sha256": "9a8eeaacabd2770397e831bbc936a47ca0ba96a940b9e526d57439590d8d9a40"
     },
     {
-      "bytes": 42199,
+      "bytes": 43899,
       "path": "ops_egypt.py",
-      "sha256": "23922eff9df36fd5177e7416c65b9cb1d0f47889e30571903fb14b870dec3842"
+      "sha256": "00830e1df7dd3aa991bdb28d5d7d02e9b9fadfaa3105bd19091ea2f8f7d40f1f"
     },
     {
       "bytes": 9902,
@@ -401,9 +401,9 @@
       "sha256": "83a6d6eec0234f0c12ef0b627c47a03b08d948220393297c881e5775bead33cb"
     },
     {
-      "bytes": 72086,
+      "bytes": 72101,
       "path": "pyramid.py",
-      "sha256": "abac10161b436efb184a4cfe0d9814860caa1f4f26fc580a3d1caaba31dbd6ee"
+      "sha256": "e3b9805464503715191fa388d6021e005483ef33edd6649c4003b98179d8cf8f"
     },
     {
       "bytes": 4790,
@@ -431,9 +431,9 @@
       "sha256": "e3e63b4643c2e622e3c106250208eead4f234af4a325418f603c20a0c2267715"
     },
     {
-      "bytes": 152241,
+      "bytes": 153847,
       "path": "tools/build_public_package.py",
-      "sha256": "f6fd5b9ad58b79b3fb3016f116c87852db6d60f125f131635ebb9799aa1a063c"
+      "sha256": "347d40515530c2bf10d1dc091d4d785dfe63c04b00f6d3dac717993430f035be"
     },
     {
       "bytes": 12128,
@@ -441,9 +441,9 @@
       "sha256": "f860bd1961f445a93bc42d5514111d3caf40a4fbd8ac66b7eb3ace6f46d66a4b"
     },
     {
-      "bytes": 26844,
+      "bytes": 31106,
       "path": "tools/verdict.py",
-      "sha256": "055aab7ee60db1a670abf65fb1b7185e7d16ef6b2674af73048b197984dc6fd2"
+      "sha256": "025a2ccc1c0be0a7e6780a51070df96316d646404392a5b6a3d1ba6cd769d4e8"
     },
     {
       "bytes": 9009,
@@ -461,7 +461,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 and -17 were verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 836474,
+  "runtime_source_bytes": 854220,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",
