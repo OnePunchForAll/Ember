@@ -1069,6 +1069,72 @@ As with Erdős–Straus, the surviving classes are where the problem stays open.
 Descent on a class says nothing about its survivors, and verification below a
 bound is not a proof.
 
+## Campaigns: problems given, walls mined, instruments built
+
+After the launch, Ember works in campaigns. `CAMPAIGNS.md` is the ledger: for
+every round it records the task, the fingerprint of the code she ran, the
+moves and time, what she proved, the verdict, and the failures mined.
+
+The loop:
+
+1. Claude supplies only the problem, as a task in her typed language, with
+   no answer and no hint.
+2. She works alone, offline and without a language model. She chooses her
+   own moves, her own refinement primes, and which patterns and lemmas to
+   state.
+3. Her checker admits each claim. Then `tools/verdict.py`, which shares no
+   code with her, tests itself on known-true and known-false claims and
+   recomputes every saved claim. Each claim is VERIFIED, REFUTED or
+   UNRESOLVED. One bit goes back to her: "verified", or "no, keep thinking".
+4. Her failures are mined from her reports and from live profiles.
+5. When she failed because of her own limits, Claude builds the general
+   instrument she lacked and never the answer. The instrument passes the
+   move bench and the package checks, and she runs again.
+6. Strategy outcomes carry over to later problems as discounted reports.
+   Checked families, covers, walls and lemmas carry over to problems about
+   the same equation. Each report names the closest related problems, and
+   5/n was the one her first campaign offered.
+
+Results so far. Each is admitted by her checker and VERIFIED by the
+independent verdict. None settles an open problem. The Collatz campaign is a
+closed check against known counts, compared with an independent parity
+simulation she never sees.
+
+- **Erdős–Straus, 4/n.** She chose the prime 19 herself and proved that
+  every n >= 2 outside 2,619 residue classes mod 1,580,040 has a
+  representation. Of the open classes, 2,430 are squares, the known
+  obstruction. The other 189 are non-residues only at 11 or 19. She
+  certified walls where no classical fixed-parameter family reaches.
+- **Sierpiński, 5/n.** She chose 13, 19 and 29 and proved that every
+  n >= 2 outside 1,624 residue classes mod 595,675,080 has a
+  representation. That is 2.7 open classes in a million. At 1,081,080
+  every open class is 1 mod 5, 7 and 13, 1 mod 9, and 1 mod 4. For 5/n
+  the square classes are not the obstruction. She stated the obstruction
+  lemma that holds for 4/n, and her checker refuted it with her own
+  witness: Type II (1, 1, 1) reaches the square class 4 mod 5.
+- **Collatz sieve to 2^18 (closed).** In a first run her open counts
+  matched the known counts at 16 of 18 levels. The two misses exposed a
+  defect: an invented macro could refine a class without trying to
+  certify it. After the fix, all 18 levels match (7,495 open classes mod
+  2^18), and her sieved descent cover at 2^18 covers exactly
+  254,649 classes.
+
+The instruments built from her failures, in order: a classical Type I and
+Type II family generator; wall certificates; signature and local-image
+patterns; her own choice of refinement prime; failure mining, a strategy
+library and the independent verdict; a reduction theorem checked as a chain;
+a compact family encoding; a theorem checked class by class; sieve
+certificates that lift only open classes; learned retirement of futile
+strategies per context and level; a warm start for new problem statements;
+complete Type I enumeration (the bound of 120 had hidden 26 reachable
+classes at 1,580,040); an obstruction lemma that replaces thousands of
+square walls, provable for 4/n and refuted for 5/n; incremental bookkeeping;
+Pollard-rho factoring; shorter certificates (families named by their
+parameters, wall batches, ranges saved by cover reference); saved and
+independently verified refutations; macros that obey the goal's policy at
+every step; and sieved descent covers. Each is described, with the failure
+that prompted it, in `CAMPAIGNS.md`.
+
 ## Task and result interface
 
 The CLI accepts a JSON task filename, optional `--state`, and optional `--work`.

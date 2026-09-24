@@ -129,7 +129,17 @@ not to be a square modulo m, and they do not reprove it. The campaign loop,
 its independent three-valued verdict, failure mining, strategy retention and
 the instruments added in each round follow Seth's standing directives for
 Ember's development. The agent's scheduling formula and sample rules are Seth's
-Elythrene research doctrine.
+Elythrene research doctrine. Factorization uses Pollard's rho method (Pollard,
+1975) in Brent's variant (Brent, 1980), with primes certified by the Miller-Rabin
+test (Miller, 1976; Rabin, 1980) on the first thirteen prime bases, which is
+deterministic below 3.3 x 10^24 (Sorenson and Webster, "Strong pseudoprimes to
+twelve prime bases", Mathematics of Computation, 2017). The complete Type I
+enumeration rests on an elementary observation made for this package: with
+u = d u' and v = d v' coprime, u'v' is coprime to u'+v', so a fixed modulus
+admits finitely many parameter sets. The obstruction lemma is a finite check of
+the classical fact that fixed-parameter identities for 4/n avoid square classes.
+It reproves nothing about polynomial identities in general. The Collatz counts
+used as the known answer were recomputed here by exact parity simulation.
 Macro and template invention are bounded search control over checked results, not a
 claim of general scientific creativity. Reviews and tests came from the same model;
 they are not external replication.

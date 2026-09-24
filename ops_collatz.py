@@ -99,17 +99,18 @@ def collatz_cover_assemble(rt, cm):
                 and o['data']['map'] == cmap]
     if not descents: return []
     M = max(o['data']['modulus'] for o in descents)
-    entries = {}
-    for o in sorted(descents, key=lambda o: o['data']['modulus']):
+    # Rows stay at their own moduli and coverage is counted by a sieve along the powers of d: the claim grows with the
+    # descents she found, not with the modulus.
+    rows = {}
+    for o in sorted(descents, key=lambda o: (o['data']['modulus'], o['data']['residue'])):
         d = o['data']
-        if M % d['modulus']: continue
-        for j in range(M // d['modulus']):
-            r = d['residue'] + d['modulus'] * j
-            entries.setdefault(r, dict(d, modulus=M, residue=r, bound=max(1, lift_bound(d['bound'], M, r))))
-    if len(entries) > 1 << 17: return []
-    bound = max(e['bound'] for e in entries.values())
-    rows = [[r, entries[r]['steps'], entries[r]['bound']] for r in sorted(entries)]
-    claim = rt.propose('dcover', dict(map=cmap, modulus=M, rows=rows, bound=bound), (cm,))
+        if M % d['modulus'] == 0: rows.setdefault((d['modulus'], d['residue']), [d['modulus'], d['residue'], d['steps'], d['bound']])
+    if len(rows) > 1 << 17: return []
+    D = cmap['d']; chain = [D]
+    while chain[-1] < M: chain.append(chain[-1] * D)
+    if chain[-1] != M: return []
+    claim = rt.propose('dcover', dict(map=cmap, modulus=M, rows=sorted(rows.values()), bound=max(r[3] for r in rows.values()),
+                                      chain=chain), (cm,))
     return [claim] if rt.check(claim) else []
 
 

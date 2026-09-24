@@ -191,7 +191,7 @@ class CoverGoal(Goal):
         self.classes = []; self.classical_miss = set(); self._ready = None; self._powers = {}; self._contexts = {}
         # Incremental indexes: the step loop reads these instead of rescanning the workspace.
         self.results = []; self.covers_at = {}; self._open = {}; self.fam_count = 0
-        self.fam = {}; self.fam_log = []; self._fam_known = set()
+        self.fam = {}; self.fam_log = []; self._fam_known = set(); self.lemmas = []
 
     def init(self, rt):
         p = self.p; a, terms = p['a'], p['terms']
@@ -228,6 +228,7 @@ class CoverGoal(Goal):
                 for parent in o['parents']: self.refined.add(parent)
             if o['kind'] == 'template' or o['kind'] in ('finite', 'cover', 'pattern', 'density', 'theorem', 'obstruction'):
                 self.results.append(o)
+                if o['kind'] == 'obstruction': self.lemmas.append(o)
         self.seen = len(rt.order)
         # Family classes only accumulate; the log keeps their order of discovery for incremental updates.
         for identity in self.family_ids(rt):
@@ -388,7 +389,8 @@ class CoverGoal(Goal):
             claims += [dict(kind='theorem', data=dict({k: v for k, v in o['data'].items() if k != 'finite'}, finite_ref=ref))
                        for o in rt.objects.values() if o['kind'] == 'theorem' and o['status'] == 'checked'
                        and o['data']['finite'] == finite[-1]['data']]
-        lemmas = [o for o in rt.objects.values() if o['kind'] == 'obstruction' and o['status'] == 'checked']
+        lemmas = [o for o in rt.objects.values() if (o['kind'] == 'obstruction' and o['status'] == 'checked') or
+                  (o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'obstruction')]
         batches = {}
         for o in rt.objects.values():
             if o['kind'] == 'nofamily' and o['status'] == 'checked' and 'r' in o['data']:
@@ -540,10 +542,10 @@ class CoverGoal(Goal):
 
     def obstructed(self, rt, target):
         """A square class at this level whose walls her checked obstruction lemma at a finer or equal level implies."""
+        if not self.lemmas: return False
         m, r = target['data']['m'], target['data']['r']
         if gcd(r, m) != 1 or 'coprime:square' not in self.context(target): return False
-        return any(o['kind'] == 'obstruction' and o['status'] == 'checked' and o['data']['m'] % m == 0
-                   and o['data']['a'] == self.p['a'] for o in self.results)
+        return any(o['status'] == 'checked' and o['data']['m'] % m == 0 and o['data']['a'] == self.p['a'] for o in self.lemmas)
 
     def obstruction(self, rt, M):
         for o in self.results:
@@ -881,11 +883,17 @@ class Agent:
 
     def candidates(self, target, table, by_kind):
         focus = self.descendants(target); out = []; version = None
+        # Whether a strategy is allowed depends on the target and the goal state, not on the focus object: ask once.
+        permitted = {}
+        def allowed(name):
+            if name not in permitted:
+                permitted[name] = self.goal.allowed('verify', target, self.rt) if name == 'verify' else self.allowed(name, target, table)
+            return permitted[name]
         for f in focus:
-            if f['status'] == 'candidate' and f['kind'] in self.checkable and self.goal.allowed('verify', target, self.rt):
+            if f['status'] == 'candidate' and f['kind'] in self.checkable and allowed('verify'):
                 out.append(('verify', [f]))
             for name, slot in by_kind.get(f['kind'], []):
-                if name == 'verify' or not self.allowed(name, target, table): continue
+                if name == 'verify' or not allowed(name): continue
                 if self.attempts.get((target['id'], name), 0) >= MAX_PER_TARGET: continue
                 kinds = table[name]['consumes']; args = [None] * len(kinds); args[slot] = f; ok = True
                 for j, other in enumerate(kinds):
@@ -930,6 +938,9 @@ class Agent:
     def run_macro(self, name, args, budget):
         macro = next(m for m in self.macros if m['name'] == name); out = []; current = args
         for i, step in enumerate(macro['steps']):
+            # A step obeys the goal's policy for the object it acts on, not only for the macro's first target: a
+            # restricted move (a refinement, say) must not reach a derived class the policy would refuse.
+            if i and not self.goal.allowed(step, current[0], self.rt): break
             spec = self.registry[step]; before = set(self.rt.objects); self.rt.events = []
             produced = self.apply(step, spec, current)
             for o in produced:

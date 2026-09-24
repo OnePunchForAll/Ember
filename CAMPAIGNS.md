@@ -321,6 +321,18 @@ carried over by the warm start.
   level's whole open-class list after every new family, which is quadratic
   at deep levels. It was stopped for the instruments below.
 
+### Round 5, third attempt (commit 9498159, fingerprint 0bf025cf, stopped after 52 CPU minutes)
+
+- **Failure mining.** Two live profiles showed about 70% of the time in
+  scheduling, not in her moves (9%). The new `obstructed` test scanned
+  every result object on every call. `candidates` also asked the goal's
+  policy once per pair of focus object and strategy, although the answer
+  depends only on the target and the strategy.
+- **Instruments.** Her lemmas are kept in a list of their own, at most one
+  per level. The policy is asked once per strategy in each call. On the
+  examples and a depth-16 Collatz run the results are the same; only the
+  scope sentence of the new sieved descent cover differs.
+
 ## Campaign 2: Sierpiński's 5/n (the related problem she offered)
 
 **Problem supplied.** 5/n = 1/x + 1/y + 1/z for every n >= 2 (open;
@@ -444,6 +456,33 @@ resuming her whenever a call ended at its work allowance.
     built once. Every wall therefore failed its first allocation and
     succeeded only on the retry.
 
+### Round 4 (commit 9498159, fingerprint 0bf025cf, one call: 5,353 moves, 92 s)
+
+The run resumed her round-3 state with the instruments built after it (see
+the last section). Each of the 3,700 saved claims was admitted again, and none was refused.
+
+- **Result.**
+  - With the larger bound on one claim she assembled her cover at
+    595,675,080: 1,491 families, covering 595,673,456 residues.
+  - She stated and proved her theorem there: every n >= 2 outside 1,624
+    residue classes mod 595,675,080 has a representation
+    5/n = 1/x + 1/y + 1/z. The open fraction is 2.7 in a million.
+  - She stated the obstruction lemma for 5/n, and her checker refuted it
+    with her own witness: Type II (1, 1, 1) reaches the square class
+    4 mod 5. For 5/n, square classes are reachable.
+  - At that level, strategies that had failed 64 times without a success in
+    the non-square context were retired, the extended ansatz and its
+    macros among them.
+- **Verdict.** Self-test passed. 2,142 claims VERIFIED (2,132 walls,
+  her theorem at 595,675,080 on a sieved cover, and her round-2 theorem).
+  Bit: verified.
+- **Failure mining.** Her refutation of the lemma was not saved, because
+  refutations were not persisted, so the verdict could not recheck it.
+  Fixed: checked refutations of her lemmas are saved, and the verdict
+  verifies them with its own code. A reached-class witness must name a
+  genuine classical family with a modulus dividing m that reaches a coprime
+  square class.
+
 ## Campaign 3: the Collatz stopping-time sieve to 2^18 (a closed check)
 
 **Problem supplied.** The map T(n) = n/2 or (3n+1)/2: certify descent class
@@ -459,7 +498,40 @@ sees: 1, 1, 2, 3, 4, 8, 13, 19, 38, 64, 128, 226, 367, 734, 1,295, 2,114,
   open-class list and 22% rebuilding the descent index on every step. At
   depth 18 both are quadratic. It was stopped for the instruments below.
 
-## Instruments added after these runs (fingerprint 0bf025cf)
+### Round 1 (commit 9498159, fingerprint 0bf025cf, one call: 32,117 moves, 343 s)
+
+- **Result.** Her open counts agreed with the independent simulation at 16
+  of the 18 levels. At k = 16 and k = 17 she left 6 classes open that the
+  simulation certifies: 2,120 against 2,114, and 4,234 against 4,228. At
+  k = 18 the two agreed again, at 7,495.
+- **Verdict.** Self-test passed. 3,503 claims VERIFIED (3,502 descents and
+  the range below 10^6). Bit: verified. Every claim she made was right; the
+  discrepancy is in what she missed.
+- **Failure mining.**
+  - The six classes (4799, 7711, 10559, 11431, 15423 and 15743 mod 2^16)
+    first contract at step 16, the depth of their own level. Each was
+    refined without any failed descent attempt of its own. An invented
+    macro (split, then split) checked the refinement policy only against
+    its first target, so its second step split a derived class that the
+    policy would have refused. Her descent move certifies these classes at
+    once when it is applied to them. She certified them only two levels
+    later.
+  - Her descent cover at 2^18 was not stated. It listed every covered
+    residue lifted to the finest modulus, about 255,000 rows, which is past
+    both the row limit and the bound on one claim.
+- **Instruments.**
+  - A macro's steps obey the goal's policy for the object each step acts
+    on. The macro stops at the first step the policy refuses.
+  - A sieved descent cover. Rows stay at their own moduli, and coverage at
+    the cover modulus is counted by lifting, along the powers of 2, only
+    the classes no row reaches. The lifted form is still accepted.
+  - With both, a depth-18 run in the development copy (fingerprint
+    457fb52e) took 155 s. It matched the independent counts at all 18
+    levels, and her sieved descent cover at 2^18 covered exactly
+    254,649 = 262,144 - 7,495 classes. The committed rerun is recorded
+    below once it has run.
+
+## Instruments built after Campaign 1 round 5, Campaign 2 round 3 and the first Collatz attempt (commit 9498159, fingerprint 0bf025cf)
 
 - **A lemma instead of 2,430 walls (authorship).** The `obstruction` claim
   says that no classical fixed-parameter family, of either type and with any
@@ -496,4 +568,3 @@ sees: 1, 1, 2, 3, 4, 8, 13, 19, 38, 64, 128, 226, 367, 734, 1,295, 2,114,
 - **A readable verdict.** The verdict lists every claim other than a
   verified wall, and summarizes the walls. Before this, it listed only the
   first 512 claims.
-

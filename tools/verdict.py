@@ -373,6 +373,33 @@ def obstruction_verdict(d):
     return 'VERIFIED', str(len(classes)) + ' reached classes, none a coprime square'
 
 
+def obstruction_refutation_verdict(d):
+    """A refutation of an obstruction claim is correct when its named family is a genuine classical family with
+    modulus dividing m that reaches the named class, and the class is a coprime square."""
+    claim, w = d['claim']['data'], d['witness']
+    a, m, modulus, r0 = claim['a'], claim['m'], w['modulus'], w['residue']; kind, u, v, z = w['params']
+    if m % modulus or gcd(r0, modulus) != 1 or nonresidue_set(r0, modulus): return 'REFUTED', 'the named class is not a coprime square dividing the modulus'
+    if kind == 'II': reaches = modulus == a * u * v and (u + v) % z == 0 and (r0 + z) % modulus == 0
+    else:
+        q = a * u * v * z; s = u + v; c = gcd(s, q)
+        reaches = (s * m) % q == 0 and z % c == 0 and modulus == q // c and (s * r0 + z) % q == 0
+    if not reaches: return 'REFUTED', 'the named family does not reach the named class'
+    fam = dict(a=a, m=modulus, r=r0, k0=0, p=[kind, u, v, z])
+    verdict_, detail = family_verdict(dict(fam, k0=least_k0(fam)))
+    return (verdict_, 'the named family itself: ' + detail) if verdict_ != 'VERIFIED' else \
+        ('VERIFIED', 'a classical family reaches the square class ' + str(r0) + ' mod ' + str(modulus))
+
+
+def least_k0(fam):
+    """The least k0 from which the rebuilt denominators are positive (the family is valid from there on)."""
+    xs = classical_denominators(fam) or []
+    for k0 in range(0, 64):
+        if all(value(x, F(k)) > 0 for x in xs for k in range(k0, k0 + 4)) and \
+                all(taylor_shift(x, F(k0)) and taylor_shift(x, F(k0))[0] > 0 and all(c >= 0 for c in taylor_shift(x, F(k0))) for x in xs):
+            return k0
+    return 0
+
+
 def nofamily_verdict(d):
     if 'rs' in d:
         for r in d['rs']:
@@ -497,6 +524,7 @@ def verdict(kind, data):
         if kind == 'theorem': return theorem_verdict(data)
         if kind == 'nofamily': return nofamily_verdict(data)
         if kind == 'obstruction': return obstruction_verdict(data)
+        if kind == 'refutation' and data['claim']['kind'] == 'obstruction': return obstruction_refutation_verdict(data)
         if kind == 'descent': return descent_verdict(data['map'], data['modulus'], data['residue'], data['steps'], data['bound'])
         if kind == 'cfinite': return cfinite_verdict(data)
         if kind == 'cycle': return cycle_verdict(data)
@@ -534,6 +562,12 @@ def self_test():
         'obstruction refuted for 5/n at 840': verdict('obstruction', dict(a=5, terms=3, m=840, rule='classical_reach_nonsquare'))[0] == 'REFUTED',
         'named classical parameters verify': verdict('ufam', dict(a=4, m=4, r=3, k0=0, p=['II', 1, 1, 1]))[0] == 'VERIFIED',
         'misfit classical parameters refuted': verdict('ufam', dict(a=4, m=4, r=1, k0=0, p=['II', 1, 1, 1]))[0] == 'REFUTED',
+        'refutation of the 5/n obstruction verifies': verdict('refutation', dict(
+            claim=dict(kind='obstruction', data=dict(a=5, terms=3, m=840, rule='classical_reach_nonsquare')),
+            witness=dict(modulus=5, residue=4, params=['II', 1, 1, 1])))[0] == 'VERIFIED',
+        'false refutation of the 4/n obstruction refuted': verdict('refutation', dict(
+            claim=dict(kind='obstruction', data=dict(a=4, terms=3, m=840, rule='classical_reach_nonsquare')),
+            witness=dict(modulus=4, residue=1, params=['II', 1, 1, 1])))[0] == 'REFUTED',
         'broken sieve chain refuted': verdict('cover', dict(theorem_case(good, 0)['finite']['cover'], chain=[3, 4]))[0] == 'REFUTED',
     }
     return all(checks.values()), checks

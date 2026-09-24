@@ -1369,7 +1369,39 @@ def check_descent(data, budget):
                 proof='The class fixes every branch, so T^steps(Mt+r) = alpha t + beta with alpha < M.')
 
 
+def check_sieved_dcover(data, budget):
+    """A descent cover whose rows stay at their own moduli, [modulus, residue, steps, bound], each dividing the cover
+    modulus; the covered residues at the cover modulus are counted by a sieve along the chain, lifting only the classes
+    no row reaches. A row reaches every lift of its class, so the count is exact."""
+    need(set(data) == {'map', 'modulus', 'rows', 'bound', 'chain'}, 'sieved descent cover fields')
+    M = integer(data['modulus'], 2, 1 << 40); bound = integer(data['bound'], 1); rows, chain = data['rows'], data['chain']
+    need(type(rows) is list and rows and len(rows) <= 1 << 17, 'descent cover rows')
+    need(type(chain) is list and 1 <= len(chain) <= 64 and all(type(c) is int and c >= 2 for c in chain)
+         and chain[-1] == M and chain[0] <= 100_000, 'the chain starts at most 100000 and ends at the cover modulus')
+    for lower, upper in zip(chain, chain[1:]): need(upper > lower and upper % lower == 0, 'each chain modulus divides the next')
+    index = {}
+    for row in rows:
+        need(type(row) is list and len(row) == 4 and all(type(x) is int for x in row), 'descent row [modulus, residue, steps, bound]')
+        m, r, steps, row_bound = row
+        need(m >= 2 and M % m == 0 and r not in index.get(m, set()), 'row modulus divides the cover modulus, rows distinct')
+        check_descent(dict(map=data['map'], modulus=m, residue=r, steps=steps, bound=row_bound), budget)
+        need(bound >= row_bound, 'cover bound below a row bound')
+        index.setdefault(m, set()).add(r)
+    fresh = [(m, rs) for m, rs in index.items() if chain[0] % m == 0]; budget.use(chain[0] * (1 + len(fresh)))
+    level = [x for x in range(chain[0]) if not any(x % m in rs for m, rs in fresh)]
+    for lower, upper in zip(chain, chain[1:]):
+        need(len(level) * (upper // lower) <= SIEVE_LIFTS, 'sieve lift bound')
+        fresh = [(m, rs) for m, rs in index.items() if upper % m == 0 and lower % m]
+        budget.use(len(level) * (upper // lower) * (1 + len(fresh)))
+        level = [y for x in level for y in range(x, upper, lower) if not any(y % m in rs for m, rs in fresh)]
+    return dict(ok=True, kind='dcover', covered=M - len(level), modulus=M,
+                scope='Every n >= bound in the class of a listed row (its residue modulo its own modulus) has T^j(n) < n '
+                      'for the row\'s certified j.',
+                proof='Each row checked as a descent; coverage at the cover modulus counted by a sieve along the chain.')
+
+
 def check_dcover(data, budget):
+    if 'chain' in data: return check_sieved_dcover(data, budget)
     need(set(data) == {'map', 'modulus', 'rows', 'bound'}, 'descent cover fields')
     M = integer(data['modulus'], 2, 1 << 40); bound = integer(data['bound'], 1)
     rows = data['rows']; need(type(rows) is list and rows and len(rows) <= 1 << 17, 'descent cover rows')
