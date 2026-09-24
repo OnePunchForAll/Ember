@@ -136,6 +136,10 @@ class Goal:
         """Whether a strategy may be retired in a context after repeated failure (a scheduling policy)."""
         return False
 
+    def retire_scope(self, target):
+        """The population a retirement applies to within a context; a new population gets a fresh chance."""
+        return None
+
     def transfer(self, rt, rows):
         """Checked objects from records of related problems, admitted again by the checker; returns (admitted, refused)."""
         return 0, 0
@@ -230,7 +234,12 @@ class CoverGoal(Goal):
         """Every family generator has missed the class, or was retired in its context and is taken to miss."""
         if target['id'] in self.base_miss: return True
         found = self.misses.get(target['id'], set()); context = self.context(target)
-        return all(note in found or (context, MISS_SOURCES[note]) in self.retired for note in FAMILY_MISSES)
+        scope = self.retire_scope(target)
+        return all(note in found or (context, MISS_SOURCES[note], scope) in self.retired for note in FAMILY_MISSES)
+
+    def retire_scope(self, target):
+        # The classes of one refinement level: lifts to a new level are a new population.
+        return target['data'].get('m') if target['kind'] == 'eclass' else None
 
     def retirable(self, context, strategy):
         # The classical generator and wall certificates decide every class's status; they are never retired.
@@ -711,8 +720,8 @@ class Agent:
         self.attempts = {}; self.by_kind = {}; self.children = {}; self.indexed = 0; self.rederivable = set()
         self.target_moves = {}; self.exhausted = {}; self.outcomes = {}; self.escalated = {}; self.memo = {}
         self.checkable = set(checker.CHECKS) | {'invariant', 'semi'}
-        # Strategies retired per context after RETIRE_AFTER failures without a success in this run.
-        self.retired = {}; goal.retired = self.retired
+        # Strategies retired per context and level after RETIRE_AFTER failures without a success in this run.
+        self.retired = {}; goal.retired = self.retired; self.retire_tally = {}
 
     def index(self):
         """Incrementally index new workspace objects by kind and by parent."""
@@ -757,7 +766,8 @@ class Agent:
     def allowed(self, name, target, table):
         """A macro obeys the goal's policy at every one of its steps; a strategy retired in the target's context
         is not tried again there in this run."""
-        if self.retired and (self.goal.context(target), name) in self.retired: return False
+        if self.retired and (self.goal.context(target), name, self.goal.retire_scope(target)) in self.retired:
+            return False
         steps = table[name].get('steps') or [name]
         return all(self.goal.allowed(step, target, self.rt) for step in steps)
 
@@ -914,9 +924,11 @@ class Agent:
                                                         seconds=round(seconds, 6), weight=1, source='local'))
         tally = self.outcomes.setdefault((context, name), [0, 0, 0.0])
         tally[0 if success else 1] += 1; tally[2] += seconds
-        if not tally[0] and tally[1] >= RETIRE_AFTER and self.goal.retirable(context, name) \
-                and (context, name) not in self.retired:
-            self.retired[(context, name)] = dict(failures=tally[1], seconds=round(tally[2], 3), at_move=self.moves)
+        scope = self.goal.retire_scope(target); count = self.retire_tally.setdefault((context, name, scope), [0, 0])
+        count[0 if success else 1] += 1
+        if not count[0] and count[1] >= RETIRE_AFTER and self.goal.retirable(context, name) \
+                and (context, name, scope) not in self.retired:
+            self.retired[(context, name, scope)] = dict(failures=count[1], at_move=self.moves)
         for m in self.macros:
             if m['name'] == name:
                 m['uses'] += 1; m['successes'] += int(success)
@@ -1095,7 +1107,8 @@ def run(task, state_path, limit, host):
                                 for m in (agent.macros if agent else macros)],
                 templates=[o['data'] for o in rt.objects.values() if o['kind'] == 'template'][:16],
                 directions_observed=agent.events if agent else {}, scheduler=ranking, log=agent.log[-24:] if agent else [],
-                retired_strategies=[dict(context=c, strategy=s, **info) for (c, s), info in agent.retired.items()] if agent else [],
+                retired_strategies=[dict(context=c, strategy=s, scope=w, **info) for (c, s, w), info in agent.retired.items()]
+                if agent else [],
                 failures=mine_failures(agent, goal, rt), related_problems=goal.related(),
                 strategy_library=dict(entries=len(entries), reports_loaded=len(retained)),
                 limits='Operators search bounded grammars; the checker admits every reported claim in its stated scope. '

@@ -32,7 +32,7 @@ BASE_C = range(0, 40)
 EXTENDED_S = range(1, 25)
 EXTENDED_C = range(0, 240)
 PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31)
-CLASSICAL_BOUND = 120
+CLASSICAL_BOUND = 0  # 0: every classical parameter set (Type I is finite at a fixed modulus); n > 0 bounds u, v, w by n
 LIFT_CAP = 10 ** 7
 LIFT_CLASSES = 60_000
 WALL_CAP = 10 ** 12
@@ -264,17 +264,46 @@ def template_of(fam):
 _CLASSICAL = {}
 
 
-def classical_tables(a, m, bound):
-    """Per modulus: Type II parameter pairs by modulus a*u*v | m, and Type I triples with a*u*v*w | (u+v)*m."""
-    key = (a, m, bound)
-    if key not in _CLASSICAL:
-        type2 = [(D, [(u, D // a // u) for u in L.divisors(D // a) if u <= D // a // u]) for D in L.divisors(m) if D % a == 0]
-        type1 = []
+def type1_triples(a, m, bound):
+    """Type I parameters (u, v, w), u <= v, with a*u*v*w | (u+v)*m. With bound 0 the set is complete: writing
+    u = d*u', v = d*v' with gcd(u', v') = 1 forces u'*v' | m and d*w | (u'+v')*m/(a*u'*v'), a finite set."""
+    if bound:
+        out = []
         for u in range(1, bound + 1):
             for v in range(u, bound + 1):
-                s = u + v; q0 = a * u * v
-                if (s * m) % q0: continue
-                type1 += [(u, v, w, s, q0 * w) for w in range(1, bound + 1) if (s * m) % (q0 * w) == 0]
+                if ((u + v) * m) % (a * u * v): continue
+                out += [(u, v, w) for w in range(1, bound + 1) if ((u + v) * m) % (a * u * v * w) == 0]
+        return out
+    out = []; ds = L.divisors(m)
+    for up in ds:
+        for vp in ds:
+            if vp < up or gcd(up, vp) != 1 or m % (up * vp): continue
+            X = (up + vp) * (m // (up * vp))
+            if X % a: continue
+            out += [(d * up, d * vp, t // d) for t in L.divisors(X // a) for d in L.divisors(t)]
+    return out
+
+
+def classical_tables(a, m, bound):
+    """Per modulus: every class the classical families reach, indexed {class modulus: {residue: parameters}}, Type II
+    and Type I apart. A family is recorded on the coarsest class its parameters need."""
+    key = (a, m, bound)
+    if key not in _CLASSICAL:
+        type2 = {}
+        for D in L.divisors(m):
+            if D % a: continue
+            uv = D // a
+            for u in L.divisors(uv):
+                v = uv // u
+                if u > v: continue
+                for e in L.divisors(u + v):
+                    type2.setdefault(D, {}).setdefault((-e) % D, ('II', u, v, (u + v) // e, e))
+        type1 = {}
+        for u, v, w in type1_triples(a, m, bound):
+            s = u + v; q = a * u * v * w; g = gcd(s, q)
+            if w % g: continue
+            mod = q // g; r0 = (-(w // g) * pow(s // g, -1, mod)) % mod if mod > 1 else 0
+            type1.setdefault(mod, {}).setdefault(r0, ('I', u, v, w, None))
         if len(_CLASSICAL) > 64: _CLASSICAL.clear()
         _CLASSICAL[key] = (type2, type1)
     return _CLASSICAL[key]
@@ -283,18 +312,13 @@ def classical_tables(a, m, bound):
 def classical_search(a, m, r, bound, budget, limit=1):
     """Parameters of classical families on n = r (mod m), Type II first; the producer's own enumeration."""
     type2, type1 = classical_tables(a, m, bound); out = []
-    for D, pairs in type2:
-        e = (-r) % D or D
-        for u, v in pairs:
+    for table in (type2, type1):
+        for mod, row in table.items():
             budget.use()
-            if (u + v) % e == 0:
-                out.append(('II', u, v, (u + v) // e, e))
+            found = row.get(r % mod)
+            if found:
+                out.append(found)
                 if len(out) >= limit: return out
-    for u, v, w, s, q in type1:
-        budget.use()
-        if (s * r + w) % q == 0:
-            out.append(('I', u, v, w, None))
-            if len(out) >= limit: return out
     return out
 
 
@@ -538,8 +562,8 @@ def egypt_generalize_witness(rt, rep):
 
 
 @op('egypt_classical_family', 'NWS', ('eclass',), ('ufam', 'residual'),
-    'Classical fixed-parameter families: Type II over every modulus a*u*v dividing m, Type I with u <= v <= 120 and '
-    'w <= 120, stated on the coarsest class the parameters need; a miss is a residual.')
+    'Classical fixed-parameter families: Type II over every modulus a*u*v dividing m, Type I over every a*u*v*w '
+    'dividing (u+v)*m, stated on the coarsest class the parameters need; a miss is a residual.')
 def egypt_classical_family(rt, cls):
     a, terms, m, r = question_class(cls)
     if terms != 3: return []

@@ -288,6 +288,10 @@ def classical_hit(a, m, r, bound):
         uv = D // a; e = (-r) % D or D
         for u in divisor_list(uv):
             if u <= uv // u and (u + uv // u) % e == 0: return ('II', u, uv // u)
+    if bound == 0:
+        for u, v, w in type1_everything(a, m):
+            if ((u + v) * r + w) % (a * u * v * w) == 0: return ('I', u, v, w)
+        return None
     for u in range(1, bound + 1):
         for v in range(u, bound + 1):
             if ((u + v) * m) % (a * u * v): continue
@@ -295,6 +299,27 @@ def classical_hit(a, m, r, bound):
                 q = a * u * v * w
                 if ((u + v) * m) % q == 0 and ((u + v) * r + w) % q == 0: return ('I', u, v, w)
     return None
+
+
+_ALL_TYPE1 = {}
+
+
+def type1_everything(a, m):
+    """All Type I triples (u, v, w), u <= v, with a*u*v*w | (u+v)*m. With g = gcd(u, v), u = g*x and v = g*y give
+    a*g*x*y*w | (x+y)*m, where x*y is coprime to x+y; so x*y | m and g*w | (x+y)*(m/(x*y))/a."""
+    if (a, m) not in _ALL_TYPE1:
+        found = []; ds = divisor_list(m)
+        for x in ds:
+            if m % x: continue
+            for y in ds:
+                if y < x or (m // x) % y or gcd(x, y) != 1: continue
+                rest = (x + y) * (m // (x * y))
+                if rest % a: continue
+                for gw in divisor_list(rest // a):
+                    found += [(g * x, g * y, gw // g) for g in divisor_list(gw)]
+        if len(_ALL_TYPE1) > 16: _ALL_TYPE1.clear()
+        _ALL_TYPE1[(a, m)] = found
+    return _ALL_TYPE1[(a, m)]
 
 
 def nofamily_verdict(d):

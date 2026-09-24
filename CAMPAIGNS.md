@@ -190,6 +190,87 @@ tree was not committed separately.
     valuable end only as a last resort, and the number dropped is recorded in
     the state and the report.
 
+### Round 3 (commit 71309f8, fingerprint 2e24a579, one call: 37,852 moves, 1,518 s)
+
+The run resumed the round-2 state. Because the fingerprint had changed, her
+scheduling memory was cleared, and each of the 3,642 saved claims was
+admitted again by the checker. None was refused.
+
+- **Result.**
+  - With the compact encoding she assembled her cover at 1,580,040: 658
+    families, 2,619 open coprime classes (2,430 squares and 189
+    non-squares).
+  - Her signature pattern was admitted there with the exceptional primes
+    {11, 19}. The open non-squares are non-residues at 11 only (91), at 19
+    only (83), or at both (15).
+  - Her local-image pattern was admitted. So was the exact covered fraction,
+    58,423/58,520 of all residues.
+  - She certified 2,620 walls at 1,580,040. One is on a covered class:
+    5569 mod 1,580,040. No classical fixed-parameter family reaches that
+    class, but a family of her own grammar does: x = (n + 95)/4, with the
+    remainder 95/(n x) split into a cubic y and a quadratic z. The classical
+    Type II split is quadratic in both.
+- **Verdict.** Self-test passed. 2,909 claims VERIFIED. Bit: verified.
+- **Failure mining.**
+  - Her theorem at 1,580,040 was refused. The theorem check asked the whole
+    cover's bound (1,577,041) to lie inside the checked range (100,000). The
+    saved state kept no theorem at all: the one she had was about an older
+    range.
+  - Her refinement budget was spent.
+  - Of her move time in rounds 1 to 3, 391 s went to wall certificates
+    (0.135 s each). The checker tried all 871,200 Type I parameter triples
+    per class. Most of the rest went to strategies that never once
+    succeeded on a square class: the extended ansatz and its macros took
+    about 565 s.
+
+### Instruments added after round 3 (commit f996f32, fingerprint f37fad1c)
+
+- **A theorem checked class by class.** For each covered residue, the check
+  looks at the families that reach it. The least threshold among them must
+  be at most the first member of the residue at or past the checked range.
+  Members below the range are covered by the range, and members from that
+  first one on by a family. This is exact, and every theorem the old
+  single-bound rule admitted is still admitted. Campaign 2 round 2 tested
+  it first, at fingerprint 66138c77 (a working tree between the two
+  commits).
+- **Sieve certificates.** A cover may carry its chain of levels. Coverage,
+  patterns, density and the theorem are then decided by lifting, from one
+  level to the next, only the classes no family reaches. This is sound for
+  any chain: a family that reaches a class reaches every lift of it. The
+  theorem check descends into a class only while its threshold test fails,
+  which is exact because thresholds can only fall at finer levels. For the
+  square patterns, the open units are counted against the number of squares
+  of units, a product over prime powers. On her 1,081,080 cover for 5/n, the
+  sieve gave the same 29 open residues as enumeration, with 3% of the work.
+  Refinement is now bounded by the number of classes to lift (60,000), not
+  by the size of the modulus, and wall certificates are admitted up to
+  moduli of 10^12. The independent verdict decides sieved claims with its
+  own sieve, and it counts squares of units by brute force on each prime
+  power.
+- **A pruned wall search.** A (u, v) pair whose a u v does not divide
+  (u + v) m cannot divide for any w, so it is skipped. On 24 test classes
+  the results were identical to the unpruned search. One wall at 1,580,040
+  now costs 0.013 s.
+- **Learned retirement.** Her classes are now told apart by one observed
+  feature: whether a class is a square modulo every prime-power factor of
+  its modulus. A strategy that fails 64 times without one success in a
+  context is retired there for the rest of the run, and the report lists
+  every retirement. The classical generator and the wall certificates are
+  never retired, because they decide each class's status. For refinement,
+  a retired generator's miss counts as known. A certified wall now counts
+  as a result for scheduling. Nothing about squares is assumed. For 5/n,
+  square classes are coverable, so there the rule has nothing to retire.
+- **A warm start across problem statements.** A problem with a new
+  statement, such as a larger refinement budget, gets a new identity.
+  Before this change it started from nothing. It now imports the checked
+  families, covers, walls and templates that other records hold for the
+  same numerator and number of terms, and the checker admits each of them
+  again. Ranges, patterns and theorems belong to their own levels and do
+  not carry over. On the small example with two primes of her own, 12
+  objects carried over. She chose 5 and then 7, reached 840 with exactly
+  Mordell's six square classes open, and used 97 moves instead of 108.
+- A problem statement may now allow up to four refinement primes of her own.
+
 ## Campaign 2: Sierpiński's 5/n (the related problem she offered)
 
 **Problem supplied.** 5/n = 1/x + 1/y + 1/z for every n >= 2 (open;
@@ -237,3 +318,16 @@ discounted reports. None of her Campaign 1 claims carried over.
     proved was about an older range, so it was not saved.
   - Her refinement budget was spent (`refinement_budget_left: 0`). She never
     refined by a second prime of her own.
+
+### Round 2 (fingerprint 66138c77, 501 moves, 22 s)
+
+The run resumed her 5/n state under the class-by-class theorem check alone.
+
+- **Result.** She stated and proved her theorem at her finest level: every
+  n >= 2 outside 29 residue classes mod 1,081,080 has a representation
+  5/n = 1/x + 1/y + 1/z. Before this, her theorem was at 27,720 with 11
+  open classes. The open fraction fell from 11/27,720 (0.040%) to
+  29/1,081,080 (0.0027%).
+- **Verdict.** Self-test passed. 65 claims VERIFIED, the theorem included.
+  Bit: verified.
+

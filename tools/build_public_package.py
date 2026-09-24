@@ -1600,8 +1600,14 @@ walls = all(C.classical_parameters(a, m, r, 30, B()) == unpruned(a, m, r, 30)
 A = ember['local_module']('agent'); goal = A.CoverGoal(dict(a=4, terms=3, min=2, modulus=24, lifts=[5], verify_to=100), L)
 square = 'unit_fraction_cover:eclass:coprime:square'
 retire = (goal.retirable(square, 'egypt_ansatz_extend') and not goal.retirable(square, 'egypt_classical_family')
-          and not goal.retirable(square, 'egypt_classical_exclusion') and not goal.retirable('unit_fraction_cover:esq', 'x'))
-print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire)))
+          and not goal.retirable(square, 'egypt_classical_exclusion') and not goal.retirable('unit_fraction_cover:esq', 'x')
+          and goal.retire_scope(dict(kind='eclass', data=dict(m=840, r=1))) == 840
+          and goal.retire_scope(dict(kind='esq', data=dict(modulus=840))) is None)
+complete = (C.classical_parameters(4, 1580040, 32881, 0, B())[:1] == [('I', 38, 297, 1)]
+            and V.classical_hit(4, 1580040, 32881, 0) == ('I', 38, 297, 1)
+            and C.classical_parameters(4, 1580040, 32881, 120, B()) == []
+            and not C.classical_parameters(4, 1580040, 1, 0, B()) and V.classical_hit(4, 1580040, 1, 0) is None)
+print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete)))
 """
         began = time.perf_counter_ns()
         sieve_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', sieve_code], cwd=root, capture_output=True,
@@ -1615,6 +1621,7 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('theorem_chain_is_checked_class_by_class', sieve_result.get('theorem') is True)
         check('pruned_wall_search_matches_unpruned_search', sieve_result.get('walls') is True)
         check('retirement_spares_the_classical_generator_and_walls', sieve_result.get('retire') is True)
+        check('complete_classical_enumeration_reaches_past_the_old_bound', sieve_result.get('complete') is True)
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',

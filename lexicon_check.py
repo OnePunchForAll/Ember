@@ -1097,6 +1097,11 @@ def classical_parameters(a, m, r, bound, budget):
             v = uv // u
             budget.use()
             if u <= v and (u + v) % e == 0: found.append(('II', u, v, (u + v) // e))
+    if bound == 0:
+        for u, v, w in _type1_all(a, m, budget):
+            q = a * u * v * w
+            if ((u + v) * r + w) % q == 0: found.append(('I', u, v, w))
+        return found
     for u in range(1, bound + 1):
         for v in range(u, bound + 1):
             s = u + v; budget.use()
@@ -1105,6 +1110,27 @@ def classical_parameters(a, m, r, bound, budget):
                 budget.use(); q = a * u * v * w
                 if (s * m) % q == 0 and (s * r + w) % q == 0: found.append(('I', u, v, w))
     return found
+
+
+_TYPE1 = {}
+
+
+def _type1_all(a, m, budget):
+    """Every Type I parameter set for modulus m: u = d*u', v = d*v' with gcd(u', v') = 1 and u' <= v'. Then
+    a*u*v*w | (u+v)*m becomes a*d*u'*v'*w | (u'+v')*m; u'*v' is coprime to u'+v', so u'*v' | m and d*w divides
+    (u'+v')*m/(a*u'*v'). The enumeration is complete. The list is kept per modulus and charged in full each time."""
+    if (a, m) not in _TYPE1:
+        out = []; ds = _divisors(m)
+        for up in ds:
+            for vp in ds:
+                if vp < up or gcd(up, vp) != 1 or m % (up * vp): continue
+                X = (up + vp) * (m // (up * vp))
+                if X % a: continue
+                for t in _divisors(X // a): out += [(d * up, d * vp, t // d) for d in _divisors(t)]
+        if len(_TYPE1) > 16: _TYPE1.clear()
+        _TYPE1[(a, m)] = out
+    budget.use(len(_TYPE1[(a, m)]))
+    return _TYPE1[(a, m)]
 
 
 def _divisors(n):
@@ -1117,9 +1143,18 @@ def _divisors(n):
 def check_nofamily(data, budget):
     need(set(data) == {'a', 'terms', 'm', 'r', 'bound'}, 'no-family fields')
     a, m, r = class_of(data); need(data['terms'] == 3, 'three unit fractions')
-    need(m <= 10 ** 12, 'no-family modulus bound'); bound = integer(data['bound'], 1, 120)
+    need(m <= 10 ** 12, 'no-family modulus bound'); bound = integer(data['bound'], 0, 120)
     found = classical_parameters(a, m, r, bound, budget)
     need(not found, 'a classical family covers the class: ' + str(found[0]) if found else '')
+    if bound == 0:
+        return dict(ok=True, kind='nofamily', bound=0, complete=True,
+                    scope='No fixed-parameter family of either classical type covers n = r (mod m), for any parameters: '
+                          'no Type II family whose modulus a*u*v divides m, and no Type I family with a*u*v*w dividing '
+                          '(u+v)*m. Families whose parameters vary with k, and families on finer moduli, are not excluded.',
+                    proof='Both parameter sets are finite at a fixed modulus and are enumerated completely: Type II over '
+                          'the divisors a*u*v of m; Type I through u = d*u\', v = d*v\' with u\'*v\' | m and '
+                          'd*w | (u\'+v\')*m/(a*u\'*v\'). Each is compared with the conditions that make d(k) integer '
+                          'valued on the whole class.')
     return dict(ok=True, kind='nofamily', bound=bound,
                 scope='No fixed-parameter family of the classical types covers n = r (mod m): no Type II family whose '
                       'modulus a*u*v divides m, and no Type I family with u <= v <= bound and w <= bound. Families of '
