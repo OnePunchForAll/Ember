@@ -11,9 +11,9 @@
       "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
     },
     {
-      "bytes": 56345,
+      "bytes": 60559,
       "path": "README.md",
-      "sha256": "e24dd1546802c4546918ea5408f4c4dddc614984af60409c1780da1499cc9044"
+      "sha256": "80eb3f3aec09e868c0a8052bb53398213eef31ea37b1588bdf5eabc6dfc6b27d"
     },
     {
       "bytes": 1633,
@@ -31,14 +31,14 @@
       "sha256": "c9e90a872692b843bfaabee09b8693dd7dd21abfb6908ddc58c62712e7ab7038"
     },
     {
-      "bytes": 30284,
+      "bytes": 46985,
       "path": "apex.py",
-      "sha256": "fc6351569037e742f7e0505427cbac8abdbcaf3c273ff8141a543dd1ec340129"
+      "sha256": "6b1f386927d4e1a199ec10c6b46a16d10429cbdb74a2c50dbd24aa66731e93a0"
     },
     {
-      "bytes": 12333,
+      "bytes": 22802,
       "path": "apex_check.py",
-      "sha256": "f1520407c3661c7baf3d032c603549b217757984a18b761adadf488bdc5bd52f"
+      "sha256": "76804919316ac30b238318de646949dc4b5af0f55d01e7be432f1397a5ff0270"
     },
     {
       "bytes": 31290,
@@ -46,9 +46,9 @@
       "sha256": "1e2304b810355aaaff2d6c025f1d85f674f7f8a13a451f2f8a5df11fbb0f7762"
     },
     {
-      "bytes": 47691,
+      "bytes": 48403,
       "path": "ember.py",
-      "sha256": "537c3b89d2a2ffc7e7f068904dda78747c38b890abd3c4c7870220895a35f3ed"
+      "sha256": "06c295ccb703a40b873dfd857bcf96245b855dd7ec501d386430c59898246d3d"
     },
     {
       "bytes": 12200,
@@ -121,6 +121,11 @@
       "sha256": "68bf0871f748a3c0c00e54df65b93e606292d6d88c53871ca64afac808c9aa8f"
     },
     {
+      "bytes": 169,
+      "path": "examples/generating_function.json",
+      "sha256": "8fd70b2126be9eb983926b06b08a370f4e9240a326034678ab3c86ec6a096334"
+    },
+    {
       "bytes": 202,
       "path": "examples/graph_count.json",
       "sha256": "92b4c26c785be4d248460aa340826ce2fbdc44cae2e5608a38824fab2787336d"
@@ -176,6 +181,11 @@
       "sha256": "02b1f1ff0f363613069370bcba64625096933fa80245bf15089085cd14fa68b6"
     },
     {
+      "bytes": 370,
+      "path": "examples/minimal_recurrence.json",
+      "sha256": "9ba1230cc9747a895ec0177dd7ec3bba6dc6c42e66109e75d0ce5ab940e20b57"
+    },
+    {
       "bytes": 268,
       "path": "examples/nonlinear_invariant.json",
       "sha256": "dfe4b7770cab7af72f3fce9625f499b11c91755841208c704994c28d8620c033"
@@ -191,6 +201,11 @@
       "sha256": "5ab79ce13910f38dc6d80d58e563743512df55984af1604d5289b0b295287c7b"
     },
     {
+      "bytes": 433,
+      "path": "examples/orbit_drift.json",
+      "sha256": "17786a072ee5699a26c09f1ca14c292fc876145c3700f9546280843d095240e9"
+    },
+    {
       "bytes": 409,
       "path": "examples/orbit_exclusion.json",
       "sha256": "857aad638dd552adcf3045c8ff5f28543dcffad4b0309cfe5757c6d26e2b376e"
@@ -201,6 +216,16 @@
       "sha256": "33a5a417cda2b6aeb4056907728020679706f1f5f31591dc184218210bef69cd"
     },
     {
+      "bytes": 208,
+      "path": "examples/premise_lift_receiving.json",
+      "sha256": "f18f064bd47e2fb6a3c5680d24e21ebf94b43eb0ac2d809fcd8498b5723a7c99"
+    },
+    {
+      "bytes": 178,
+      "path": "examples/premise_lift_source.json",
+      "sha256": "f9097ee1f1839d87e6bebc41564ff486119014e85a84973e80ca8e0409dfe3c6"
+    },
+    {
       "bytes": 244,
       "path": "examples/rational_repair.json",
       "sha256": "d6d307cbf6a1ea4256731c9185337c1c1379cc9a7fe06d5dc95bb4b34cc74e8b"
@@ -209,6 +234,11 @@
       "bytes": 9678,
       "path": "examples/recursive_add_right_zero.json",
       "sha256": "ffe33bfd6b9712f994fac29eff8fc426986c2aeb723559a680fdc328e0a1f0d9"
+    },
+    {
+      "bytes": 5522,
+      "path": "examples/recursive_lift.json",
+      "sha256": "36edcd1dc7c11f591cb4c58c2abaddcb83e82b80076d93092e6991d438c8f814"
     },
     {
       "bytes": 9715,
@@ -229,6 +259,11 @@
       "bytes": 7970,
       "path": "examples/source_research_episode.json",
       "sha256": "8b8f6d4fc425cb34b941b6b4b8c3f6d5c8991fbbe52c87fecbd66f38a5a8fbaf"
+    },
+    {
+      "bytes": 168,
+      "path": "examples/word_count.json",
+      "sha256": "6f0f2b12d68570f26fbc87a17d5a1fe1ba3c1689d49b2e903243e66586fa9bac"
     },
     {
       "bytes": 128,
@@ -256,14 +291,14 @@
       "sha256": "ae6889b7c3f1b79aa34cc3f8616053309cd34f51d3289f8e962f1293350c7205"
     },
     {
-      "bytes": 18244,
+      "bytes": 19699,
       "path": "obligations.py",
-      "sha256": "c92b470d7bf397933384eaec885427dad2464b175014b734b1010cf3bc6a0993"
+      "sha256": "c1e03b1971b411e5df6229ed9638ef8891331e326046419fc0167489118a68e8"
     },
     {
-      "bytes": 58743,
+      "bytes": 64053,
       "path": "pyramid.py",
-      "sha256": "c923499648d58d90eb71e076f1e181d7ebbc814ce6105f0075df4216e4f02dcf"
+      "sha256": "2aa2f98f959d57abd9c4cf2aa2eae1be0a85f2a0eb436381e2002d3fa945624d"
     },
     {
       "bytes": 4790,
@@ -291,14 +326,14 @@
       "sha256": "e3e63b4643c2e622e3c106250208eead4f234af4a325418f603c20a0c2267715"
     },
     {
-      "bytes": 113085,
+      "bytes": 125662,
       "path": "tools/build_public_package.py",
-      "sha256": "28f008005a32c247321bbf4a0a12265cb9234ed55bdcc69aa5e6a0731ddfe650"
+      "sha256": "740afc1c759f7d7ff8fabe89e8d00a536a7a8b03d706f333733dbadbb4751b80"
     },
     {
-      "bytes": 12030,
+      "bytes": 12098,
       "path": "tools/helper_client.py",
-      "sha256": "323c3e7b06b4b859e11dd8d97292e5eebea0d211135101b5cd2fe6fc13bdee6a"
+      "sha256": "488d8bf2a27a3841431fe40dc2d2005794dd1368d08fc1599c7907c3daabe035"
     },
     {
       "bytes": 9009,
@@ -316,7 +351,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 was verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 444977,
+  "runtime_source_bytes": 479624,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",

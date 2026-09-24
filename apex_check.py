@@ -30,6 +30,7 @@ _algebra = _invariant._algebra
 _INVALID = (_recurrence.Invalid, _invariant.Invalid)
 _LIMIT = (_recurrence.Limit, _invariant.Limit)
 MAX_ORBIT_STEPS = 1024
+WORD_LENGTH_LIMIT = 20000
 
 
 def need(condition, reason):
@@ -207,15 +208,182 @@ def check_orbit(task, certificate, budget):
                     proof='P(F(x))=P(x) on the complete original degree grid gives P(x(n))=P(x(0)) for every n; '
                           'P(target) differs from P(x(0)).',
                     formal_status='NOT_FORMALLY_VERIFIED')
+    if kind == 'drift_separation':
+        need(set(certificate) in ({'kind', 'task_id', 'clocked'}, {'kind', 'task_id', 'clocked', 'index'}),
+             'drift separation fields')
+        task_c = clocked_task(b)
+        checked = _guard(lambda: _invariant.check(task_c, certificate['clocked'], budget))
+        clocked = _guard(lambda: _invariant.bind(task_c))
+        terms = _guard(lambda: _invariant.polynomial(certificate['clocked']['polynomial'], clocked))
+        tick = len(b['names'])
+        need(all(e[tick] == 0 or (e[tick] == 1 and sum(e) == 1) for e, _ in terms), 'clock must enter alone and linearly')
+        kappa = next((q for e, q in terms if e[tick] == 1), 0)
+        need(kappa != 0, 'drift certificate needs a clock term')
+        drift = [(e[:tick], q) for e, q in terms if e[tick] == 0]
+        start = _guard(lambda: _algebra.monomial_value(drift, b['initial'], budget))
+        end = _guard(lambda: _algebra.monomial_value(drift, b['target'], budget))
+        steps = (start - end) / kappa
+        proof = ('K(x,clock)=R(x)+kappa*clock is conserved by the clocked transition on the complete original grid, '
+                 'so R(x(n))=R(x(0))-kappa*n; only n=(R(x(0))-R(target))/kappa can meet the target.')
+        if steps.denominator != 1 or steps < 0:
+            need('index' not in certificate, 'no orbit index meets the target drift value')
+            return dict(ok=True, kind=kind, outcome='EXCLUDED', grid_points=checked['grid_points'],
+                        scope='No nonnegative iterate of the original orbit equals the target.', proof=proof,
+                        formal_status='NOT_FORMALLY_VERIFIED')
+        index = int(steps)
+        need(certificate.get('index') == index and index <= b['max_steps'], 'drift index outside the checked prefix')
+        states = orbit_prefix(b, index, budget)
+        reaches = states[index] == b['target']
+        return dict(ok=True, kind=kind, outcome='REACHES' if reaches else 'EXCLUDED', index=index,
+                    grid_points=checked['grid_points'], proof=proof, formal_status='NOT_FORMALLY_VERIFIED',
+                    scope=('The original orbit equals the target at this index.' if reaches else
+                           'No nonnegative iterate of the original orbit equals the target.'))
     raise Invalid('unsupported orbit certificate kind')
+
+
+def clocked_task(b):
+    """The orbit with a clock variable; R(F(x))-R(x)=c becomes an invariant R(x)-c*clock."""
+    clock = 'clock'
+    while clock in b['names']: clock += '_'
+    derived = b['derived']
+    return dict(query='discover_invariant', domain='QQ', variables=list(b['names']) + [clock],
+                transition=list(derived['transition']) + [clock + '+1'], max_degree=b['degree'],
+                initial=list(derived['initial']) + [[0, 1]])
 
 
 def orbit_status(checked):
     return 'CHECKED_ORBIT_REACHES' if checked['outcome'] == 'REACHES' else 'CHECKED_ORBIT_EXCLUSION'
 
 
+def carrier(task, query):
+    """A matrix or forbidden-word carrier and its derived all-index recurrence question."""
+    need(type(task) is dict and task.get('query') == query, 'original ' + query + ' query')
+    if 'patterns' in task:
+        need(not set(task) - {'query', 'patterns', 'name', 'family'}, 'unsupported word carrier fields')
+        derived = dict(query='discover_word_recurrence', patterns=task.get('patterns'))
+    else:
+        need(not set(task) - {'query', 'domain', 'matrix', 'initial', 'terminal', 'name', 'family'},
+             'unsupported matrix carrier fields')
+        derived = dict(query='discover_recurrence', domain=task.get('domain'), matrix=task.get('matrix'),
+                       initial=task.get('initial'), terminal=task.get('terminal'))
+    binding = _guard(lambda: _recurrence.bind(derived))
+    derived['max_order'] = binding['n']
+    binding = _guard(lambda: _recurrence.bind(derived))
+    identity = digest(dict({k: v for k, v in derived.items() if k != 'query'}, query=query))
+    return dict(derived=derived, binding=binding, identity=identity)
+
+
+def carrier_system(binding, budget):
+    if 'words' in binding: return _guard(lambda: _recurrence.original_word_system(binding['words'], budget))
+    return binding['matrix'], binding['initial'], binding['terminal']
+
+
+def carrier_terms(binding, count, budget):
+    """The first terms u*M**h*v of the original carrier, computed here in exact integers."""
+    M, u, v = carrier_system(binding, budget); row = list(u); out = []
+    for _ in range(count):
+        budget.use(2 * len(row)); out.append(sum(x * y for x, y in zip(row, v)))
+        following = [0] * len(row)
+        for i, x in enumerate(row):
+            if x:
+                for j, w in enumerate(M[i]):
+                    if w: budget.use(2); following[j] += x * w
+        row = following
+    return out
+
+
+def generating_function(recurrence_certificate):
+    """Q(x)=1-sum c_j x^(r-j) and P=(Q*sum_{h<r} a_h x^h) mod x^r, both trimmed."""
+    c = [_guard(lambda x=x: _recurrence.rational(x)) for x in recurrence_certificate['coefficients']]
+    a = [_guard(lambda x=x: _recurrence.rational(x)) for x in recurrence_certificate['initial_terms']]
+    r = len(c)
+    Q = [Fraction(1)] + [-c[r - k] for k in range(1, r + 1)]
+    P = [sum(Q[i] * a[k - i] for i in range(k + 1)) for k in range(r)]
+    while P and P[-1] == 0: P.pop()
+    while len(Q) > 1 and Q[-1] == 0: Q.pop()
+    return [[q.numerator, q.denominator] for q in P], [[q.numerator, q.denominator] for q in Q]
+
+
+def check_generating_function(task, certificate, budget):
+    carried = carrier(task, 'discover_generating_function')
+    need(type(certificate) is dict and set(certificate) == {'kind', 'task_id', 'recurrence', 'numerator', 'denominator'}
+         and certificate['kind'] == 'rational_generating_function' and certificate['task_id'] == carried['identity'],
+         'generating function certificate binding')
+    checked = _guard(lambda: _recurrence.check(carried['derived'], certificate['recurrence'], budget))
+    numerator, denominator = generating_function(certificate['recurrence'])
+    need(certificate['numerator'] == numerator and certificate['denominator'] == denominator,
+         'generating function differs from the checked recurrence and initial terms')
+    return dict(ok=True, kind='rational_generating_function', order=checked['order'],
+                scope='sum_{h>=0} a(h) x^h = P(x)/Q(x) as formal power series for the original carrier; not necessarily reduced.',
+                proof='Q(x)*A(x) has zero coefficients from x^r on by the checked recurrence; the lower ones are P.',
+                formal_status='NOT_FORMALLY_VERIFIED')
+
+
+def hankel_determinant(terms, order, budget):
+    """Exact determinant of [a(i+j)] for i,j<order by fraction-free elimination."""
+    matrix = [[terms[i + j] for j in range(order)] for i in range(order)]
+    previous, sign = 1, 1
+    for k in range(order):
+        pivot = next((i for i in range(k, order) if matrix[i][k]), None)
+        if pivot is None: return 0
+        if pivot != k: matrix[k], matrix[pivot] = matrix[pivot], matrix[k]; sign = -sign
+        for i in range(k + 1, order):
+            for j in range(k + 1, order):
+                budget.use(3)
+                matrix[i][j] = (matrix[i][j] * matrix[k][k] - matrix[i][k] * matrix[k][j]) // previous
+        previous = matrix[k][k]
+    return sign * (matrix[order - 1][order - 1] if order else 1)
+
+
+def check_minimal_recurrence(task, certificate, budget):
+    carried = carrier(task, 'certify_minimal_recurrence')
+    need(type(certificate) is dict and set(certificate) == {'kind', 'task_id', 'recurrence'}
+         and certificate['kind'] == 'minimal_recurrence' and certificate['task_id'] == carried['identity'],
+         'minimal recurrence certificate binding')
+    checked = _guard(lambda: _recurrence.check(carried['derived'], certificate['recurrence'], budget))
+    order = checked['order']
+    det = hankel_determinant(carrier_terms(carried['binding'], max(0, 2 * order - 1), budget), order, budget)
+    need(det != 0, 'Hankel determinant vanishes: a lower order is not excluded')
+    return dict(ok=True, kind='minimal_recurrence', order=order, hankel_determinant_bits=abs(det).bit_length(),
+                scope='The checked recurrence holds for every index and no linear recurrence of lower order does.',
+                proof='A recurrence of order s<r would make the columns of the r-by-r Hankel matrix dependent; '
+                      'its determinant, recomputed from the original carrier, is nonzero.',
+                formal_status='NOT_FORMALLY_VERIFIED')
+
+
+def bind_word_count(task):
+    need(type(task) is dict and task.get('query') == 'count_word_avoiders', 'original word-count query')
+    need(not set(task) - {'query', 'patterns', 'length', 'name', 'family'}, 'unsupported word-count fields')
+    carried = carrier(dict(query='count_word_avoiders', patterns=task.get('patterns')), 'count_word_avoiders')
+    length = task.get('length')
+    need(type(length) is int and 0 <= length <= WORD_LENGTH_LIMIT, 'word length bound 0..20000')
+    return dict(carried, length=length,
+                identity=digest(dict(query='count_word_avoiders', patterns=carried['binding']['words'], length=length)))
+
+
+def count_words(task, budget):
+    """Exact count by iterating the checker's own prefix automaton."""
+    counted = bind_word_count(task)
+    return carrier_terms(counted['binding'], counted['length'] + 1, budget)[-1]
+
+
+def check_word_count(task, certificate, budget):
+    counted = bind_word_count(task)
+    need(type(certificate) is dict and set(certificate) == {'kind', 'task_id', 'recurrence'}
+         and certificate['kind'] == 'word_count_law' and certificate['task_id'] == counted['identity'],
+         'word count certificate binding')
+    checked = _guard(lambda: _recurrence.check(counted['derived'], certificate['recurrence'], budget))
+    return dict(ok=True, kind='word_count_law', answer=evaluate(certificate['recurrence'], counted['length'], budget),
+                order=checked['order'], scope='The number of binary words of the original length avoiding both patterns.',
+                proof='A recurrence admitted for every length on the original automaton, evaluated from its checked terms.',
+                formal_status='NOT_FORMALLY_VERIFIED')
+
+
 def check(task, certificate, budget):
     need(type(task) is dict, 'apex task object')
     if task.get('query') == 'transition_count': return check_law_instance(task, certificate, budget)
     if task.get('query') == 'prove_orbit_exclusion': return check_orbit(task, certificate, budget)
+    if task.get('query') == 'count_word_avoiders': return check_word_count(task, certificate, budget)
+    if task.get('query') == 'discover_generating_function': return check_generating_function(task, certificate, budget)
+    if task.get('query') == 'certify_minimal_recurrence': return check_minimal_recurrence(task, certificate, budget)
     raise Invalid('no apex synthesis checker for this original query')

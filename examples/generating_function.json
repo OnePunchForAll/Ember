@@ -1,0 +1,8 @@
+{
+  "query": "discover_generating_function",
+  "patterns": [
+    "0110",
+    "111"
+  ],
+  "name": "Rational generating function of binary words avoiding 0110 and 111"
+}

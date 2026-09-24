@@ -17,12 +17,21 @@ import time
 # Tie order: the question as stated, checked memory, failure-directed work, then
 # broader generalization. A chosen scheduling policy, not a claim about truth.
 FACE_ORDER = ('S', 'E', 'W', 'N')
-ORBIT_ROUTES = ('orbit_prefix', 'orbit_transfer', 'orbit_invariant')
-SYNTHESES = ('law_instance', 'recursive_seeded') + ORBIT_ROUTES
+ORBIT_ROUTES = ('orbit_prefix', 'orbit_transfer', 'orbit_invariant', 'orbit_drift')
+SINGLE_ROUTES = {'prove_orbit_exclusion': ORBIT_ROUTES,
+                 'count_word_avoiders': ('word_count_law', 'word_count_direct'),
+                 'discover_generating_function': ('generating_function',),
+                 'certify_minimal_recurrence': ('recurrence_minimality',)}
+SYNTHESES = (('law_instance', 'recursive_seeded', 'recursive_lifted_counterexample', 'word_count_direct', 'word_count_law',
+              'generating_function', 'recurrence_minimality') + ORBIT_ROUTES)
+CHECKED_BY_APEX = ('law_instance', 'word_count_direct', 'word_count_law', 'generating_function',
+                   'recurrence_minimality') + ORBIT_ROUTES
 ROLE_FACES = {'repair': 'W', 'generalization': 'N', 'expansion': 'N'}
 STRATEGY_FACES = {'quotient': 'N', 'law_instance': 'N', 'invariant_mapped': 'N', 'localized_implication': 'N',
-                  'recursive_enumerate': 'N', 'orbit_invariant': 'N', 'invariant_reuse_first': 'E',
-                  'guarded_lemma_first': 'E', 'orbit_transfer': 'E', 'recursive_seeded': 'E', 'recursive_residual': 'W'}
+                  'recursive_enumerate': 'N', 'orbit_invariant': 'N', 'orbit_drift': 'N', 'invariant_reuse_first': 'E',
+                  'guarded_lemma_first': 'E', 'orbit_transfer': 'E', 'recursive_seeded': 'E', 'recursive_residual': 'W',
+                  'recursive_lifted_counterexample': 'E', 'word_count_law': 'N', 'generating_function': 'N',
+                  'recurrence_minimality': 'W'}
 LAW_CARRIER_STATES = 64
 TRANSFER_RECORDS = 8
 SEED_ENTRIES = 8
@@ -267,11 +276,185 @@ def recursive_seeded(task, state, limit, host):
     return result, candidate
 
 
+def orbit_drift(task, budget, host):
+    """N then S and W: a polynomial R with R(F(x))-R(x) constant decides the target's only index."""
+    checker = host.local_module('apex_check'); invariant = host.local_module('invariant_check')
+    engine = host.local_module('invariant'); algebra = host.local_module('algebra')
+    b = checker.bind_orbit(task); clocked = invariant.bind(checker.clocked_task(b)); n = len(b['names'])
+    basis = [powers + (0,) for powers in algebra.monomials(n, clocked['degree'])[1:]] + [(0,) * n + (1,)]
+    columns = engine.build_operator(clocked, basis, budget, invariant, algebra)
+    trace = [dict(direction='S', operation='form_clocked_drift_operator', columns=len(columns))]
+    gaps = [algebra.evaluate({powers[:n]: 1}, b['initial'], budget, invariant)
+            - algebra.evaluate({powers[:n]: 1}, b['target'], budget, invariant) for powers in basis[:-1]]
+
+    def decides(vector):
+        budget.use(2 * len(vector))
+        if not vector[-1]: return False
+        steps = sum(q * g for q, g in zip(vector[:-1], gaps) if q and g) / vector[-1]
+        return steps.denominator != 1 or steps < 0 or steps <= b['max_steps']
+
+    diagnostics = {}
+    poly = engine.search_operator(clocked, basis, columns, budget, invariant, diagnostics, select=decides)
+    if poly is None:
+        return dict(status='UNKNOWN', trace=trace, invariant_search=diagnostics,
+                    reason='no drift function within the degree bound decides the target')
+    trace.append(dict(direction='N', operation='propose_clocked_drift_function', terms=len(poly)))
+    kappa = poly[(0,) * n + (1,)]; drift = {e[:n]: q for e, q in poly.items() if not e[n]}
+    steps = (algebra.evaluate(drift, b['initial'], budget, invariant)
+             - algebra.evaluate(drift, b['target'], budget, invariant)) / kappa
+    law = dict(kind='polynomial_invariant', task_id=clocked['identity'], polynomial=algebra.encoded(poly),
+               initial_value=encoded(algebra.evaluate(poly, clocked['initial'], budget, invariant)))
+    certificate = dict(kind='drift_separation', task_id=b['identity'], clocked=law)
+    if steps.denominator == 1 and steps >= 0: certificate['index'] = int(steps)
+    checked = checker.check_orbit(task, certificate, budget)
+    if checked['outcome'] == 'EXCLUDED':
+        trace.append(dict(direction='W', operation='refute_reachability_by_drift_value', accepted=True))
+    else: trace.append(dict(direction='S', operation='witness_reachability_at_drift_index', index=checked['index']))
+    return dict(status=checker.orbit_status(checked), certificate=certificate, check=checked, trace=trace,
+                invariant_search=diagnostics)
+
+
+def word_count_direct(task, budget, host):
+    """S: iterate the checker's own prefix automaton to the original length."""
+    checker = host.local_module('apex_check'); counted = checker.bind_word_count(task)
+    answer = checker.count_words(task, budget)
+    return dict(status='EXACT_DIRECT', answer=answer, task_id=counted['identity'],
+                trace=[dict(direction='S', operation='iterate_original_word_automaton', length=counted['length'])])
+
+
+def recurrence_certificate(derived, budget, host):
+    found = host.local_module('recurrence').run(derived, budget, host.local_module('recurrence_check'))
+    return found, list(found.get('trace', []))
+
+
+def word_count_law(task, budget, host):
+    """N then S: discover the all-length word recurrence and evaluate it at the original length."""
+    checker = host.local_module('apex_check'); counted = checker.bind_word_count(task)
+    found, trace = recurrence_certificate(counted['derived'], budget, host)
+    if found['status'] != 'CHECKED_RECURRENCE':
+        return dict(status='UNKNOWN', reason=found.get('reason', 'no checked word recurrence'), trace=trace)
+    certificate = dict(kind='word_count_law', task_id=counted['identity'], recurrence=found['certificate'])
+    checked = checker.check_word_count(task, certificate, budget)
+    trace.append(dict(direction='S', operation='evaluate_word_law_at_original_length', length=counted['length']))
+    return dict(status='CHECKED_EXACT', answer=checked['answer'], certificate=certificate, check=checked, trace=trace)
+
+
+def generating_function(task, budget, host):
+    """N then S: a checked recurrence with its initial terms as a rational generating function."""
+    checker = host.local_module('apex_check'); carried = checker.carrier(task, 'discover_generating_function')
+    found, trace = recurrence_certificate(carried['derived'], budget, host)
+    if found['status'] != 'CHECKED_RECURRENCE':
+        return dict(status='UNKNOWN', reason=found.get('reason', 'no checked recurrence'), trace=trace)
+    numerator, denominator = checker.generating_function(found['certificate'])
+    trace.append(dict(direction='N', operation='form_rational_generating_function', order=found['certificate']['order']))
+    certificate = dict(kind='rational_generating_function', task_id=carried['identity'], recurrence=found['certificate'],
+                       numerator=numerator, denominator=denominator)
+    checked = checker.check_generating_function(task, certificate, budget)
+    trace.append(dict(direction='S', operation='check_generating_function_on_original', accepted=True))
+    return dict(status='CHECKED_GENERATING_FUNCTION', certificate=certificate, check=checked, trace=trace,
+                numerator=numerator, denominator=denominator)
+
+
+def recurrence_minimality(task, budget, host):
+    """N, W then S: discover a recurrence, then refute every lower order with a Hankel determinant."""
+    checker = host.local_module('apex_check'); carried = checker.carrier(task, 'certify_minimal_recurrence')
+    found, trace = recurrence_certificate(carried['derived'], budget, host)
+    if found['status'] != 'CHECKED_RECURRENCE':
+        return dict(status='UNKNOWN', reason=found.get('reason', 'no checked recurrence'), trace=trace)
+    certificate = dict(kind='minimal_recurrence', task_id=carried['identity'], recurrence=found['certificate'])
+    trace.append(dict(direction='W', operation='refute_lower_orders_by_hankel_determinant',
+                      order=found['certificate']['order']))
+    checked = checker.check_minimal_recurrence(task, certificate, budget)
+    trace.append(dict(direction='S', operation='check_minimal_order_on_original', accepted=True))
+    return dict(status='CHECKED_MINIMAL_RECURRENCE', certificate=certificate, check=checked, trace=trace)
+
+
+def recursive_refutations(task, state):
+    """At most eight remembered refutations over the receiving definitions; proposals only."""
+    rows = []
+    for row in reversed(state['observations']):
+        if (row.get('kind') == 'prove_recursive_identity' and row.get('status') == 'CHECKED_RECURSIVE_COUNTEREXAMPLE'
+                and type(row.get('task')) is dict and type(row.get('certificate')) is dict
+                and row['task'].get('domain') == task.get('domain')
+                and row['task'].get('definitions') == task.get('definitions') and row['task'] != task):
+            rows.append(row)
+    return rows[:8]
+
+
+def recursive_lift(task, state, budget, host):
+    """E then S and W: a remembered refutation of an instance refutes the general equation."""
+    engine = host.local_module('recursive'); checker = host.local_module('recursive_check')
+    receiving = checker.bind(task, budget); theory = engine.Theory(task, budget)
+    goal = engine.read_goal(task['goal']); scope = engine.goal_vars(goal); cache = {}
+    rows = recursive_refutations(task, state)
+    trace = [dict(direction='E', operation='collect_remembered_recursive_refutations', records=len(rows))]
+    for row in rows:
+        source = row['task']
+        try:
+            instance = engine.read_goal(source['goal'])
+            values = {name: engine.read(value) for name, value in row['certificate']['point'].items()}
+        except (TypeError, KeyError, IndexError): continue
+        for left, right in ((instance[0], instance[1]), (instance[1], instance[0])):
+            env = engine.match(goal[0], left, set(scope), theory, budget, {})
+            if env is not None: env = engine.match(goal[1], right, set(scope), theory, budget, env)
+            if env is None or set(env) != set(scope): continue
+            try:
+                point = {name: engine.data(engine.evaluate(engine.subst(env[name], values, budget), theory, budget, cache))
+                         for name in scope}
+            except (ValueError, engine.SearchLimit): continue
+            trace.append(dict(direction='N', operation='propose_lifted_counterexample_point'))
+            certificate = dict(kind='recursive_counterexample', task_id=receiving['identity'], point=point)
+            try: checked = checker.check(task, certificate, budget)
+            except checker.Invalid:
+                trace.append(dict(direction='W', operation='refuse_lifted_counterexample')); continue
+            trace.append(dict(direction='S', operation='check_lifted_counterexample_on_original', accepted=True))
+            return dict(status='CHECKED_RECURSIVE_COUNTEREXAMPLE', certificate=certificate, check=checked, trace=trace)
+    return dict(status='UNKNOWN', reason='no remembered refutation is an instance of this equation', trace=trace)
+
+
+def level_set_lemma(invariant_task, invariant_certificate, host, budget):
+    """A checked law P(F(x))=P(x) as the polynomial lemma P(x)-level=0 implies P(F(x))-level=0."""
+    invariant = host.local_module('invariant_check'); checker = host.local_module('algebra_check')
+    binding = invariant.bind(invariant_task); terms = invariant.polynomial(invariant_certificate['polynomial'], binding)
+    names = binding['names']; level = 'level'
+    while level in names: level += '_'
+
+    def text(substitute):
+        parts = []
+        for exponents, q in terms:
+            factors = ['(' + str(q.numerator) + ('/' + str(q.denominator) if q.denominator != 1 else '') + ')']
+            factors += ['(' + substitute[i] + ')' + ('**' + str(k) if k > 1 else '') for i, k in enumerate(exponents) if k]
+            parts.append('*'.join(factors))
+        return '+'.join(parts) + '-' + level
+
+    lemma = dict(query='polynomial_consequence', domain='QQ', variables=list(names) + [level],
+                 assumptions=[text(names)], nonzero=[], goal=text(invariant_task['transition']), multiplier_degree=0)
+    certificate = dict(kind='polynomial_combination', task_id=checker.bind(lemma)['identity'],
+                       multipliers=[[[[0] * (len(names) + 1), [1, 1]]]])
+    checker.check(lemma, certificate, budget)
+    return lemma, certificate
+
+
+def remember_level_set(state, invariant_task, invariant_certificate, host):
+    """Store the level-set lemma of an admitted law for polynomial transfer; oversized laws are skipped."""
+    algebra_check = host.local_module('algebra_check'); invariant = host.local_module('invariant_check')
+    try: lemma, certificate = level_set_lemma(invariant_task, invariant_certificate, host, host.Budget(200_000))
+    except (algebra_check.Invalid, algebra_check.Limit, invariant.Invalid, invariant.Limit, host.Exhausted): return None
+    host.remember_lemma(state, lemma, dict(status='CHECKED_IMPLICATION', certificate=certificate))
+    return lemma
+
+
 def run_synthesis(strategy, task, state, budget, host):
     if strategy == 'law_instance': return law_instance(task, budget, host)
     if strategy == 'orbit_prefix': return orbit_prefix(task, budget, host)
     if strategy == 'orbit_invariant': return orbit_invariant(task, budget, host)
     if strategy == 'orbit_transfer': return orbit_transfer(task, budget, host, host.invariant_candidates(state))
+    if strategy == 'orbit_drift': return orbit_drift(task, budget, host)
+    if strategy == 'word_count_direct': return word_count_direct(task, budget, host)
+    if strategy == 'word_count_law': return word_count_law(task, budget, host)
+    if strategy == 'generating_function': return generating_function(task, budget, host)
+    if strategy == 'recurrence_minimality': return recurrence_minimality(task, budget, host)
+    if strategy == 'recursive_lifted_counterexample': return recursive_lift(task, state, budget, host)
     raise host.Refused('unknown apex synthesis')
 
 
@@ -285,44 +468,95 @@ def attempt(strategy, task, state, limit, host):
     return result
 
 
-# ------------------------------------------------ orbit questions in one call
+# ------------------------------------------ apex-only questions in one call
 
-def solve_orbit(task, state_path, limit, host):
-    """Ask all four faces of one orbit question: S/W prefix, E stored laws, N kernel."""
+def single_binding(task, host):
+    """Identity and scheduling shape of one apex-only original question."""
+    checker = host.local_module('apex_check'); query = task.get('query') if type(task) is dict else None
+    if query == 'prove_orbit_exclusion':
+        b = checker.bind_orbit(task)
+        return b['identity'], dict(query=query, variables=len(b['names']), degree=b['degree'], steps=b['max_steps'])
+    if query == 'count_word_avoiders':
+        counted = checker.bind_word_count(task)
+        return counted['identity'], dict(query=query, lengths=[len(w) for w in counted['binding']['words']],
+                                         length_bits=counted['length'].bit_length())
+    if query in ('discover_generating_function', 'certify_minimal_recurrence'):
+        carried = checker.carrier(task, query)
+        return carried['identity'], dict(query=query, words='words' in carried['binding'],
+                                         dimension=carried['binding']['n'])
+    raise host.Refused('no apex route for this original query')
+
+
+def single_status(task, result, budget, host):
+    """Replay a certificate result on the original; return the status it supports."""
+    checker = host.local_module('apex_check'); query = task['query']
+    if query == 'prove_orbit_exclusion':
+        return checker.orbit_status(checker.check_orbit(task, result.get('certificate'), budget))
+    if query == 'count_word_avoiders':
+        if result['status'] == 'EXACT_DIRECT':
+            if type(result.get('answer')) is not int or checker.count_words(task, budget) != result['answer']:
+                raise host.Refused('direct word count differs from the original automaton')
+            return 'EXACT_DIRECT'
+        if checker.check_word_count(task, result.get('certificate'), budget)['answer'] != result.get('answer'):
+            raise host.Refused('word count answer differs from the checked law')
+        return 'CHECKED_EXACT'
+    if query == 'discover_generating_function':
+        checker.check_generating_function(task, result.get('certificate'), budget)
+        return 'CHECKED_GENERATING_FUNCTION'
+    checker.check_minimal_recurrence(task, result.get('certificate'), budget)
+    return 'CHECKED_MINIMAL_RECURRENCE'
+
+
+def single_routes(task, host):
+    """Word counts beyond the automaton's squared size try the law first; a chosen cost policy."""
+    routes = SINGLE_ROUTES[task['query']]
+    if task['query'] == 'count_word_avoiders':
+        counted = host.local_module('apex_check').bind_word_count(task)
+        if counted['length'] <= 4 * counted['binding']['n'] ** 2: routes = routes[::-1]
+    return routes
+
+
+def solve_single(task, state_path, limit, host):
+    """Ask the faces of one apex-only question in order until one is checked on the original."""
     started = time.perf_counter_ns(); budget = host.Budget(limit)
     checker = host.local_module('apex_check'); faces = []
     try:
-        b = checker.bind_orbit(task); identity = b['identity']; state = host.read_state(state_path)
+        identity, _ = single_binding(task, host); state = host.read_state(state_path)
         previous = next((o for o in state['observations'] if o['task_id'] == identity), None)
         result = None
-        if previous and type(previous.get('certificate')) is dict:
+        if previous and type(previous.get('certificate')) is dict and type(previous.get('status')) is str:
             try:
-                checked = checker.check_orbit(task, previous['certificate'], budget)
-                result = dict(status=checker.orbit_status(checked), certificate=previous['certificate'],
-                              check=checked, reused_after_fresh_check=True)
-            except checker.Invalid: pass
+                saved = dict(status=previous['status'], certificate=previous['certificate'], answer=previous.get('answer'))
+                result = dict(saved, status=single_status(task, saved, budget, host), reused_after_fresh_check=True)
+                if result.get('answer') is None: result.pop('answer')
+            except (checker.Invalid, host.Refused): result = None
         if result is None:
-            for strategy in ORBIT_ROUTES:
+            for strategy in single_routes(task, host):
                 try: found = run_synthesis(strategy, task, state, budget, host)
-                except (checker.Limit, host.local_module('invariant_check').Limit) as exc:
+                except (checker.Limit, host.local_module('invariant_check').Limit,
+                        host.local_module('recurrence_check').Limit) as exc:
                     found = dict(status='UNKNOWN', reason=str(exc))
                 except _invalid(host) as exc:
                     found = dict(status='UNKNOWN', reason='candidate refused: ' + str(exc))
                 faces.append(dict(face=STRATEGY_FACES.get(strategy, 'S'), route=strategy, status=found['status'],
-                                  reason=found.get('reason')))
+                                  reason=found.get('reason'),
+                                  directions=[step['direction'] for step in found.get('trace', []) if 'direction' in step]))
                 if found['status'] != 'UNKNOWN':
                     result = dict(found, face=faces[-1]['face'], route=strategy); break
         if result is None:
-            result = dict(status='UNKNOWN', reason='no face settled the original orbit question within its bounds')
+            result = dict(status='UNKNOWN', reason='no face settled the original question within its bounds')
         else:
-            if result['certificate']['kind'] == 'invariant_separation':
-                host.remember_invariant(state, b['derived'], dict(status='CHECKED_INVARIANT',
-                                                                  certificate=result['certificate']['invariant']))
-            host.retain(state, state_path, dict(task_id=identity, kind='prove_orbit_exclusion', status=result['status'],
-                                                task=task, certificate=result['certificate']))
+            if task['query'] == 'prove_orbit_exclusion' and result['certificate']['kind'] == 'invariant_separation':
+                derived = checker.bind_orbit(task)['derived']
+                host.remember_invariant(state, derived, dict(status='CHECKED_INVARIANT',
+                                                             certificate=result['certificate']['invariant']))
+            row = dict(task_id=identity, kind=task['query'], status=result['status'], task=task)
+            if 'certificate' in result: row['certificate'] = result['certificate']
+            if 'answer' in result: row['answer'] = result['answer']
+            if 'certificate' in row: host.retain(state, state_path, row)
         result.update(task_id=identity, faces_tried=faces, work=budget.work, elapsed_ns=time.perf_counter_ns() - started,
-                      limits='Exact rational orbit prefix, stored-law transfer and bounded polynomial invariants; '
-                             'UNKNOWN does not mean the target is reachable.')
+                      limits='Only certificates replayed on the original question are reported; UNKNOWN is no '
+                             'claim either way.')
         return result
     except _limits(host) as exc:
         return dict(status='UNKNOWN', reason=str(exc), faces_tried=faces, work=budget.work,
@@ -336,7 +570,7 @@ class Layer:
     kind = 'apex_research'
     QUERIES = frozenset(('transition_count', 'test_overlap_shortcut', 'polynomial_consequence', 'discover_guards',
                          'word_avoidance_identity', 'discover_recurrence', 'discover_word_recurrence',
-                         'discover_invariant', 'prove_recursive_identity', 'prove_orbit_exclusion'))
+                         'discover_invariant', 'prove_recursive_identity') + tuple(SINGLE_ROUTES))
 
     def __init__(self, host):
         self.host = host
@@ -358,26 +592,25 @@ class Layer:
         for problem in problems:
             if type(problem) is not dict or problem.get('query') not in self.QUERIES:
                 raise host.Refused('supported original apex task required')
-            if problem['query'] == 'prove_orbit_exclusion': host.local_module('apex_check').bind_orbit(problem)
+            if problem['query'] in SINGLE_ROUTES: single_binding(problem, host)
             else: host.local_module('campaign').validate(problem, host, budget)
         return problems, per, steps, 'apex', host.digest({'query': 'apex_research', 'problems': problems, 'attempt_work': per})
 
     def plan(self, problems, host):
         campaign = host.local_module('campaign'); pyramid = host.local_module('pyramid'); result = []
         for index, problem in enumerate(problems):
-            if problem['query'] == 'prove_orbit_exclusion':
-                b = host.local_module('apex_check').bind_orbit(problem)
-                shape = host.digest(dict(query=problem['query'], variables=len(b['names']), degree=b['degree'],
-                                         steps=b['max_steps']))
+            if problem['query'] in SINGLE_ROUTES:
+                shape = host.digest(single_binding(problem, host)[1])
                 routes = [dict(id=host.digest({'original': problem, 'strategy': s, 'receiving': problem}),
                                problem=index, strategy=s, task=problem, role='original', options={}, context=shape)
-                          for s in ORBIT_ROUTES]
+                          for s in single_routes(problem, host)]
             else:
                 routes = campaign.routes(problem, index, host, True, True, True, True)
-                extra = {'transition_count': 'law_instance', 'prove_recursive_identity': 'recursive_seeded'}.get(problem['query'])
-                if extra is not None:
-                    routes.append(dict(id=host.digest({'original': problem, 'strategy': extra, 'receiving': problem}),
-                                       problem=index, strategy=extra, task=problem, role='original',
+                extra = {'transition_count': ('law_instance',),
+                         'prove_recursive_identity': ('recursive_seeded', 'recursive_lifted_counterexample')}
+                for strategy in extra.get(problem['query'], ()):
+                    routes.append(dict(id=host.digest({'original': problem, 'strategy': strategy, 'receiving': problem}),
+                                       problem=index, strategy=strategy, task=problem, role='original',
                                        options={}, context=campaign.context(problem, host)))
             for route in routes:
                 route['face'] = face(route)
@@ -387,7 +620,7 @@ class Layer:
         return result
 
     def admit(self, route, result, budget, host):
-        if route.get('synthesis') not in ('law_instance',) + ORBIT_ROUTES:
+        if route.get('synthesis') not in CHECKED_BY_APEX:
             return host.local_module('campaign').admit(route['task'], result, budget, host)
         if type(result) is not dict or type(result.get('status')) is not str: raise host.Refused('apex result shape')
         if result['status'] == 'UNKNOWN': return False
@@ -398,8 +631,10 @@ class Layer:
             if checker.check_law_instance(route['task'], result.get('certificate'), budget)['answer'] != result['answer']:
                 raise host.Refused('law instance answer differs from the checked law')
             return True
-        checked = checker.check_orbit(route['task'], result.get('certificate'), budget)
-        if result['status'] != checker.orbit_status(checked): raise host.Refused('orbit evidence/status mismatch')
+        expected = 'EXACT_DIRECT' if route['synthesis'] == 'word_count_direct' else None
+        if expected is not None and result['status'] != expected: raise host.Refused('direct word count evidence')
+        if result['status'] != single_status(route['task'], result, budget, host):
+            raise host.Refused('apex evidence/status mismatch')
         return True
 
     def proposal_context(self, route, state, host):
@@ -411,6 +646,9 @@ class Layer:
                                                                          seed_records=seeds)))
         if route.get('synthesis') == 'orbit_transfer':
             return host.digest([dict(task=o['task'], certificate=o['certificate']) for o in host.invariant_candidates(state)])
+        if route.get('synthesis') == 'recursive_lifted_counterexample':
+            return host.digest([dict(task=o['task'], certificate=o['certificate'])
+                                for o in recursive_refutations(route['task'], state)])
         if 'synthesis' in route: return None
         return host.local_module('campaign').proposal_context(route, state, host)
 
@@ -419,7 +657,12 @@ class Layer:
 
         auto iterates exactly when every terminal class is a singleton; quotient
         refinement starts from terminal classes and only splits them, so it then
-        keeps every state. The bound counts every edge at every step."""
+        keeps every state. The bound counts every edge at every step. A direct
+        word count is bounded the same way over its prefix automaton."""
+        if route['strategy'] == 'word_count_direct':
+            # Each step multiplies a row by the automaton; at most two edges leave a state.
+            n = len({w[:k] for w in route['task']['patterns'] for k in range(len(w))})
+            return (route['task']['length'] + 1) * 6 * n > self.allocation
         if route['task']['query'] != 'transition_count' or route['strategy'] not in ('auto', 'direct', 'quotient'):
             return False
         M, h = route['task']['matrix'], route['task']['horizon']
@@ -458,15 +701,20 @@ class Layer:
 
     def remember(self, state, route, kept, host):
         certificate = kept.get('certificate')
-        if route['task']['query'] == 'prove_recursive_identity' and kept['status'] == 'CHECKED_RECURSIVE_IDENTITY':
-            # Admitted proofs become seed proposals for same-definition questions.
+        if route['task']['query'] == 'prove_recursive_identity' and kept['status'] in (
+                'CHECKED_RECURSIVE_IDENTITY', 'CHECKED_RECURSIVE_COUNTEREXAMPLE'):
+            # Admitted proofs seed same-definition questions; admitted refutations lift to their generalizations.
             identity = host.local_module('recursive_check').bind(route['task'])['identity']
             row = dict(task_id=identity, kind='prove_recursive_identity', status=kept['status'],
                        task=json.loads(host.canonical(route['task'])), certificate=json.loads(host.canonical(certificate)))
             state['observations'] = ([o for o in state['observations'] if o['task_id'] != identity] + [row])[-128:]
+        if route['task']['query'] == 'discover_invariant' and kept['status'] == 'CHECKED_INVARIANT':
+            # A conserved law also enters the polynomial library as its checked level-set lemma.
+            remember_level_set(state, route['task'], certificate, host)
         if route.get('synthesis') in ORBIT_ROUTES and certificate.get('kind') == 'invariant_separation':
             derived = host.local_module('apex_check').bind_orbit(route['task'])['derived']
             host.remember_invariant(state, derived, dict(status='CHECKED_INVARIANT', certificate=certificate['invariant']))
+            remember_level_set(state, derived, certificate['invariant'], host)
 
     def report(self, plan, outcomes, record, byid, executed):
         pyramid = self.host.local_module('pyramid')

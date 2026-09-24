@@ -600,6 +600,11 @@ python -I -B -X utf8 ember.py examples/apex_research.json --state apex-instance.
 python -I -B -X utf8 ember.py examples/apex_research.json --state apex-instance.json
 python -I -B -X utf8 ember.py examples/hidden_rank_count.json --layer apex --state rank-instance.json
 python -I -B -X utf8 ember.py examples/orbit_exclusion.json --state orbit-instance.json
+python -I -B -X utf8 ember.py examples/orbit_drift.json
+python -I -B -X utf8 ember.py examples/word_count.json
+python -I -B -X utf8 ember.py examples/generating_function.json
+python -I -B -X utf8 ember.py examples/minimal_recurrence.json
+python -I -B -X utf8 ember.py examples/recursive_lift.json --state lift-instance.json
 python -I -B -X utf8 tools/helper_client.py examples/orbit_exclusion.json --layer apex
 ```
 
@@ -615,8 +620,8 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 135 implemented moves across
-17 modules: 128 reasoning moves and 7 control moves that schedule, persist or
+`--pyramid` prints the map. Its base is a catalog of 148 implemented moves across
+17 modules: 140 reasoning moves and 8 control moves that schedule, persist or
 replay work. Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
 fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
@@ -630,18 +635,19 @@ a move with that direction, and every chain must type-check. `--pyramid` exits 2
 when the audit fails. Fourteen of the fifteen nodes are realized by code. The
 unrealized node, NWE, would transfer a repair without checking it on an
 original; every admitted Ember result passes through S. The map records 14
-syntheses that predate the apex, 8 that the apex realizes, and 7 proposed ones.
-Each proposed synthesis names the capability it still needs: counting forbidden
-words at a large length from a checked recurrence, ranking-function orbit
-exclusion, lifting an obligation child's counterexample to its parent, recurrences
-as rational generating functions, invariant level-set lemmas, recurrence-order
-minimality and counterexample instance lifting. Directions classify operations;
-the map is a description bound to source text, not evidence that any claim holds.
+syntheses that predate the apex and 15 that the apex realizes. Generation 16
+implemented the seven syntheses that generation 15 listed as proposed (see
+below). Two proposed syntheses remain open, each naming the capability it still
+needs: exclusion by a strictly increasing ranking polynomial beyond exact drift,
+and a reduced generating function that certifies the least eventual recurrence.
+Directions classify operations; the map is a description bound to source text,
+not evidence that any claim holds.
 
 ### Scheduling
 
 `apex_research` accepts one to sixteen original questions of the campaign kinds,
-plus `prove_orbit_exclusion`. `--layer apex` sends a single original through the
+plus `prove_orbit_exclusion`, `count_word_avoiders`, `discover_generating_function`
+and `certify_minimal_recurrence`. `--layer apex` sends a single original through the
 same layer. The apex reuses the campaign's durable executor: saved outcomes are
 checked again on restart, and an unchanged miss is not searched again. It enables
 the campaign's optional generalization, localization and reuse routes.
@@ -679,8 +685,42 @@ other result by its original checker.
   source-episode seed transport. Seeds are rechecked under the receiving
   definitions, and the final certificate is checked against the receiving original.
 
-Admitted separating invariants and recursive proofs are remembered for later E
-routes. A kernel selector that vanishes on every kernel basis vector vanishes on
+- `orbit_drift` (N, then W or S) searches the kernel of a clocked system for a
+  law R(x)+kappa*clock with kappa nonzero. Such a law gives R(x(n))=R(x(0))-kappa*n,
+  so n=(R(x(0))-R(target))/kappa is the only index at which the target can occur.
+  A nonintegral or negative index excludes the target. Otherwise the checker
+  iterates to that index, which must lie within `max_steps`, and reports
+  exclusion or reachability. The clocked law is checked on the complete grid.
+- `word_count_direct` (S) and `word_count_law` (N, then S) answer
+  `count_word_avoiders`, the number of binary words of a given length up to 20,000
+  avoiding two patterns. The law route discovers the all-length word recurrence
+  and evaluates it at the length. A standalone call tries the law first when the
+  length exceeds four times the squared automaton size; the apex schedules both
+  by face and defers direct iteration beyond the attempt allocation.
+- `generating_function` (N, then S) turns a checked all-index recurrence and its
+  initial terms into P(x)/Q(x) with Q(x)=1-sum c_j x^(r-j) and
+  P=(Q*sum a_h x^h) mod x^r. The checker rechecks the recurrence on the original
+  word or matrix carrier and recomputes P and Q. The fraction is not necessarily
+  reduced.
+- `recurrence_minimality` (W, then S) certifies that no linear recurrence of lower
+  order holds for every index. A lower-order recurrence would make the columns of
+  the r-by-r Hankel matrix [a(i+j)] dependent. The checker recomputes 2r-1 terms
+  from the original carrier and requires a nonzero fraction-free determinant.
+- `recursive_lifted_counterexample` (E, N, W, then S) matches a remembered refuted
+  instance into the general equation. When the instance is the general goal under
+  a substitution, the refuting values are pushed through that substitution and
+  evaluated, and the receiving checker decides.
+- In `--proof-policy obligations`, a required premise child keeps the original
+  assumptions and guards. When its checked counterexample point also violates the
+  original goal, the original checker admits it as the parent's refutation.
+  Otherwise the point only closes that transfer route.
+
+Admitted separating invariants, recursive proofs and recursive refutations are
+remembered for later E routes. Every admitted conservation law is also stored as
+the checked polynomial lemma P(x)-level=0 implies P(F(x))-level=0, with
+multiplier 1, for later lemma transfer. Direct search also proves such lemmas when
+their degree fits; the stored form is memory for renamed transfer, not a new
+proving capability. A kernel selector that vanishes on every kernel basis vector vanishes on
 the whole kernel, so an N-face miss is complete for its monomial grammar, but it
 remains `UNKNOWN`: it does not show that the target is reachable.
 
@@ -709,6 +749,21 @@ compares the 1,236-digit answer with exact iteration under a larger budget.
 
 One call settles all five across the four faces. A second call rechecks the
 saved evidence without searching.
+
+`examples/orbit_drift.json` asks whether the orbit of (x+1, 2y) from (0,1)
+reaches (40,7). The map has no nonconstant polynomial invariant, and the orbit
+never repeats. The clocked law clock-x fixes n=40 as the only candidate index, and
+iterating to it excludes the target. `examples/word_count.json` counts the
+1,046-digit number of binary words of length 5,000 avoiding 0110 and 111 from an
+order-six law. A package check compares it with an independent dynamic program.
+`examples/generating_function.json` gives
+(1+x+x^2+x^3+x^4+x^5)/(1-x-x^2) for the same words.
+`examples/minimal_recurrence.json` certifies that a three-state carrier's counts
+2*2^h+3^h obey a recurrence of order two and no lower. In
+`examples/recursive_lift.json`, the claim sub(sub(x,2),y)=0 holds on every value
+that bounded testing tries (numbers up to 2), and the recursive routes leave it
+`UNKNOWN`. The refuted instance sub(sub(3,2),y)=0 lifts to the counterexample
+x=3, y=0.
 
 ### Measured comparison
 
@@ -791,7 +846,10 @@ bound does not impose a child-process disk quota.
 | `source_research_episode` | Interpret bounded structured sources, preserve original claims and questions, and attempt checked same-definition proof transfer. |
 | `research_campaign` | Persist a bounded sequence of original-task and repair attempts across calls. |
 | `apex_research` | Plan one to sixteen originals from the four TPM faces, with synthesized law, orbit and memory-transfer routes; admit only original-task certificates. |
-| `prove_orbit_exclusion` | Decide whether an exact rational polynomial orbit reaches a target: witness, repeated state, or checked separating invariant. |
+| `prove_orbit_exclusion` | Decide whether an exact rational polynomial orbit reaches a target: witness, repeated state, checked separating invariant or clocked drift law. |
+| `count_word_avoiders` | Count binary words of a given length avoiding two patterns, by exact automaton iteration or a checked all-length law. |
+| `discover_generating_function` | Return a checked rational generating function for a word or matrix carrier. |
+| `certify_minimal_recurrence` | Return a checked all-index recurrence with a nonzero Hankel determinant excluding every lower order. |
 
 Exit code `0` means the returned result is closed within its stated scope. Exit
 code `3` with `status: "UNKNOWN"` means the evidence did not settle the request

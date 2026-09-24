@@ -1,0 +1,9 @@
+{
+  "query": "count_word_avoiders",
+  "patterns": [
+    "0110",
+    "111"
+  ],
+  "length": 5000,
+  "name": "How many binary words of length 5000 avoid 0110 and 111?"
+}

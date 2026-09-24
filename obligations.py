@@ -135,6 +135,15 @@ def compact(result):
     return {k:copy.deepcopy(result[k]) for k in ('status','certificate','reason','proof_method') if k in result}
 
 
+def lift_premise_counterexample(task,original,result,budget,checker):
+    """W: a checked premise refutation refutes the original only if the original checker admits its point."""
+    point=result.get('certificate',{}).get('point')
+    certificate=dict(kind='rational_counterexample',task_id=original,point=copy.deepcopy(point))
+    try:checked=checker.check(task,certificate,budget)
+    except checker.Invalid:return None
+    return dict(status=checker.result_status(checked),certificate=certificate,proof_method='lifted_premise_counterexample')
+
+
 def checkpoint(state,path,record,host):
     if path is None:return
     updated=copy.deepcopy(state)
@@ -281,6 +290,18 @@ def run(task,state,state_path,budget,host,records,steps=4,leaf_records=None):
         executed.append(event)
         if role in ('direct','transfer') and result['status']!='UNKNOWN':
             final=compact(result);root['result']=compact(result)
+        elif role=='required_premise' and result['status']=='CHECKED_COUNTEREXAMPLE':
+            # A premise child keeps the original assumptions and guards, so its
+            # refuting point is also offered to the original goal. The original
+            # checker decides; otherwise the point only closes this transfer route.
+            lifted=lift_premise_counterexample(task,original,result,budget,checker)
+            if lifted is not None:
+                final=lifted;root['result']=compact(lifted)
+                event=dict(node_id=original,role='lifted_parent_refutation',status=lifted['status'],allocation=0,
+                    work=0,generation=gen,proposal_context=context,premise_node_id=identity)
+                record['attempts'].append(event)
+                if len(record['attempts'])>64:record['attempts'].pop(0);record['attempts_dropped']+=1
+                executed.append(event)
         checkpoint(state,state_path,record,host)
         if final is not None:break
     if final is None:final=dict(status='UNKNOWN',reason='bounded proof obligations remain unresolved')

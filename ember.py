@@ -501,7 +501,7 @@ def solve(task,state_path=None,limit=10_000_000,strategy='auto',guard_policy='re
     if invariant_records and query!='discover_invariant':raise Refused('invariant observations apply only to invariant discovery')
     if query=='transition_count': return solve_matrix(task,state_path,limit,strategy)
     if strategy!='auto': raise Refused('matrix strategy supplied for another query')
-    if query in ('apex_research','prove_orbit_exclusion'):
+    if query in ('apex_research','prove_orbit_exclusion','count_word_avoiders','discover_generating_function','certify_minimal_recurrence'):
         # The apex chooses subreasoner policies itself; caller policy flags stay default.
         if lemma_records or guard_policy!='residual_first':raise Refused('apex queries accept only original tasks')
         names=('Refused','Exhausted','Budget','STATE_LIMIT','bind','bind_discovery','local_module','read_state',
@@ -509,7 +509,7 @@ def solve(task,state_path=None,limit=10_000_000,strategy='auto',guard_policy='re
                'remember_lemma','invariant_candidates','remember_invariant')
         host=SimpleNamespace(**{name:globals()[name] for name in names})
         apex=local_module('apex')
-        return apex.run(task,state_path,limit,host) if query=='apex_research' else apex.solve_orbit(task,state_path,limit,host)
+        return apex.run(task,state_path,limit,host) if query=='apex_research' else apex.solve_single(task,state_path,limit,host)
     if query=='source_research_episode':
         if lemma_records or invariant_records:
             raise Refused('source episodes accept original source questions, not supplied proof observations')
@@ -668,13 +668,17 @@ def capabilities():
     return {'status':'CAPABILITIES','api_version':'ember.task.v1','runtime_version':VERSION,
         'queries':['transition_count','test_overlap_shortcut','polynomial_consequence',
                    'discover_guards','word_avoidance_identity','research_campaign','discover_recurrence','discover_word_recurrence','discover_invariant','prove_recursive_identity','source_research_episode',
-                   'apex_research','prove_orbit_exclusion'],
+                   'apex_research','prove_orbit_exclusion','count_word_avoiders','discover_generating_function','certify_minimal_recurrence'],
         'layers':['direct','apex'],
         'apex':{'faces':['N','W','S','E'],
                 'schedule':'per obligation, the face with the fewest attempts; routes inside a face by measured outcome and cost',
-                'synthesized_routes':['law_instance','recursive_seeded','orbit_prefix','orbit_transfer','orbit_invariant'],
-                'law_certificate_kinds':['law_instance'],
-                'orbit_certificate_kinds':['orbit_witness','periodic_orbit','invariant_separation'],
+                'synthesized_routes':['law_instance','recursive_seeded','recursive_lifted_counterexample','word_count_direct',
+                                      'word_count_law','generating_function','recurrence_minimality','orbit_prefix',
+                                      'orbit_transfer','orbit_invariant','orbit_drift'],
+                'law_certificate_kinds':['law_instance','word_count_law'],
+                'orbit_certificate_kinds':['orbit_witness','periodic_orbit','invariant_separation','drift_separation'],
+                'series_certificate_kinds':['rational_generating_function','minimal_recurrence'],
+                'memory':'admitted invariants are also stored as checked level-set polynomial lemmas; admitted recursive refutations lift to generalizations',
                 'pyramid':'python -I -B -X utf8 ember.py --pyramid prints the audited reasoning catalog and synthesis lattice',
                 'scope':'Plans over implemented subreasoners and admits only original-task certificates; no unrestricted agenda'},
         'source_episode_policies':['native_isolated','graph_isolated','fixed_bridge','gap_bridge'],
@@ -702,7 +706,8 @@ def capabilities():
                   'source_records':8,'source_record_bytes':65536,'source_total_bytes':524288,
                   'source_distinct_roots':4,'source_seed_entries':8,'source_steps_per_call':64,
                   'apex_problems':16,'apex_attempts_per_call':64,'law_carrier_states':64,
-                  'orbit_steps':1024,'orbit_transfer_records':8,'output_integer_digits':INT_DIGITS},
+                  'orbit_steps':1024,'orbit_transfer_records':8,'word_count_length':20000,
+                  'output_integer_digits':INT_DIGITS},
         'exit_codes':{'0':'closed result or capabilities','2':'refused input','3':'UNKNOWN'},
         'state':'one writer per state file; resume requires the same explicit state path',
         'standing':'EXPERIMENTAL_SELF_ISOLATED','runtime_dependencies':'Python standard library',

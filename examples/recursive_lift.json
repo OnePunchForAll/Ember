@@ -1,0 +1,271 @@
+{
+  "query": "apex_research",
+  "problems": [
+    {
+      "query": "prove_recursive_identity",
+      "domain": "NatList",
+      "definitions": [
+        {
+          "name": "pred",
+          "inputs": [
+            "Nat"
+          ],
+          "output": "Nat",
+          "recursion": 0,
+          "equations": [
+            {
+              "lhs": [
+                "pred",
+                [
+                  "zero"
+                ]
+              ],
+              "rhs": [
+                "zero"
+              ]
+            },
+            {
+              "lhs": [
+                "pred",
+                [
+                  "succ",
+                  {
+                    "v": "n",
+                    "sort": "Nat"
+                  }
+                ]
+              ],
+              "rhs": {
+                "v": "n",
+                "sort": "Nat"
+              }
+            }
+          ]
+        },
+        {
+          "name": "sub",
+          "inputs": [
+            "Nat",
+            "Nat"
+          ],
+          "output": "Nat",
+          "recursion": 1,
+          "equations": [
+            {
+              "lhs": [
+                "sub",
+                {
+                  "v": "n",
+                  "sort": "Nat"
+                },
+                [
+                  "zero"
+                ]
+              ],
+              "rhs": {
+                "v": "n",
+                "sort": "Nat"
+              }
+            },
+            {
+              "lhs": [
+                "sub",
+                {
+                  "v": "n",
+                  "sort": "Nat"
+                },
+                [
+                  "succ",
+                  {
+                    "v": "m",
+                    "sort": "Nat"
+                  }
+                ]
+              ],
+              "rhs": [
+                "pred",
+                [
+                  "sub",
+                  {
+                    "v": "n",
+                    "sort": "Nat"
+                  },
+                  {
+                    "v": "m",
+                    "sort": "Nat"
+                  }
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "goal": {
+        "lhs": [
+          "sub",
+          [
+            "sub",
+            [
+              "succ",
+              [
+                "succ",
+                [
+                  "succ",
+                  [
+                    "zero"
+                  ]
+                ]
+              ]
+            ],
+            [
+              "succ",
+              [
+                "succ",
+                [
+                  "zero"
+                ]
+              ]
+            ]
+          ],
+          {
+            "v": "y",
+            "sort": "Nat"
+          }
+        ],
+        "rhs": [
+          "zero"
+        ]
+      }
+    },
+    {
+      "query": "prove_recursive_identity",
+      "domain": "NatList",
+      "definitions": [
+        {
+          "name": "pred",
+          "inputs": [
+            "Nat"
+          ],
+          "output": "Nat",
+          "recursion": 0,
+          "equations": [
+            {
+              "lhs": [
+                "pred",
+                [
+                  "zero"
+                ]
+              ],
+              "rhs": [
+                "zero"
+              ]
+            },
+            {
+              "lhs": [
+                "pred",
+                [
+                  "succ",
+                  {
+                    "v": "n",
+                    "sort": "Nat"
+                  }
+                ]
+              ],
+              "rhs": {
+                "v": "n",
+                "sort": "Nat"
+              }
+            }
+          ]
+        },
+        {
+          "name": "sub",
+          "inputs": [
+            "Nat",
+            "Nat"
+          ],
+          "output": "Nat",
+          "recursion": 1,
+          "equations": [
+            {
+              "lhs": [
+                "sub",
+                {
+                  "v": "n",
+                  "sort": "Nat"
+                },
+                [
+                  "zero"
+                ]
+              ],
+              "rhs": {
+                "v": "n",
+                "sort": "Nat"
+              }
+            },
+            {
+              "lhs": [
+                "sub",
+                {
+                  "v": "n",
+                  "sort": "Nat"
+                },
+                [
+                  "succ",
+                  {
+                    "v": "m",
+                    "sort": "Nat"
+                  }
+                ]
+              ],
+              "rhs": [
+                "pred",
+                [
+                  "sub",
+                  {
+                    "v": "n",
+                    "sort": "Nat"
+                  },
+                  {
+                    "v": "m",
+                    "sort": "Nat"
+                  }
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "goal": {
+        "lhs": [
+          "sub",
+          [
+            "sub",
+            {
+              "v": "x",
+              "sort": "Nat"
+            },
+            [
+              "succ",
+              [
+                "succ",
+                [
+                  "zero"
+                ]
+              ]
+            ]
+          ],
+          {
+            "v": "y",
+            "sort": "Nat"
+          }
+        ],
+        "rhs": [
+          "zero"
+        ]
+      }
+    }
+  ],
+  "attempt_work": 2000000,
+  "name": "An instance refutation lifts to a generalization whose counterexamples lie beyond bounded tests"
+}

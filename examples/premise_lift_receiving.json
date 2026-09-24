@@ -1,0 +1,14 @@
+{
+  "query": "polynomial_consequence",
+  "domain": "QQ",
+  "variables": [
+    "x",
+    "y"
+  ],
+  "assumptions": [
+    "x-1"
+  ],
+  "goal": "y*y-x*x",
+  "multiplier_degree": 1,
+  "counterexample_radius": 2
+}

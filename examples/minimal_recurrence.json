@@ -1,0 +1,32 @@
+{
+  "query": "certify_minimal_recurrence",
+  "domain": "QQ",
+  "matrix": [
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      0,
+      3
+    ]
+  ],
+  "initial": [
+    1,
+    1,
+    1
+  ],
+  "terminal": [
+    1,
+    1,
+    1
+  ],
+  "name": "A three-state carrier whose counts obey a recurrence of order two and no lower"
+}

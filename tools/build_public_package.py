@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import ast
+from fractions import Fraction
 import hashlib
 import io
 import json
@@ -35,7 +36,9 @@ EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'recursive_reverse_involution.json', 'recursive_qrev.json',
             'recursive_wrong_order.json', 'recursive_add_right_zero.json',
             'campaign_recursive_identity.json', 'source_research_episode.json',
-            'orbit_exclusion.json', 'hidden_rank_count.json', 'apex_research.json')
+            'orbit_exclusion.json', 'hidden_rank_count.json', 'apex_research.json',
+            'word_count.json', 'generating_function.json', 'minimal_recurrence.json', 'orbit_drift.json',
+            'recursive_lift.json', 'premise_lift_source.json', 'premise_lift_receiving.json')
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 PRIVATE_PATH = re.compile(rb'(?<![A-Za-z0-9_])[A-Za-z]:[\\/]|/(?:home|Users)/')
 
@@ -974,7 +977,11 @@ print(json.dumps(answers))
               and capabilities.get('layers') == ['direct', 'apex']
               and capabilities.get('apex', {}).get('faces') == ['N', 'W', 'S', 'E']
               and capabilities.get('apex', {}).get('synthesized_routes')
-                  == ['law_instance', 'recursive_seeded', 'orbit_prefix', 'orbit_transfer', 'orbit_invariant']
+                  == ['law_instance', 'recursive_seeded', 'recursive_lifted_counterexample', 'word_count_direct',
+                      'word_count_law', 'generating_function', 'recurrence_minimality', 'orbit_prefix',
+                      'orbit_transfer', 'orbit_invariant', 'orbit_drift']
+              and {'count_word_avoiders', 'discover_generating_function', 'certify_minimal_recurrence'}
+                  <= set(capabilities.get('queries', []))
               and capabilities.get('limits', {}).get('orbit_steps') == 1024)
         pyramid = cli('pyramid_map', '--pyramid')
         nodes = {row['node']: row for row in pyramid['lattice']}
@@ -1033,7 +1040,7 @@ print(json.dumps(answers))
         (root / 'orbit-blind.json').write_bytes(encoded(dict(turn, max_steps=3)))
         blind = cli('orbit_short_prefix_same_invariant_value', 'orbit-blind.json', expected_code=3)
         check('orbit_unknown_does_not_claim_reachability', blind['status'] == 'UNKNOWN'
-              and [row['status'] for row in blind['faces_tried']] == ['UNKNOWN'] * 3
+              and [row['status'] for row in blind['faces_tried']] == ['UNKNOWN'] * 4
               and 'separates' in blind['faces_tried'][2]['reason'])
         check('orbit_zero_work_unknown', cli('orbit_zero_work', 'examples/orbit_exclusion.json', ['--work', '0'],
                                              expected_code=3)['status'] == 'UNKNOWN')
@@ -1106,6 +1113,23 @@ print(json.dumps(answers))
                   {'task': orbit_task, 'certificate': orbit['certificate']},
                   {'task': turn, 'certificate': periodic['certificate']},
                   {'task': reaching, 'certificate': reached['certificate']}]
+        drift = cli('orbit_drift_exclusion', 'examples/orbit_drift.json')
+        check('orbit_drift_decides_an_invariant_free_orbit', drift['status'] == 'CHECKED_ORBIT_EXCLUSION'
+              and drift['route'] == 'orbit_drift' and drift['certificate']['kind'] == 'drift_separation'
+              and drift['certificate']['index'] == 40
+              and [row['status'] for row in drift['faces_tried']] == ['UNKNOWN'] * 3 + ['CHECKED_ORBIT_EXCLUSION'])
+        drift_task = json.loads((root / 'examples/orbit_drift.json').read_bytes())
+        drift_reach = dict(drift_task, target=[[5, 1], [32, 1]])
+        (root / 'drift-reach.json').write_bytes(encoded(drift_reach))
+        reach_prefix = cli('orbit_drift_reachable_prefix', 'drift-reach.json')
+        drift_reach_certificate = {'kind': 'drift_separation', 'task_id': reach_prefix['task_id'],
+                                   'clocked': drift['certificate']['clocked'], 'index': 5}
+        (root / 'drift-negative.json').write_bytes(encoded(dict(drift_task, target=[[-3, 1], [7, 1]])))
+        negative = cli('orbit_drift_negative_index', 'drift-negative.json')
+        check('orbit_drift_negative_index_excludes', negative['status'] == 'CHECKED_ORBIT_EXCLUSION'
+              and negative['certificate']['kind'] == 'drift_separation' and 'index' not in negative['certificate'])
+        packet.append({'task': drift_task, 'certificate': drift['certificate']})
+        packet.append({'task': drift_reach, 'certificate': drift_reach_certificate})
         (standalone_apex / 'evidence.json').write_bytes(encoded(packet))
         apex_standalone_code = standalone_code.replace("'recursive_check.py'", "'apex_check.py'")
         began = time.perf_counter_ns()
@@ -1116,9 +1140,11 @@ print(json.dumps(answers))
             'elapsed_ns': time.perf_counter_ns() - began, 'stderr': apex_standalone.stderr})
         apex_checks = json.loads(apex_standalone.stdout)
         check('apex_certificates_replay_with_only_checkers', apex_standalone.returncode == 0 and not apex_standalone.stderr
-              and [row['ok'] for row in apex_checks] == [True] * 4
+              and [row['ok'] for row in apex_checks] == [True] * 6
               and apex_checks[0]['answer'] == rank_exact['answer']
-              and [row.get('outcome') for row in apex_checks[1:]] == ['EXCLUDED', 'EXCLUDED', 'REACHES'])
+              and [row.get('outcome') for row in apex_checks[1:]] == ['EXCLUDED', 'EXCLUDED', 'REACHES', 'EXCLUDED',
+                                                                        'REACHES']
+              and apex_checks[5]['kind'] == 'drift_separation')
         for label, extra, wanted in (('apex_helper_orbit', [], 'CHECKED_ORBIT_EXCLUSION'),
                                      ('apex_helper_layer', ['--layer', 'apex'], 'CHECKED_CAMPAIGN')):
             began = time.perf_counter_ns()
@@ -1143,6 +1169,136 @@ print(json.dumps(answers))
         pair_replay = cli('apex_recursive_memory_restart', 'apex-recursive-pair.json', ['--state', 'apex-recursive.json'])
         check('apex_recursive_transfer_replayed_on_original', pair_replay['status'] == 'CHECKED_CAMPAIGN'
               and not pair_replay['executed_routes'] and pair_replay['replay_work'] > 0)
+        # Generation 16: the seven syntheses proposed by the pyramid, each against an independent computation.
+        def avoiders(patterns, length):
+            keep = max(len(w) for w in patterns) - 1; counts = {'': 1}
+            for _ in range(length):
+                following = {}
+                for tail, count in counts.items():
+                    for letter in '01':
+                        word = tail + letter
+                        if any(word.endswith(w) for w in patterns): continue
+                        following[word[-keep:]] = following.get(word[-keep:], 0) + count
+                counts = following
+            return sum(counts.values())
+        word_patterns = ['0110', '111']
+        word_law = cli('word_count_law', 'examples/word_count.json', ['--state', 'word-state.json'])
+        check('word_count_law_matches_independent_count', word_law['status'] == 'CHECKED_EXACT'
+              and word_law['route'] == 'word_count_law' and word_law['face'] == 'N'
+              and word_law['certificate']['kind'] == 'word_count_law'
+              and word_law['answer'] == avoiders(word_patterns, 5000))
+        word_again = cli('word_count_law_restart', 'examples/word_count.json', ['--state', 'word-state.json'])
+        check('word_count_law_replayed', word_again.get('reused_after_fresh_check') is True
+              and word_again['answer'] == word_law['answer'])
+        forged_words = json.loads((root / 'word-state.json').read_bytes())
+        next(row for row in forged_words['observations'] if row.get('kind') == 'count_word_avoiders')['answer'] += 1
+        (root / 'word-forged.json').write_bytes(encoded(forged_words))
+        word_repaired = cli('word_count_forged_answer', 'examples/word_count.json', ['--state', 'word-forged.json'])
+        check('word_count_forged_answer_not_reused', not word_repaired.get('reused_after_fresh_check')
+              and word_repaired['answer'] == word_law['answer'])
+        (root / 'word-short.json').write_bytes(encoded({'query': 'count_word_avoiders', 'patterns': word_patterns,
+                                                        'length': 12}))
+        word_short = cli('word_count_short_direct', 'word-short.json')
+        check('word_count_short_length_iterates_first', word_short['status'] == 'EXACT_DIRECT'
+              and word_short['route'] == 'word_count_direct' and word_short['answer'] == avoiders(word_patterns, 12))
+
+        def series(numerator, denominator, count):
+            P = [Fraction(a, b) for a, b in numerator]; Q = [Fraction(a, b) for a, b in denominator]; out = []
+            for k in range(count):
+                value = (P[k] if k < len(P) else 0) - sum(Q[j] * out[k - j] for j in range(1, min(k, len(Q) - 1) + 1))
+                out.append(value / Q[0])
+            return out
+        series_result = cli('generating_function', 'examples/generating_function.json', ['--state', 'series-state.json'])
+        check('generating_function_expands_to_independent_counts',
+              series_result['status'] == 'CHECKED_GENERATING_FUNCTION'
+              and series_result['certificate']['kind'] == 'rational_generating_function'
+              and series(series_result['numerator'], series_result['denominator'], 40)
+                  == [avoiders(word_patterns, h) for h in range(40)])
+        forged_series = json.loads((root / 'series-state.json').read_bytes())
+        saved_series = next(row for row in forged_series['observations']
+                            if row.get('kind') == 'discover_generating_function')
+        saved_series['certificate']['numerator'][0] = [2, 1]
+        (root / 'series-forged.json').write_bytes(encoded(forged_series))
+        series_repaired = cli('generating_function_forged', 'examples/generating_function.json',
+                              ['--state', 'series-forged.json'])
+        check('generating_function_forged_numerator_not_reused', not series_repaired.get('reused_after_fresh_check')
+              and series_repaired['numerator'] == series_result['numerator'])
+        minimal = cli('minimal_recurrence', 'examples/minimal_recurrence.json')
+        terms = [2 * 2 ** h + 3 ** h for h in range(3)]
+        check('minimal_recurrence_below_carrier_dimension', minimal['status'] == 'CHECKED_MINIMAL_RECURRENCE'
+              and minimal['check']['order'] == 2 and minimal['face'] == 'W'
+              and [Fraction(*c) for c in minimal['certificate']['recurrence']['coefficients']] == [-6, 5]
+              and terms[1] * terms[1] != terms[0] * terms[2])
+        word_minimal = dict(json.loads((root / 'examples/generating_function.json').read_bytes()),
+                            query='certify_minimal_recurrence')
+        (root / 'word-minimal.json').write_bytes(encoded(word_minimal))
+        word_order = cli('minimal_word_recurrence', 'word-minimal.json')
+        word_terms = [avoiders(word_patterns, h) for h in range(12)]
+
+        def singular(order):
+            rows = [[Fraction(word_terms[i + j]) for j in range(order)] for i in range(order)]
+            for k in range(order):
+                pivot = next((i for i in range(k, order) if rows[i][k]), None)
+                if pivot is None: return True
+                rows[k], rows[pivot] = rows[pivot], rows[k]
+                for i in range(k + 1, order):
+                    factor = rows[i][k] / rows[k][k]
+                    rows[i] = [a - factor * b for a, b in zip(rows[i], rows[k])]
+            return False
+        check('minimal_word_recurrence_hankel_independently_nonsingular',
+              word_order['status'] == 'CHECKED_MINIMAL_RECURRENCE' and word_order['check']['order'] == 6
+              and not singular(6))
+        lift_task = json.loads((root / 'examples/recursive_lift.json').read_bytes())
+        lift = cli('apex_recursive_refutation_lift', 'examples/recursive_lift.json', ['--state', 'lift-state.json'])
+        lift_rows = [{row['strategy']: row for row in problem['attempts']} for problem in lift['problems']]
+        (root / 'lift-general.json').write_bytes(encoded(lift_task['problems'][1]))
+        general_alone = cli('recursive_generalization_alone', 'lift-general.json', ['--recursive-steps', '8'],
+                            expected_code=3)
+        lifted_point = lift_rows[1].get('recursive_lifted_counterexample', {}).get('result', {}).get('certificate', {})
+        check('apex_lifts_instance_refutation_beyond_bounded_tests', lift['status'] == 'CHECKED_CAMPAIGN'
+              and lift_rows[0]['recursive_direct']['result']['status'] == 'CHECKED_RECURSIVE_COUNTEREXAMPLE'
+              and lift_rows[1]['recursive_lifted_counterexample']['face'] == 'E'
+              and lifted_point.get('point') == {'x': ['succ', ['succ', ['succ', ['zero']]]], 'y': ['zero']}
+              and general_alone['status'] == 'UNKNOWN')
+        lift_replay = cli('apex_recursive_lift_restart', 'examples/recursive_lift.json', ['--state', 'lift-state.json'])
+        check('apex_lifted_refutation_replayed', lift_replay['status'] == 'CHECKED_CAMPAIGN'
+              and not lift_replay['executed_routes'])
+        cli('premise_lift_source', 'examples/premise_lift_source.json', ['--state', 'premise-lift.json'])
+        premise_args = ['--state', 'premise-lift.json', '--proof-policy', 'obligations']
+        premise_lift = cli('premise_lift_receiving', 'examples/premise_lift_receiving.json', premise_args)
+        check('obligation_premise_refutation_lifts_to_parent', premise_lift['status'] == 'CHECKED_COUNTEREXAMPLE'
+              and premise_lift.get('proof_method') == 'lifted_premise_counterexample'
+              and [e['role'] for e in premise_lift['obligations']['executed']]
+                  == ['required_premise', 'lifted_parent_refutation']
+              and premise_lift['certificate']['point'] == [[1, 1], [0, 1]])
+        premise_again = cli('premise_lift_restart', 'examples/premise_lift_receiving.json', premise_args)
+        check('obligation_lifted_parent_replayed', premise_again['status'] == 'CHECKED_COUNTEREXAMPLE'
+              and not premise_again['obligations']['executed'])
+        level_state = json.loads((root / 'apex-state.json').read_bytes())
+        level_rows = [row for row in level_state['observations'] if row.get('kind') == 'polynomial_consequence'
+                      and row['task']['variables'][-1] == 'level']
+        standalone_level = root / 'level-standalone'; standalone_level.mkdir()
+        (standalone_level / 'algebra_check.py').write_bytes(files['algebra_check.py'])
+        (standalone_level / 'evidence.json').write_bytes(encoded([{'task': row['task'], 'certificate': row['certificate']}
+                                                                  for row in level_rows]))
+        level_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c',
+                                    standalone_code.replace("'recursive_check.py'", "'algebra_check.py'")],
+                                   cwd=standalone_level, capture_output=True, text=True, encoding='utf-8', timeout=90,
+                                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        level_checks = json.loads(level_run.stdout) if level_run.returncode == 0 else []
+        receipt['cli_runs'].append({'case': 'level_set_lemmas_standalone', 'returncode': level_run.returncode,
+                                   'stderr': level_run.stderr})
+        check('apex_invariants_stored_as_checked_level_set_lemmas', len(level_rows) >= 1 and not level_run.stderr
+              and len(level_checks) == len(level_rows) and all(row['ok'] for row in level_checks))
+        began = time.perf_counter_ns()
+        process = subprocess.run([python, '-I', '-B', '-X', 'utf8', str(root / 'tools/helper_client.py'),
+            'examples/generating_function.json'], cwd=root, capture_output=True, text=True, encoding='utf-8',
+            timeout=90, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        envelope = json.loads(process.stdout)
+        receipt['cli_runs'].append({'case': 'apex_helper_series', 'returncode': process.returncode,
+                                   'status': envelope.get('status'), 'elapsed_ns': time.perf_counter_ns() - began})
+        check('apex_helper_series_closed', process.returncode == 0 and envelope.get('outcome') == 'closed'
+              and envelope.get('status') == 'CHECKED_GENERATING_FUNCTION')
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',

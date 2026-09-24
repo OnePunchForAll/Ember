@@ -1,0 +1,35 @@
+{
+  "query": "prove_orbit_exclusion",
+  "domain": "QQ",
+  "variables": [
+    "x",
+    "y"
+  ],
+  "transition": [
+    "x+1",
+    "2*y"
+  ],
+  "initial": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      1
+    ]
+  ],
+  "target": [
+    [
+      40,
+      1
+    ],
+    [
+      7,
+      1
+    ]
+  ],
+  "max_degree": 2,
+  "max_steps": 64,
+  "name": "The orbit of (x+1, 2y) from (0,1) has no polynomial invariant; can it reach (40,7)?"
+}
