@@ -333,6 +333,60 @@ carried over by the warm start.
   examples and a depth-16 Collatz run the results are the same; only the
   scope sentence of the new sieved descent cover differs.
 
+### Round 5 (commit e11f640, fingerprint 832b6e55, one call: 47,904 moves, 4,851 s)
+
+The statement lets her choose up to three refinement primes. It is a new
+problem, so round 4's checked families, covers and walls carried over by the
+warm start (3,635 admitted again, none refused).
+
+- **Result.** She chose 19, then 13. Her theorem: every n >= 2 outside 15,055
+  residue classes mod 20,540,520 has a representation 4/n = 1/x + 1/y + 1/z.
+  Of those classes 14,580 are coprime squares and 475 non-squares. Her lemma
+  holds at 20,540,520 (68,734 reached classes, none a square). Her third
+  prime went unused: every candidate would have lifted more than her bound of
+  60,000 classes.
+- **A defect in saving.** The report holds these results, but the state file
+  does not. All 175 objects of the new record were dropped to keep the state
+  under 1 MiB, because the round-4 record took 866 kB in an older and longer
+  format. The verdict on that state covers only round 4's claims (2,910
+  VERIFIED, bit verified), so the theorem at 20,540,520 has no independent
+  verdict. Fixed below.
+- **Failure mining.** 873 of the 4,851 s went to her moves; the rest was
+  scheduling. Of the move time, 422 s were per-class classical searches
+  (17,328 misses) and walls (17,202) on square classes her checked lemma
+  already settles, and 50 s the extended ansatz on square classes (0 of
+  292). The productive work was the extended ansatz on non-square classes:
+  338 families directly and about 440 through its macros. The instruments
+  in the section on her round-5 profile answer these lines.
+
+### Round 5 rerun (commit c6a9673, fingerprint 6b6c3a09, one call: 6,582 moves, 368 s)
+
+The same statement, from the same round-4 state, with the upgraded code.
+
+- **Result.** Counting every lift exactly, she chose 13, then 17, then 2
+  (raising 2^3 to 2^4). Her theorem at her finest level: every n >= 2
+  outside 26,262 residue classes mod 36,756,720 has a representation, an open
+  fraction of 7.14 × 10^-4 against 7.33 × 10^-4 in the first run. Of the
+  open classes 25,920 are coprime squares and 342 non-squares. Her lemma
+  holds at every level she chose, with 162,099 reached classes at
+  36,756,720, none a square. The walls her lemma implies were not checked
+  again (270 carried ones). The 2,620 walls carried from level 1,580,040,
+  which she did not choose this time, were saved as carried and checked again
+  by the verdict.
+- **Speed.** 368 s against 4,851 s, and 6,582 moves against 47,904. Sixty-five
+  strategies retired on her library's prior after 8 tries each.
+- **Saving.** Nothing of her record was dropped. The superseded round-4
+  record was trimmed to fit instead; its evidence stays in the round-4
+  receipts.
+- **Verdict.** Self-test passed. 6,048 claims VERIFIED, among them the
+  theorem, the four lemmas and 5,424 walls; none REFUTED or UNRESOLVED. Bit:
+  verified.
+- **What this establishes.** A checked reduction of 4/n to 26,262 residue
+  classes mod 36,756,720, with every smaller n checked below 100,000. The
+  square classes are the known obstruction to polynomial identities; the
+  342 non-squares are limits of her grammars at this depth. The conjecture
+  stays open.
+
 ## Campaign 2: Sierpiński's 5/n (the related problem she offered)
 
 **Problem supplied.** 5/n = 1/x + 1/y + 1/z for every n >= 2 (open;

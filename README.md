@@ -1144,11 +1144,14 @@ independent verdict. None settles an open problem. The Collatz campaign is a
 closed check against known counts, compared with an independent parity
 simulation she never sees.
 
-- **Erdős–Straus, 4/n.** She chose the prime 19 herself and proved that
-  every n >= 2 outside 2,619 residue classes mod 1,580,040 has a
-  representation. Of the open classes, 2,430 are squares, the known
-  obstruction. The other 189 are non-residues only at 11 or 19. She
-  certified walls where no classical fixed-parameter family reaches.
+- **Erdős–Straus, 4/n.** In round 5 she chose the primes 13, 17 and 2
+  herself, counting every lift exactly, and proved that every n >= 2
+  outside 26,262 residue classes mod 36,756,720 has a representation (an
+  open fraction of 7.14 × 10^-4). Of the open classes, 25,920 are coprime
+  squares, the known obstruction, which her own lemma shows no classical
+  fixed-parameter family reaches. The other 342 are non-residues at 11, 13
+  or 17, where she certified walls. The round took 368 s; the same round
+  on the code before the upgrade took 4,851 s.
 - **Sierpiński, 5/n.** She chose 13, 19 and 29 and proved that every
   n >= 2 outside 1,624 residue classes mod 595,675,080 has a
   representation. That is 2.7 open classes in a million. At 1,081,080
@@ -1176,8 +1179,12 @@ square walls, provable for 4/n and refuted for 5/n; incremental bookkeeping;
 Pollard-rho factoring; shorter certificates (families named by their
 parameters, wall batches, ranges saved by cover reference); saved and
 independently verified refutations; macros that obey the goal's policy at
-every step; and sieved descent covers. Each is described, with the failure
-that prompted it, in `CAMPAIGNS.md`.
+every step; sieved descent covers; and, from her round-5 profile, her lemma
+first with whole-level sweeps, rescans only when a class can gain a move,
+priors from her own library, a refinement prime chosen on exact counts,
+carried walls settled by her lemma, a Type II index in the checker, and a
+state bound that keeps her newest results. Each is described, with the
+failure that prompted it, in `CAMPAIGNS.md`.
 
 ## Task and result interface
 

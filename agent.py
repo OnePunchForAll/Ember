@@ -396,11 +396,12 @@ class CoverGoal(Goal):
         return not nonresidue_primes(r, self._powers[m])
 
     def settle_deferred(self, rt):
-        """Admit carried walls once her lemma at their level is settled: the walls it implies are not checked again,
-        the others are proposed and checked. Walls at a level she has not reached keep waiting."""
+        """Admit carried walls once she has reached their level and her lemma there is settled: the walls it implies
+        are not checked again, the others are proposed and checked. Walls at a level she has not reached keep waiting
+        and are saved as they were carried."""
         for m in list(self.deferred):
-            if not (self.p['terms'] != 3 or self.lemma_at(m) or self.lemma_settled(m)
-                    or ('egypt_classical_obstruction', m) in self.swept):
+            if m not in self.levels or not (self.p['terms'] != 3 or self.lemma_at(m) or self.lemma_settled(m)
+                                            or ('egypt_classical_obstruction', m) in self.swept):
                 continue
             for d in self.deferred.pop(m):
                 if self.implied_wall(d): self.carried_later['implied_by_lemma'] += 1; continue

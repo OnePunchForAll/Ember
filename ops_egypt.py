@@ -268,6 +268,8 @@ def template_of(fam):
 # ------------------------------------------------------------- classical fixed-parameter families
 
 _CLASSICAL = {}
+_CLASSICAL_SIZES = {}
+CLASSICAL_ENTRIES = 3_000_000
 
 
 def type1_triples(a, m, bound):
@@ -308,8 +310,14 @@ def classical_tables(a, m, bound):
             if w % g: continue
             mod = q // g; r0 = (-(w // g) * pow(s // g, -1, mod)) % mod if mod > 1 else 0
             type1.setdefault(mod, {}).setdefault(r0, ('I', u, v, w, None))
-        if len(_CLASSICAL) >= 16: _CLASSICAL.clear()
-        _CLASSICAL[key] = (type2, type1)
+        # Bounded by count and by entries (near 10**10 one table holds over a million classes); the least recently
+        # used tables leave first.
+        entries = sum(len(row) for row in type2.values()) + sum(len(row) for row in type1.values())
+        while _CLASSICAL and (len(_CLASSICAL) >= 16 or sum(_CLASSICAL_SIZES.values()) + entries > CLASSICAL_ENTRIES):
+            oldest = next(iter(_CLASSICAL)); del _CLASSICAL[oldest]; del _CLASSICAL_SIZES[oldest]
+        _CLASSICAL[key] = (type2, type1); _CLASSICAL_SIZES[key] = entries
+    else:
+        _CLASSICAL[key] = _CLASSICAL.pop(key); _CLASSICAL_SIZES[key] = _CLASSICAL_SIZES.pop(key)
     return _CLASSICAL[key]
 
 
@@ -824,9 +832,9 @@ def lift_reach(a, M, p, classes, budget):
 
 
 @op('egypt_choose_lift', 'N', ('esq',), ('esq', 'eclass'),
-    'Choose the next refinement prime by exact yield: for each candidate prime, count every lift of the uncovered '
-    'classes a classical family reaches, then refine every uncovered class by the prime that leaves the smallest '
-    'fraction of residues open among the coprime lifts.')
+    'Choose the next refinement prime by exact yield: for each candidate prime (new primes first, primes of the '
+    'modulus only when no new prime reaches a lift), count every lift of the uncovered classes a classical family '
+    'reaches, then refine every uncovered class by the prime that leaves the smallest fraction of residues open.')
 def egypt_choose_lift(rt, esq):
     d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
     cover = best_cover(rt, a, terms, M)
@@ -840,14 +848,19 @@ def egypt_choose_lift(rt, esq):
     for x in stuck:
         rt.budget.use(len(here))
         if not any(x % q in row for q, row in here): unreached.append(x)
+    # The lifts to examine, not the size of the modulus, bound a refinement: covers are sieved along the levels.
+    allowed = [p for p in PRIMES if len(left) * p <= LIFT_CLASSES and M * p <= WALL_CAP]
     best = None
-    for p in PRIMES:
-        # The lifts to examine, not the size of the modulus, bound a refinement: covers are sieved along the levels.
-        if len(left) * p > LIFT_CLASSES or M * p > WALL_CAP: continue
-        reached = lift_reach(a, M, p, unreached, rt.budget)
-        if not reached: continue
-        share = Q(len(unreached) * (p if M % p == 0 else p - 1) - reached, M * p)
-        if best is None or share < best[0]: best = (share, p)
+    # New primes first: their lift divisible by p is not an open coprime class, and her measured yields for raising
+    # a prime already in M were far lower (74 of 5,238 lifts for 2 at 1,580,040, against 14,560 of 31,428 for 13).
+    # Primes of M are counted only when no new prime reaches a lift; each count needs the whole table for M*p.
+    for group in ([p for p in allowed if M % p], [p for p in allowed if M % p == 0]):
+        for p in group:
+            reached = lift_reach(a, M, p, unreached, rt.budget)
+            if not reached: continue
+            share = Q(len(unreached) * (p if M % p == 0 else p - 1) - reached, M * p)
+            if best is None or share < best[0]: best = (share, p)
+        if best is not None: break
     if best is None: return []
     p = best[1]
     out = [rt.propose('esq', dict(d, modulus=M * p), (esq,))]
