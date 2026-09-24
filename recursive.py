@@ -886,6 +886,8 @@ def run(task,state,state_path,budget,host,policy='residual',steps=4,seed_records
                             record['nodes'][parent]['status']='OPEN';record['nodes'][parent]['awaiting_reentry']=True
                     else:node.update(status='EXHAUSTED',reason='checked lemma cap')
                 else:
+                    if node.get('residual')!=residual:node['cursor']=0
+                    # The candidate stream is generated from the residual; a new residual starts at its head.
                     node.update(status='BLOCKED',residual=residual,library_context=library_key,
                                 residual_library_count=len(record['library']))
                     event(record,'UNSUPPORTED_EDGE',node=current,residual=residual)
@@ -933,13 +935,19 @@ def run(task,state,state_path,budget,host,policy='residual',steps=4,seed_records
                     candidate_index=pending['candidate_index'],library_count=node['residual_library_count']))
                 event(record,'CANDIDATE_OPENED',parent=current,child=cid,goal=pending['goal'],provenance=pending['provenance'])
                 node.pop('pending');record['frontier'].append(cid);changed=True
-        except SearchLimit as exc:
+        except (SearchLimit,checker.Limit) as exc:
             reason=str(exc)
             # Keep only completed candidate/filter cursor work, never partial proof claims.
             if phase in ('finite_test','candidate_generation','candidate_filter'):
                 changed=changed or record!=before
             else:record=before
             break
+        except checker.Invalid as exc:
+            if phase!='proof_check':raise
+            # The separate checker refused a produced proof: never admit it, close this node,
+            # and keep the stages this call already completed.
+            record=before;record['nodes'][current].update(status='EXHAUSTED',reason='checker refused produced proof: '+str(exc))
+            changed=True
         finally:
             if phase:phase_work[phase]=phase_work.get(phase,0)+budget.work-stamp
             executed.append(dict(node=current,phase=phase,work=budget.work-began))

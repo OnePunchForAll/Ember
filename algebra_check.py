@@ -146,6 +146,7 @@ def check(task,certificate,budget):
     b=bind(task); need(b['identity']==certificate.get('task_id'),'original algebra task binding')
     kind=certificate.get('kind')
     if kind=='rational_counterexample':
+        need(set(certificate)=={'kind','task_id','point'},'unsupported counterexample certificate fields')
         p=point_read(certificate.get('point'),b)
         need(admissible(b,p,budget),'counterexample violates assumptions or nonzero guards')
         residual=value(b['goal'],b['names'],p,budget)
@@ -153,6 +154,8 @@ def check(task,certificate,budget):
         return {'ok':True,'kind':kind,'residual':[residual.numerator,residual.denominator]}
     localized=kind=='localized_polynomial_combination'
     need(kind=='polynomial_combination' or localized,'certificate kind')
+    if not localized:
+        need(not set(certificate)-{'kind','task_id','multipliers','support_point'},'unsupported flat certificate fields')
     if localized:
         fields={'kind','task_id','nonzero_index','multipliers','support_point'}
         need(not set(certificate)-fields,'unsupported localized certificate fields')

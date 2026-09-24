@@ -1143,6 +1143,71 @@ print(json.dumps(answers))
         pair_replay = cli('apex_recursive_memory_restart', 'apex-recursive-pair.json', ['--state', 'apex-recursive.json'])
         check('apex_recursive_transfer_replayed_on_original', pair_replay['status'] == 'CHECKED_CAMPAIGN'
               and not pair_replay['executed_routes'] and pair_replay['replay_work'] > 0)
+        # Regression checks for defects found while cataloguing generation 15.
+        shared_args = ['--state', 'shared-source-recursive.json']
+        cli('shared_state_source_first', 'examples/source_research_episode.json',
+            shared_args + ['--source-steps', '2', '--work', '4000000'], expected_code=3)
+        cli('shared_state_standalone_recursive', 'examples/recursive_reverse_involution.json',
+            shared_args + ['--recursive-steps', '1'], expected_code=3)
+        shared_again = cli('shared_state_source_resumes', 'examples/source_research_episode.json',
+                           shared_args + ['--source-steps', '64', '--work', '4000000'])
+        check('source_episode_follows_validated_outside_native_progress',
+              shared_again['status'] == 'CHECKED_SOURCE_EPISODE'
+              and any(a.get('native_refreshes') for a in shared_again['source_episode']['attempts']))
+        textbook = cli('recursive_residual_textbook_lemmas', 'examples/recursive_reverse_involution.json',
+                       ['--recursive-steps', '64'])
+        def show_term(term):
+            if isinstance(term, dict):
+                return term['v']
+            return term[0] + ('(' + ','.join(show_term(a) for a in term[1:]) + ')' if len(term) > 1 else '')
+        lemma_text = [show_term(l['goal']['lhs']) + '=' + show_term(l['goal']['rhs']) for l in textbook['certificate']['lemmas']]
+        check('recursive_cursor_restarts_for_new_residual', textbook['status'] == 'CHECKED_RECURSIVE_IDENTITY'
+              and 'append(append(v0,v1),v2)=append(v0,append(v1,v2))' in lemma_text
+              and not any('append(nil,' in text for text in lemma_text))
+        stage_code = r"""import json, pathlib, runpy
+root = pathlib.Path.cwd()
+ember = runpy.run_path(str(root / 'ember.py'))
+engine = ember['local_module']('recursive'); checker = ember['local_module']('recursive_check')
+original = engine.check_bundle; calls = []
+def refuse_once(*args, **kwargs):
+    calls.append(1)
+    if len(calls) == 1:
+        raise checker.Invalid('forced refusal of one produced proof')
+    return original(*args, **kwargs)
+engine.check_bundle = refuse_once
+task = json.loads((root / 'examples/recursive_reverse_involution.json').read_text())
+result = ember['solve'](task, 'stage-refusal-state.json', 10000000, recursive_steps=64)
+state = json.loads((root / 'stage-refusal-state.json').read_text())
+nodes = [n for o in state['observations'] if o.get('kind') == 'recursive_episode' for n in o['nodes'].values()]
+print(json.dumps({'status': result['status'], 'calls': len(calls),
+                  'closed': sum(n.get('reason', '').startswith('checker refused produced proof') for n in nodes)}))
+"""
+        began = time.perf_counter_ns()
+        stage_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', stage_code], cwd=root, capture_output=True,
+                                   text=True, encoding='utf-8', timeout=90,
+                                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'recursive_stage_checker_refusal', 'returncode': stage_run.returncode,
+                                   'elapsed_ns': time.perf_counter_ns() - began, 'stderr': stage_run.stderr})
+        stage_result = json.loads(stage_run.stdout)
+        check('recursive_stage_checker_refusal_keeps_progress', stage_run.returncode == 0 and not stage_run.stderr
+              and stage_result['status'] in ('CHECKED_RECURSIVE_IDENTITY', 'UNKNOWN') and stage_result['calls'] >= 2
+              and stage_result['closed'] == 1)
+        flat_seed = cli('flat_certificate_seed', 'examples/polynomial_consequence.json', ['--state', 'flat-fields.json'])
+        flat_state = json.loads((root / 'flat-fields.json').read_bytes())
+        next(row for row in flat_state['observations'] if row.get('certificate', {}).get('kind') == 'polynomial_combination')['certificate']['trusted'] = True
+        (root / 'flat-fields-forged.json').write_bytes(encoded(flat_state))
+        flat_replay = cli('flat_certificate_extra_field', 'examples/polynomial_consequence.json', ['--state', 'flat-fields-forged.json'])
+        check('flat_certificate_extra_field_not_admitted', flat_seed['status'] == 'CHECKED_IMPLICATION'
+              and flat_replay['status'] == 'CHECKED_IMPLICATION' and not flat_replay.get('reused_after_fresh_check')
+              and 'trusted' not in flat_replay['certificate'])
+        refusing = {'query': 'research_campaign', 'max_attempts': 8, 'problems': [
+            {'query': 'transition_count', 'matrix': [[1, 1], [1, 0]], 'initial': [1, 0], 'terminal': [0, 1], 'horizon': 10},
+            {'query': 'word_avoidance_identity', 'patterns': ['00', '10'], 'formula': 'column_shortcut', 'check_through': 8}]}
+        (root / 'campaign-refusing-route.json').write_bytes(encoded(refusing))
+        contained = cli('campaign_refusing_route', 'campaign-refusing-route.json', expected_code=3)
+        check('campaign_refused_route_stays_local', contained['status'] == 'UNKNOWN'
+              and contained['problems'][0]['attempts'][0]['result']['answer'] == 55
+              and contained['problems'][1]['attempts'][0]['result']['reason'].startswith('route refused'))
         big = {'query': 'transition_count', 'matrix': [[1000000, 1000000], [1000000, 1000000]],
                'initial': [1, 0], 'terminal': [1, 1], 'horizon': 700}
         (root / 'big-answer.json').write_bytes(encoded(big))

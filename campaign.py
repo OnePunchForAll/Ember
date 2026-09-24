@@ -298,6 +298,8 @@ def run(task,state_path,limit,host,layer=None):
         limits=(*limits,host.local_module('recursive_check').Limit)
     if layer:
         errors=(*errors,*layer.errors); limits=(*limits,*layer.limits)
+    refusals=tuple(e for e in errors if e not in (KeyError,TypeError))+(host.local_module('recursive_check').Invalid,)
+    if layer:
         admission=lambda route,result:layer.admit(route,result,budget,host)
         context_of=lambda route:layer.proposal_context(route,state,host)
     else:
@@ -421,10 +423,15 @@ def run(task,state_path,limit,host,layer=None):
                         child_budget,host,policy=options.get('recursive_policy','residual'),steps=4)
                 except (host.Exhausted,host.local_module('recursive_check').Limit) as exc:
                     result=dict(status='UNKNOWN',reason=str(exc))
+                except refusals as exc:
+                    result=dict(status='UNKNOWN',reason='route refused: '+str(exc))
                 result['work']=child_budget.work
             else:
                 candidate_state=None
-                result=host.solve(route['task'],None,allocation,**options)
+                try:result=host.solve(route['task'],None,allocation,**options)
+                except refusals as exc:
+                    # One ill-posed route leaves its own problem unresolved; other problems continue.
+                    result=dict(status='UNKNOWN',reason='route refused: '+str(exc),work=0)
             budget.use(result.get('work',allocation))
             kept=compact(result); success=False
             if result['status']!='UNKNOWN': success=admission(route,kept)

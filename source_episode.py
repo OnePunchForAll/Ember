@@ -301,8 +301,11 @@ def native_summary(value):
         'seed_context','node_count','edge_count','library_count','work','phase_work','executed','replayed_lemmas') if k in value}
 
 def replay_contexts(binding,record,state,common,receiving_budget,host):
-    """Reconstruct every live native context and every claimed checked bridge."""
-    engine=host.local_module('recursive');native_ids=[];bridges=[]
+    """Reconstruct every live native context and every claimed checked bridge.
+
+    Returns whether a validated native episode had advanced beyond its saved summary.
+    """
+    engine=host.local_module('recursive');native_ids=[];bridges=[];advanced=False
     latest={a['native_id']:a for a in record['attempts']}
     for key in binding['roots']:
         data=record['roots'][key]
@@ -343,15 +346,24 @@ def replay_contexts(binding,record,state,common,receiving_budget,host):
             for name in ('origins','candidates','skipped'):
                 need(attempt['seed_info'].get(name,[])==prepared.get(name,[]),
                      'saved displayed seed provenance changed: '+name,host)
+            refreshed={}
             for name,actual in (('totals',native['totals']),('library_count',len(native['library'])),
                                 ('node_count',len(native['nodes'])),('edge_count',len(native['edges']))):
-                need(summary.get(name)==actual,'saved native discovery counter changed: '+name,host)
+                if summary.get(name)!=actual:
+                    refreshed[name]=[copy.deepcopy(summary.get(name)),copy.deepcopy(actual)]
+                    summary[name]=copy.deepcopy(actual)
+            if refreshed:
+                # Another caller on this state advanced the shared native episode, for example a
+                # standalone proof of the same question. inspect_episode just replayed that record,
+                # so the outer summary follows it; stale counters are not evidence of tampering.
+                attempt['native_refreshes']=(attempt.get('native_refreshes',[])+[refreshed])[-8:];advanced=True
             if data.get('result') and native.get('final_certificate'):
                 need(native['final_certificate']==data['result']['certificate'],'outer/native original evidence differs',host)
     need(set(native_ids)==set(record['native_ids']) and len(native_ids)==len(set(native_ids)),
          'outer live native dependency set changed',host)
     need(sorted(bridges,key=host.canonical)==sorted(record['bridges'],key=host.canonical),
          'saved checked bridges do not reconstruct',host)
+    return advanced
 
 def _record(binding,identity,task,policy,gen):
     return dict(task_id=identity,kind='source_research_episode',schema='ember.source_episode.v1',
@@ -444,9 +456,11 @@ def run(task,state_path,limit,host,policy='gap_bridge',steps=8):
             data=record['roots'][key]
             if data.get('result'):data['result']=admit(binding['roots'][key]['task'],data['result'],root_budget(key),host)
         if previous is not None:
-            replay_contexts(binding,record,state,common,root_budget,host)
+            advanced=replay_contexts(binding,record,state,common,root_budget,host)
             rebuilt=make_graph(binding,record,host,common)
-            need(rebuilt==record['graph'],'saved typed source graph does not reconstruct',host)
+            # The graph is derived from the replayed record; after validated outside progress it is rebuilt.
+            if advanced:record['graph']=rebuilt
+            else:need(rebuilt==record['graph'],'saved typed source graph does not reconstruct',host)
         replayed=True
         reason='bounded source steps complete'
         for _ in range(steps):

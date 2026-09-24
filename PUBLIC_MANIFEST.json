@@ -26,9 +26,9 @@
       "sha256": "94c654c128cdf4a944e3410e312d4b304bc426845cc4a5d2fac8774023336804"
     },
     {
-      "bytes": 10311,
+      "bytes": 10562,
       "path": "algebra_check.py",
-      "sha256": "44571acbcb6e7516f3b974d7b7a8f6f7eb709bde4ed3ac811d259d63dc0ca54e"
+      "sha256": "c9e90a872692b843bfaabee09b8693dd7dd21abfb6908ddc58c62712e7ab7038"
     },
     {
       "bytes": 30284,
@@ -41,9 +41,9 @@
       "sha256": "f1520407c3661c7baf3d032c603549b217757984a18b761adadf488bdc5bd52f"
     },
     {
-      "bytes": 30796,
+      "bytes": 31290,
       "path": "campaign.py",
-      "sha256": "5bd5b241860abf2a107901ff911bbe20b86f304b17d3f03dbdc0a8c92c8586dc"
+      "sha256": "1e2304b810355aaaff2d6c025f1d85f674f7f8a13a451f2f8a5df11fbb0f7762"
     },
     {
       "bytes": 47691,
@@ -276,9 +276,9 @@
       "sha256": "61c47b71455ac668f1ba98330e1453840e0ae2970892ad84cf2062f9903aed4f"
     },
     {
-      "bytes": 55899,
+      "bytes": 56488,
       "path": "recursive.py",
-      "sha256": "33c36b23c81860ff1d9140bf9ff3e2c4e979ae5c5b0a57cd5f0a14bd1d03d231"
+      "sha256": "a37421eed2a8d9463267579d74b2831e605546784d414373be0149d5b9d9f435"
     },
     {
       "bytes": 19524,
@@ -286,14 +286,14 @@
       "sha256": "059bccf70002d226e07d40d1ecb30526eff149b98e21287aaaef42cca8de4beb"
     },
     {
-      "bytes": 37070,
+      "bytes": 37919,
       "path": "source_episode.py",
-      "sha256": "5996e841943e8631d4bf4984bb7ad6c7af67949d92471fcbbc4709e73ba1ede8"
+      "sha256": "e3e63b4643c2e622e3c106250208eead4f234af4a325418f603c20a0c2267715"
     },
     {
-      "bytes": 107857,
+      "bytes": 113085,
       "path": "tools/build_public_package.py",
-      "sha256": "abf33a68c22d484295539956a88c32c0b34fec1afe015804c9cd135ec82fc27c"
+      "sha256": "28f008005a32c247321bbf4a0a12265cb9234ed55bdcc69aa5e6a0731ddfe650"
     },
     {
       "bytes": 12030,
@@ -316,7 +316,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 was verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 442794,
+  "runtime_source_bytes": 444977,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",
