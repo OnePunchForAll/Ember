@@ -29,7 +29,7 @@ Q = Fraction
 OP_MODULES = ('ops_seq', 'ops_poly', 'ops_orbit', 'ops_egypt', 'ops_arith', 'ops_word', 'ops_matrix', 'ops_collatz')
 DIRECTIONS = ('N', 'W', 'S', 'E')
 # Checked objects of these kinds refute an existence or reachability claim.
-EVIDENCE_KINDS = ('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle')
+EVIDENCE_KINDS = ('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle', 'nofamily')
 RESIDUAL_KINDS = ('residual',)
 MAX_OBJECT_BYTES = 262_144
 

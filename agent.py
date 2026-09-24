@@ -17,6 +17,12 @@ found outside the base grammar into a reusable template object.
 Scores schedule work and are never evidence. Saved objects are checked again
 on resume. A report lists only checked results, residuals and measured costs;
 an open problem stays UNKNOWN unless the checker settles it.
+
+Every report mines its own failures: the open targets, the moves each received
+and the residuals they left, with a goal-specific profile of what stayed open.
+Strategy outcomes are retained across problems in a bounded library that later
+problems read as discounted reports, and each goal names related problems to
+try next.
 """
 import hashlib
 import json
@@ -33,10 +39,17 @@ MAX_PER_TARGET = 1
 MAX_TARGET_MOVES = 24
 COMPANIONS = 4
 # Operators that read the workspace: an attempt is new whenever the goal's progress has changed since.
-READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble'))
+READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift'))
 MACRO_STEPS = 4
 PROPOSE_EVERY = 25
+# A move that fails only for lack of work is retried once with this many times the allocation.
+ESCALATION = 4
 SCORE_FLOOR = 0.000001
+LIBRARY_ID = 'strategy-library'
+LIBRARY_ENTRIES = 256
+LIBRARY_REPORTS = 2
+# A class is handed to refinement only after every family grammar missed it.
+FAMILY_MISSES = frozenset(('ansatz miss', 'extended ansatz miss', 'classical miss'))
 
 
 def digest(value):
@@ -75,6 +88,16 @@ def record_sample(samples, row):
     return (kept + [row])[-MAX_SAMPLES:]
 
 
+def nonresidue_primes(x, powers):
+    """Primes p of the modulus with x a quadratic non-residue modulo p**e (x coprime to the modulus)."""
+    out = []
+    for p, e in sorted(powers.items()):
+        if p == 2:
+            if (e == 2 and x % 4 != 1) or (e >= 3 and x % 8 != 1): out.append(2)
+        elif pow(x % p, (p - 1) // 2, p) != 1: out.append(p)
+    return out
+
+
 # ------------------------------------------------------------- goals: problem types stated in the language
 
 class Goal:
@@ -104,6 +127,14 @@ class Goal:
 
     def done(self, rt): return False
 
+    def failure_profile(self, rt): return {}
+
+    def related(self): return []
+
+    def schedule_key(self, rt):
+        """Goal state beyond progress that can make a move newly allowed; part of a target's exhaustion signature."""
+        return ()
+
 
 class CoverGoal(Goal):
     """Cover every residue class of a/n = sum of `terms` unit fractions by checked polynomial families."""
@@ -115,8 +146,11 @@ class CoverGoal(Goal):
         self.p, self.L = p, L
         self.levels = [p['modulus']]
         for q in p['lifts']: self.levels.append(self.levels[-1] * q)
+        self.limit = len(self.levels) + p.get('extra_lifts', 0)
         self.fam = {}; self.residual = set(); self.base_miss = set(); self.misses = {}; self.refined = set(); self.seen = 0
-        self.classes = []
+        self.classes = []; self.classical_miss = set(); self._ready = None
+        # Incremental indexes: the step loop reads these instead of rescanning the workspace.
+        self.results = []; self.covers_at = {}; self._open = {}; self.fam_count = 0
 
     def init(self, rt):
         p = self.p; a, terms = p['a'], p['terms']
@@ -135,17 +169,30 @@ class CoverGoal(Goal):
             o = rt.objects[identity]
             if o['kind'] == 'residual':
                 self.residual.add(o['data']['of'])
-                if o['data']['note'] in ('ansatz miss', 'extended ansatz miss'):
+                if o['data']['note'] in FAMILY_MISSES:
                     self.misses.setdefault(o['data']['of'], set()).add(o['data']['note'])
-                    if len(self.misses[o['data']['of']]) == 2: self.base_miss.add(o['data']['of'])
+                    if o['data']['note'] == 'classical miss': self.classical_miss.add(o['data']['of'])
+                    if self.misses[o['data']['of']] >= FAMILY_MISSES: self.base_miss.add(o['data']['of'])
+            elif (o['kind'] == 'esq' and len(self.levels) < self.limit and o['data']['a'] == self.p['a']
+                  and o['data']['terms'] == self.p['terms'] and o['data']['modulus'] % self.levels[-1] == 0
+                  and self.L.is_prime(o['data']['modulus'] // self.levels[-1])):
+                # A refinement level chosen by the agent itself: the chain of levels grows by one prime.
+                self.levels.append(o['data']['modulus']); self.esq.append(o)
+                self.primes = sorted(set(self.primes) | set(self.L.factor(o['data']['modulus'])))
+                for q in self.primes:
+                    if q not in self.en: self.en[q] = rt.given('en', dict(a=self.p['a'], n=q, terms=self.p['terms']))
             elif o['kind'] == 'eclass' and o['data']['m'] in self.levels:
                 # Only a refinement onto a tracked level hands the parent's obligation to its subclasses.
                 self.classes.append(o)
                 for parent in o['parents']: self.refined.add(parent)
+            if o['kind'] == 'template' or o['kind'] in ('finite', 'cover', 'pattern', 'density', 'theorem'): self.results.append(o)
         self.seen = len(keys)
         self.fam = {}
         for identity in self.family_ids(rt):
             d = rt.objects[identity]['data']; self.fam.setdefault(d['m'], set()).add(d['r'])
+        self.fam_count = sum(len(v) for v in self.fam.values())
+        for o in self.results:
+            if o['kind'] == 'cover' and o['status'] == 'checked': self.covers_at[o['data']['modulus']] = o
 
     def family_ids(self, rt):
         if not hasattr(self, '_families'): self._families = []; self._scanned = 0
@@ -171,12 +218,20 @@ class CoverGoal(Goal):
         for q in self.primes:
             if not self.covered(self.fam, q, 0): out.append(self.en[q])
         for level, M in enumerate(self.levels):
-            out += [o for o in sorted((c for c in self.classes if c['data']['m'] == M), key=lambda c: c['data']['r'])
-                    if o['id'] not in self.refined and not self.covered(self.fam, M, o['data']['r'])]
+            out += self.open_classes(M)
             out.append(self.esq[level])
-            out += [o for o in rt.objects.values() if o['kind'] == 'cover' and o['status'] == 'checked'
-                    and o['data']['modulus'] == M][-1:]
+            if M in self.covers_at: out.append(self.covers_at[M])
         return out
+
+    def open_classes(self, M):
+        """Open class targets of one level, recomputed only when families, classes or refinements change."""
+        key = (self.fam_count, len(self.classes), len(self.refined))
+        cached = self._open.get(M)
+        if cached is None or cached[0] != key:
+            cached = (key, [o for o in sorted((c for c in self.classes if c['data']['m'] == M), key=lambda c: c['data']['r'])
+                            if o['id'] not in self.refined and not self.covered(self.fam, M, o['data']['r'])])
+            self._open[M] = cached
+        return cached[1]
 
     def version(self, rt, strategy, target):
         """What a workspace-reading move depends on: the family classes that divide its modulus."""
@@ -197,7 +252,26 @@ class CoverGoal(Goal):
             return (strategy == 'egypt_class_split') == (nxt == least)
         if strategy == 'egypt_finite_verify': return target['data']['modulus'] == self.levels[-1]
         if strategy in ('egypt_cover_lift', 'egypt_cover_merge'): return False
+        if strategy == 'egypt_classical_exclusion':
+            # Certify a wall only where the classical generator already missed, at the finest level.
+            return target['kind'] == 'eclass' and target['data']['m'] == self.levels[-1] and target['id'] in self.classical_miss
+        if strategy == 'egypt_choose_lift':
+            return (target['kind'] == 'esq' and target['data']['modulus'] == self.levels[-1]
+                    and len(self.levels) < self.limit and self.top_ready(rt))
         return True
+
+    def schedule_key(self, rt):
+        self.update(rt); return (len(self.classical_miss), len(self.levels))
+
+    def top_ready(self, rt):
+        """Every open class at the finest level has been tried by the classical generator, and a cover exists there."""
+        self.update(rt); M = self.levels[-1]
+        if M not in self.covers_at: return False
+        key = (M, len(self.classical_miss), sum(len(v) for v in self.fam.values()), len(self.classes))
+        if self._ready is None or self._ready[0] != key:
+            self._ready = (key, all(c['id'] in self.classical_miss or self.covered(self.fam, M, c['data']['r'])
+                                    for c in self.classes if c['data']['m'] == M and c['id'] not in self.refined))
+        return self._ready[1]
 
     def context(self, target):
         if target['kind'] != 'eclass': return self.kind + ':' + target['kind']
@@ -206,28 +280,89 @@ class CoverGoal(Goal):
     def progress(self, rt):
         """A cheap signature that changes exactly when a checked family class or a result object is added."""
         self.update(rt)
-        done = tuple(sorted(o['kind'] for o in rt.objects.values() if o['kind'] == 'template' or
-                            (o['status'] == 'checked' and o['kind'] in ('finite', 'cover', 'pattern', 'density'))))
-        return sum(len(v) for v in self.fam.values()), done
+        done = tuple(sorted(o['kind'] for o in self.results if o['kind'] == 'template' or o['status'] == 'checked'))
+        return self.fam_count, done
 
     def persisted(self, rt):
-        """Templates, the finest checked cover (its families rebuild coverage) and the latest finite range."""
+        """Templates, the finest checked cover (its families rebuild coverage), the latest finite range, and every
+        claim about that cover in compact form (the cover replaced by its digest), then the certified walls."""
         covers = [o for o in rt.objects.values() if o['kind'] == 'cover' and o['status'] == 'checked']
         finite = [o for o in rt.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked']
         best = max(covers, key=lambda o: (o['data']['modulus'], len(o['data']['entries'])), default=None)
         families = [rt.objects[i] for i in self.family_ids(rt)]
+        claims = []
         if best is not None:
             inside = {self.L.digest(e['family']) for e in best['data']['entries']}
             families = [o for o in families if self.L.digest(o['data']) not in inside
                         and not self.covered_by(best['data'], o['data'])]
-        return ([o for o in rt.objects.values() if o['kind'] == 'template'] + ([best] if best else []) + families
-                + finite[-1:])
+            ref = self.L.digest(best['data'])
+            for o in rt.objects.values():
+                if o['kind'] in ('pattern', 'density') and o['status'] == 'checked' and o['data']['cover'] == best['data']:
+                    body = {k: v for k, v in o['data'].items() if k != 'cover'}
+                    claims.append(dict(kind=o['kind'], data=dict(body, cover_ref=ref)))
+        if finite:
+            # The theorem about the saved range is kept with the range replaced by its digest.
+            ref = self.L.digest(finite[-1]['data'])
+            claims += [dict(kind='theorem', data=dict({k: v for k, v in o['data'].items() if k != 'finite'}, finite_ref=ref))
+                       for o in rt.objects.values() if o['kind'] == 'theorem' and o['status'] == 'checked'
+                       and o['data']['finite'] == finite[-1]['data']]
+        walls = [o for o in rt.objects.values() if o['kind'] == 'nofamily' and o['status'] == 'checked']
+        return ([self.tree(rt)] + [o for o in rt.objects.values() if o['kind'] == 'template'] + ([best] if best else [])
+                + families + finite[-1:] + claims + walls)
+
+    def tree(self, rt):
+        """The refinement tree as bookkeeping, not a claim: every level (the agent's own included), the classes that
+        were refined, and the family grammars each class has already missed."""
+        self.update(rt); notes = sorted(FAMILY_MISSES)
+        refined = sorted([rt.objects[i]['data']['m'], rt.objects[i]['data']['r']] for i in self.refined
+                         if rt.objects[i]['kind'] == 'eclass')
+        misses = sorted([rt.objects[i]['data']['m'], rt.objects[i]['data']['r'],
+                         sum(1 << notes.index(n) for n in found)] for i, found in self.misses.items())
+        return dict(kind='cover_tree', data=dict(a=self.p['a'], terms=self.p['terms'], levels=self.levels,
+                                                 refined=refined, misses=misses))
+
+    def rebuild(self, rt, tree):
+        """Recreate the saved refinement tree so that remembered moves stay consistent with the workspace."""
+        p = self.p; notes = sorted(FAMILY_MISSES)
+        if (tree.get('a'), tree.get('terms')) != (p['a'], p['terms']) or tree.get('levels', [])[:len(self.levels)] != self.levels:
+            return
+        for M in tree['levels'][len(self.levels):]:
+            rt.given('esq', dict(a=p['a'], terms=p['terms'], min=p['min'], modulus=M, verify_to=p['verify_to']))
+            self.update(rt)
+        for m, r in tree.get('refined', []):
+            if m not in self.levels or m == self.levels[-1]: continue
+            nxt = self.levels[self.levels.index(m) + 1]
+            parent = rt.given('eclass', dict(a=p['a'], terms=p['terms'], m=m, r=r))
+            for j in range(nxt // m):
+                rt.propose('eclass', dict(a=p['a'], terms=p['terms'], m=nxt, r=r + m * j), (parent,))
+        for m, r, mask in tree.get('misses', []):
+            cls = rt.given('eclass', dict(a=p['a'], terms=p['terms'], m=m, r=r))
+            for k, note in enumerate(notes):
+                if mask >> k & 1: rt.residual(cls, ['restored from the saved refinement tree'], note)
+        self.update(rt)
 
     def covered_by(self, cover, family):
         return any(family['m'] % e['family']['m'] == 0 and family['r'] % e['family']['m'] == e['family']['r']
                    for e in cover['entries'])
 
     def restore(self, rt, saved):
+        for row in saved:
+            if row['kind'] == 'cover_tree': self.rebuild(rt, row['data'])
+        saved = [row for row in saved if row['kind'] != 'cover_tree']
+        covers = {self.L.digest(row['data']): row['data'] for row in saved if row['kind'] == 'cover'}
+        ranges = {self.L.digest(row['data']): row['data'] for row in saved if row['kind'] == 'finite'}
+        expanded = []
+        for row in saved:
+            data = row['data']
+            if 'cover_ref' in data:
+                # A compact claim is rechecked against the saved cover it names; without that cover it is dropped.
+                if data['cover_ref'] not in covers: continue
+                data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=covers[data['cover_ref']])
+            if 'finite_ref' in data:
+                if data['finite_ref'] not in ranges: continue
+                data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=ranges[data['finite_ref']])
+            expanded.append(dict(kind=row['kind'], data=data))
+        saved = expanded
         admitted, refused = Goal.restore(self, rt, saved)
         for row in saved:
             if row['kind'] != 'cover': continue
@@ -239,40 +374,76 @@ class CoverGoal(Goal):
                 if rt.check(family): admitted += 1
         return admitted, refused
 
-    def level_covered(self):
-        """Covered residues per level: a family class dividing the modulus, or every refinement at the next level."""
-        out = {}
-        for i in range(len(self.levels) - 1, -1, -1):
-            M = self.levels[i]; below = out.get(self.levels[i + 1]) if i + 1 < len(self.levels) else None
-            t = self.levels[i + 1] // M if below is not None else 1
-            out[M] = {r for r in range(M) if self.covered(self.fam, M, r)
-                      or (below is not None and all(r + M * j in below for j in range(t)))}
+    def level_uncovered(self):
+        """Uncovered residues per level. A residue is covered by a family class dividing the modulus, or when every
+        refinement at the next level is covered; computed by lifting only the uncovered residues."""
+        levels = self.levels
+        per = [[r for r in range(levels[0]) if not self.covered(self.fam, levels[0], r)]]
+        for i in range(1, len(levels)):
+            M, prev = levels[i], levels[i - 1]
+            per.append([x + prev * j for x in per[-1] for j in range(M // prev) if not self.covered(self.fam, M, x + prev * j)])
+        out = {levels[-1]: per[-1]}
+        for i in range(len(levels) - 2, -1, -1):
+            keep = {y % levels[i] for y in out[levels[i + 1]]}
+            out[levels[i]] = [x for x in per[i] if x in keep]
         return out
 
-    def pattern_status(self, rt, M):
-        """The square-class conjecture for this level's cover: checked, refuted (with a witness residue) or open."""
+    def pattern_status(self, rt, M, rule='uncovered_coprime_are_squares'):
+        """A pattern conjecture for this level's cover: checked, refuted (with a witness residue) or not attempted."""
         for o in rt.objects.values():
-            if o['kind'] == 'pattern' and o['status'] == 'checked' and o['data']['cover']['modulus'] == M:
-                return dict(status='checked')
+            if o['kind'] == 'pattern' and o['status'] == 'checked' and o['data']['cover']['modulus'] == M \
+                    and o['data']['rule'] == rule:
+                return dict(status='checked', primes=o['data']['primes']) if 'primes' in o['data'] else dict(status='checked')
         for o in rt.objects.values():
             if o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'pattern' \
-                    and o['data']['claim']['data']['cover']['modulus'] == M:
+                    and o['data']['claim']['data']['cover']['modulus'] == M and o['data']['claim']['data']['rule'] == rule:
                 return dict(status='refuted', residue=o['data']['witness']['residue'])
         return dict(status='not attempted')
 
+    def local_images(self, rt, M):
+        """The checked local-image pattern of this level: allowed residues of open classes per prime power."""
+        for o in rt.objects.values():
+            if o['kind'] == 'pattern' and o['status'] == 'checked' and o['data']['cover']['modulus'] == M \
+                    and o['data']['rule'] == 'uncovered_coprime_local_images':
+                return o['data']['images']
+        return None
+
+    def walls(self, rt, M):
+        return sum(1 for o in rt.objects.values() if o['kind'] == 'nofamily' and o['status'] == 'checked'
+                   and o['data']['m'] == M)
+
     def summary(self, rt):
-        self.update(rt); index = self.fam; levels = []; covered = self.level_covered()
-        for M in self.levels:
-            uncovered = [r for r in range(M) if r not in covered[M]]
+        self.update(rt); index = self.fam; levels = []; uncovered_at = self.level_uncovered()
+        for i, M in enumerate(self.levels):
+            uncovered = uncovered_at[M]; powers = self.L.factor(M)
             coprime = [r for r in uncovered if gcd(r, M) == 1]
-            squares = {x * x % M for x in range(M) if gcd(x, M) == 1}
-            levels.append(dict(modulus=M, covered=M - len(uncovered), uncovered=len(uncovered),
+            nonsquares = [r for r in coprime if nonresidue_primes(r, powers)]
+            levels.append(dict(modulus=M, chosen_by='agent' if i >= len(self.p['lifts']) + 1 else 'problem',
+                               covered=M - len(uncovered), uncovered=len(uncovered),
                                uncovered_coprime=coprime[:64], uncovered_coprime_count=len(coprime),
-                               uncovered_coprime_squares=sum(r in squares for r in coprime),
-                               uncovered_coprime_nonsquares=[r for r in coprime if r not in squares][:64],
-                               uncovered_coprime_nonsquare_count=sum(r not in squares for r in coprime),
-                               square_pattern=self.pattern_status(rt, M)))
+                               uncovered_coprime_squares=len(coprime) - len(nonsquares),
+                               uncovered_coprime_nonsquares=nonsquares[:64],
+                               uncovered_coprime_nonsquare_count=len(nonsquares),
+                               square_pattern=self.pattern_status(rt, M),
+                               signature_pattern=self.pattern_status(rt, M, 'uncovered_coprime_square_outside'),
+                               local_images=self.local_images(rt, M),
+                               certified_walls=self.walls(rt, M)))
         return dict(levels=levels, families=sum(len(v) for v in index.values()))
+
+    def failure_profile(self, rt):
+        """What stayed open at the finest level: the primes at which each open coprime class is a non-residue."""
+        self.update(rt); M = self.levels[-1]; powers = self.L.factor(M); histogram = {}
+        coprime = [r for r in self.level_uncovered()[M] if gcd(r, M) == 1]
+        for r in coprime:
+            key = ','.join(str(p) for p in nonresidue_primes(r, powers)) or 'square'
+            histogram[key] = histogram.get(key, 0) + 1
+        return dict(modulus=M, open_coprime=len(coprime), nonresidue_signatures=histogram,
+                    certified_walls=self.walls(rt, M), open_examples=coprime[:16],
+                    refinement_budget_left=self.limit - len(self.levels))
+
+    def related(self):
+        """Closest related problems: the next numerators with the same statement (Sierpinski's 5/n for a = 4)."""
+        return [dict(self.p, a=a) for a in (self.p['a'] + 1, self.p['a'] + 2) if a <= 16]
 
 
 class DescentGoal(Goal):
@@ -332,11 +503,29 @@ class DescentGoal(Goal):
         rows = [[o['data']['modulus'], o['data']['residue'], o['data']['steps'], o['data']['bound']]
                 for o in rt.objects.values() if o['kind'] == 'descent' and o['status'] == 'checked']
         rest = [o for o in rt.objects.values() if o['status'] == 'checked' and o['kind'] in ('cfinite', 'cycle')]
-        return [dict(kind='descent_rows', data=dict(map=self.p['map'], rows=rows))] + rest
+        self.update(rt)
+        tree = dict(map=self.p['map'],
+                    refined=sorted([rt.objects[i]['data']['modulus'], rt.objects[i]['data']['residue']] for i in self.refined
+                                   if rt.objects[i]['kind'] == 'cclass'),
+                    residual=sorted([rt.objects[i]['data']['modulus'], rt.objects[i]['data']['residue']] for i in self.residual
+                                    if i in rt.objects and rt.objects[i]['kind'] == 'cclass'))
+        return [dict(kind='descent_tree', data=tree), dict(kind='descent_rows', data=dict(map=self.p['map'], rows=rows))] + rest
 
     def restore(self, rt, saved):
-        admitted = refused = 0; plain = []
+        admitted = refused = 0; plain = []; d = self.p['map']['d']
         for row in saved:
+            if row['kind'] == 'descent_tree' and row['data'].get('map') == self.p['map']:
+                # Bookkeeping, not claims: recreate refined classes and the residuals that justified refinement.
+                for M, r in row['data'].get('refined', []):
+                    parent = rt.given('cclass', dict(map=self.p['map'], modulus=M, residue=r))
+                    for i in range(d):
+                        rt.propose('cclass', dict(map=self.p['map'], modulus=M * d, residue=r + M * i), (parent,))
+                for M, r in row['data'].get('residual', []):
+                    rt.residual(rt.given('cclass', dict(map=self.p['map'], modulus=M, residue=r)),
+                                ['restored from the saved refinement tree'], 'refine the class')
+                continue
+        for row in saved:
+            if row['kind'] == 'descent_tree': continue
             if row['kind'] != 'descent_rows': plain.append(row); continue
             for M, r, steps, bound in row['data']['rows']:
                 obj = rt.propose('descent', dict(map=row['data']['map'], modulus=M, residue=r, steps=steps, bound=bound))
@@ -352,6 +541,24 @@ class DescentGoal(Goal):
             rows.append(dict(modulus=M, open=sum(1 for r in range(M) if not self.covered(index, M, r)) if M <= 1 << 20 else None))
             M *= d
         return dict(levels=rows, descents=sum(len(v) for v in index.values()))
+
+    def failure_profile(self, rt):
+        """Open classes at the finest modulus reached, by how many of their first steps are odd."""
+        index = self.descents(rt); d = self.p['map']['d']; M = self.top
+        if M > 1 << 20 or d != 2: return {}
+        histogram = {}
+        for r in range(M):
+            if self.covered(index, M, r): continue
+            odd, x = 0, r + M
+            for _ in range(self.p['depth']):
+                i = x % d; odd += i; x = (self.p['map']['a'][i] * x + self.p['map']['b'][i]) // d
+            histogram[str(odd)] = histogram.get(str(odd), 0) + 1
+        return dict(modulus=M, odd_steps_of_open_classes=histogram)
+
+    def related(self):
+        m = self.p['map']
+        if m['d'] != 2: return []
+        return [dict(self.p, map=dict(m, a=[m['a'][0], m['a'][1] + 2])), dict(self.p, map=dict(m, b=[m['b'][0], -m['b'][1]]))]
 
 
 class DecideGoal(Goal):
@@ -407,7 +614,7 @@ def bind(task, host, L):
         raise host.Refused('autonomous research task fields')
     p = task.get('problem'); moves = task.get('moves', 200); per = task.get('move_work', 2_000_000)
     reports = task.get('reports', [])
-    if type(moves) is not int or not 1 <= moves <= 20_000: raise host.Refused('moves per call 1..20000')
+    if type(moves) is not int or not 1 <= moves <= 200_000: raise host.Refused('moves per call 1..200000')
     if type(per) is not int or not 1 <= per <= 100_000_000: raise host.Refused('move work bound')
     if type(reports) is not list or len(reports) > 128: raise host.Refused('at most 128 reported samples')
     for r in reports:
@@ -418,7 +625,9 @@ def bind(task, host, L):
     kind = p['type']
     if kind == 'unit_fraction_cover':
         need = {'type', 'a', 'terms', 'min', 'modulus', 'lifts', 'verify_to'}
-        if set(p) != need: raise host.Refused('unit fraction cover fields')
+        if not need <= set(p) <= need | {'extra_lifts'}: raise host.Refused('unit fraction cover fields')
+        if type(p.get('extra_lifts', 0)) is not int or not 0 <= p.get('extra_lifts', 0) <= 2:
+            raise host.Refused('at most two refinement primes chosen by the agent')
         if type(p['a']) is not int or not 1 <= p['a'] <= 16 or p['terms'] != 3: raise host.Refused('numerator 1..16 and three terms')
         if type(p['min']) is not int or not 2 <= p['min'] <= 1000: raise host.Refused('minimum n')
         if type(p['modulus']) is not int or not 1 <= p['modulus'] <= 100_000: raise host.Refused('cover modulus')
@@ -450,7 +659,7 @@ class Agent:
         self.produced_by = {}; self.log = []; self.events = {d: 0 for d in 'NWSE'}; self.moves = 0
         self.seen_contexts = {(s['context'], s['task']) for s in samples}
         self.attempts = {}; self.by_kind = {}; self.children = {}; self.indexed = 0; self.rederivable = set()
-        self.target_moves = {}; self.exhausted = {}
+        self.target_moves = {}; self.exhausted = {}; self.outcomes = {}; self.escalated = {}; self.memo = {}
         self.checkable = set(checker.CHECKS) | {'invariant', 'semi'}
 
     def index(self):
@@ -528,7 +737,7 @@ class Agent:
         if name == 'verify':
             ok = self.rt.check(args[0]); out = [args[0]] if ok else []
         elif spec is not None:
-            out = spec['fn'](self.rt, *args)
+            out = self.apply(name, spec, args)
         else:
             out = self.run_macro(name, args, budget)
         for event, identity in self.rt.events: self.events[event] += 1
@@ -536,11 +745,21 @@ class Agent:
             if o['id'] not in before: self.produced_by[o['id']] = (name, [a['id'] for a in args])
         return out
 
+    def apply(self, name, spec, args):
+        """One operator application. An operator that reads only its arguments is not recomputed on the same
+        arguments within a run: a macro replaying a step already taken reuses its outputs."""
+        if name in READS_WORKSPACE: return spec['fn'](self.rt, *args)
+        key = (name,) + tuple(a['id'] for a in args)
+        if key in self.memo: return [self.rt.objects[i] for i in self.memo[key] if i in self.rt.objects]
+        out = spec['fn'](self.rt, *args)
+        self.memo[key] = [o['id'] for o in out]
+        return out
+
     def run_macro(self, name, args, budget):
         macro = next(m for m in self.macros if m['name'] == name); out = []; current = args
         for i, step in enumerate(macro['steps']):
             spec = self.registry[step]; before = set(self.rt.objects); self.rt.events = []
-            produced = spec['fn'](self.rt, *current)
+            produced = self.apply(step, spec, current)
             for o in produced:
                 if o['id'] not in before: self.produced_by[o['id']] = (step, [a['id'] for a in current])
             out += produced
@@ -591,12 +810,13 @@ class Agent:
                                         status='proposed', invented_at=self.moves, uses=0, successes=0, source_output=None))
                 return
 
-    def step(self, allocation):
+    def step(self, allocation, remaining=None):
         self.index(); table, by_kind = self.strategies(); progress = repr(self.goal.progress(self.rt))
+        key_extra = self.goal.schedule_key(self.rt)
         for target in self.goal.targets(self.rt):
             if target['kind'] in self.goal.capped and self.target_moves.get(target['id'], 0) >= MAX_TARGET_MOVES: continue
             # A target with no fresh move stays exhausted until the move table or its derived objects change.
-            signature = (len(table), len(self.children.get(target['id'], [])), progress)
+            signature = (len(table), len(self.children.get(target['id'], [])), progress, key_extra)
             if self.exhausted.get(target['id']) == signature: continue
             fresh = self.candidates(target, table, by_kind)
             if not fresh:
@@ -607,6 +827,8 @@ class Agent:
                 self.seen_contexts.add((context, target['id'])); self.unseen += 1
                 if self.unseen % 5 == 0: fresh.reverse()
             name, args, key = fresh[0]
+            if key in self.escalated:
+                allocation = min(allocation * ESCALATION, max(allocation, (remaining or allocation) // 2))
             return self.execute(target, context, name, args, key, allocation)
         return None
 
@@ -621,12 +843,20 @@ class Agent:
         parent.use(budget.work)
         seconds = (time.perf_counter_ns() - began) / 1e9
         success = self.goal.progress(self.rt) != before
-        self.tried.add(key); self.moves += 1
+        self.moves += 1
+        if reason and reason.startswith('limit') and key not in self.escalated:
+            # Out of resources, not out of ideas: the same move gets one retry with a larger allocation.
+            self.escalated[key] = allocation
+            self.attempts[(target['id'], name)] = self.attempts.get((target['id'], name), 0) - 1
+            self.target_moves[target['id']] = self.target_moves.get(target['id'], 0) - 1
+        else: self.tried.add(key)
         if name in READS_WORKSPACE or 'cover' in [a['kind'] for a in args]: self.rederivable.add(key)
         self.attempts[(target['id'], name)] = self.attempts.get((target['id'], name), 0) + 1
         self.target_moves[target['id']] = self.target_moves.get(target['id'], 0) + 1
         self.samples = record_sample(self.samples, dict(context=context, strategy=name, task=target['id'], success=success,
                                                         seconds=round(seconds, 6), weight=1, source='local'))
+        tally = self.outcomes.setdefault((context, name), [0, 0, 0.0])
+        tally[0 if success else 1] += 1; tally[2] += seconds
         for m in self.macros:
             if m['name'] == name:
                 m['uses'] += 1; m['successes'] += int(success)
@@ -644,23 +874,89 @@ class Agent:
         return row
 
 
+# ------------------------------------------------------------- strategy retention and failure mining
+
+def load_library(state):
+    """Strategy outcomes kept from earlier problems, as discounted reports (at most one unit per route and context)."""
+    row = next((o for o in state['observations'] if o.get('task_id') == LIBRARY_ID), None)
+    entries = [e for e in (row or {}).get('entries', []) if type(e) is dict and type(e.get('context')) is str
+               and type(e.get('strategy')) is str and all(type(e.get(k)) in (int, float) and e[k] >= 0
+                                                           for k in ('successes', 'failures', 'seconds'))]
+    reports = []
+    for e in entries:
+        uses = e['successes'] + e['failures']
+        if not uses: continue
+        seconds = e['seconds'] / uses
+        for success, count in ((True, e['successes']), (False, e['failures'])):
+            reports += [dict(context=e['context'], strategy=e['strategy'], task='library', success=success,
+                             seconds=seconds)] * min(int(count), LIBRARY_REPORTS)
+    return entries, weighted_reports(reports)
+
+
+def merge_library(entries, outcomes):
+    table = {(e['context'], e['strategy']): dict(e) for e in entries}
+    for (context, strategy), (wins, misses, seconds) in outcomes.items():
+        row = table.setdefault((context, strategy), dict(context=context, strategy=strategy, successes=0, failures=0,
+                                                         seconds=0.0))
+        row['successes'] += wins; row['failures'] += misses; row['seconds'] = round(row['seconds'] + seconds, 6)
+    return sorted(table.values(), key=lambda e: (-(e['successes'] + e['failures']), e['context'], e['strategy']))[:LIBRARY_ENTRIES]
+
+
+def target_brief(target):
+    d = target['data']
+    if target['kind'] == 'eclass': return dict(kind='eclass', m=d['m'], r=d['r'])
+    if target['kind'] == 'cclass': return dict(kind='cclass', modulus=d['modulus'], residue=d['residue'])
+    if target['kind'] == 'esq': return dict(kind='esq', modulus=d['modulus'])
+    return dict(kind=target['kind'])
+
+
+def mine_failures(agent, goal, rt):
+    """Why the open targets stayed open: the moves each received and the residual notes they left."""
+    if agent is None: return {}
+    notes = {}
+    for o in rt.objects.values():
+        if o['kind'] == 'residual': notes.setdefault(o['data']['of'], set()).add(o['data']['note'])
+    tried = {}
+    for (target, name) in agent.attempts: tried.setdefault(target, set()).add(name)
+    groups = {}; examples = []; open_targets = goal.targets(rt)
+    for t in open_targets:
+        key = t['kind'] + ': ' + (', '.join(sorted(notes.get(t['id'], ()))) or 'no residual')
+        groups[key] = groups.get(key, 0) + 1
+        if len(examples) < 8 and t['kind'] in goal.capped:
+            examples.append(dict(target_brief(t), moves=sorted(tried.get(t['id'], ())), residuals=sorted(notes.get(t['id'], ())),
+                                 exhausted=t['id'] in agent.exhausted,
+                                 capped=agent.target_moves.get(t['id'], 0) >= MAX_TARGET_MOVES))
+    return dict(open_targets=len(open_targets), by_outcome=groups, examples=examples, profile=goal.failure_profile(rt))
+
+
 # ------------------------------------------------------------- state
 
 def compact(obj):
-    return dict(kind=obj['kind'], data=obj['data'])
+    return obj if set(obj) == {'kind', 'data'} else dict(kind=obj['kind'], data=obj['data'])
 
 
-def save(host, state, state_path, record):
-    if state_path is None: return
-    others = [o for o in state['observations'] if o['task_id'] != record['task_id']]
-    state['observations'] = (others + [record])[-128:]
-    while len(host.canonical(state).encode()) + 1 > host.STATE_LIMIT and record['objects']:
-        record['objects'].pop()
-    if len(host.canonical(state).encode()) + 1 > host.STATE_LIMIT:
-        record['tried'] = record['tried'][-500:]; record['log'] = record['log'][-8:]
+def save(host, state, state_path, record, library=None):
+    """Write the record within the state bound. Scheduling memory is trimmed before any evidence; evidence is
+    dropped from the least valuable end only as a last resort, and the number dropped is recorded and returned."""
+    if state_path is None: return 0
+    ids = {record['task_id']} | ({library['task_id']} if library else set())
+    others = [o for o in state['observations'] if o['task_id'] not in ids]
+    state['observations'] = (others + ([library] if library else []) + [record])[-128:]
+    record['dropped_objects'] = 0
+    size = lambda: len(host.canonical(state).encode()) + 1
+    if size() > host.STATE_LIMIT:
+        record['tried'] = record['tried'][-500:]; record['rederivable'] = record['rederivable'][-500:]
+        record['log'] = record['log'][-8:]; record['samples'] = record['samples'][-200:]
+    dropped = 0
+    while size() > host.STATE_LIMIT and record['objects']:
+        excess = size() - host.STATE_LIMIT
+        while excess > 0 and record['objects']:
+            excess -= len(host.canonical(record['objects'].pop()).encode()) + 1; dropped += 1
+        record['dropped_objects'] = dropped
     target = Path(state_path); target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix(target.suffix + '.tmp')
     temp.write_text(host.canonical(state) + '\n', encoding='utf-8', newline='\n'); temp.replace(target)
+    return dropped
 
 
 def run(task, state_path, limit, host):
@@ -672,7 +968,8 @@ def run(task, state_path, limit, host):
     old = next((o for o in state['observations'] if o.get('task_id') == identity and o.get('kind') == 'autonomous_research'), None)
     rt = L.Runtime(checker, budget)
     goal = GOALS[problem['type']](problem, L); goal.init(rt)
-    samples, macros, tried, unseen, replayed, invalid = list(reports), [], set(), 0, 0, 0
+    library, retained = load_library(state)
+    samples, macros, tried, unseen, replayed, invalid = retained + list(reports), [], set(), 0, 0, 0
     agent = None
     try:
         if old is not None:
@@ -695,7 +992,7 @@ def run(task, state_path, limit, host):
             if goal.done(rt): break
             remaining = limit - budget.work
             if remaining <= 0: reason = 'work budget exhausted'; break
-            row = agent.step(max(1, min(per, remaining // 2)))
+            row = agent.step(max(1, min(per, remaining // 2)), remaining)
             if row is None: reason = 'no untried move for any open target'; break
     except host.Exhausted as exc:
         reason = str(exc)
@@ -706,7 +1003,8 @@ def run(task, state_path, limit, host):
                   tried=sorted(agent.tried if agent else tried)[-MAX_TRIED:], unseen=agent.unseen if agent else unseen,
                   rederivable=sorted(agent.rederivable)[-MAX_TRIED:] if agent else [],
                   log=agent.log if agent else [])
-    save(host, state, state_path, record)
+    entries = merge_library(library, agent.outcomes if agent else {})
+    dropped = save(host, state, state_path, record, dict(task_id=LIBRARY_ID, kind='strategy_library', entries=entries))
     checked = [o for o in rt.objects.values() if o['status'] == 'checked']
     by_kind = {}
     for o in checked: by_kind[o['kind']] = by_kind.get(o['kind'], 0) + 1
@@ -721,8 +1019,8 @@ def run(task, state_path, limit, host):
     return dict(status=status, reason=reason, task_id=identity, problem=problem, generation=gen,
                 moves_executed=agent.moves if agent else 0, work=budget.work,
                 elapsed_ns=time.perf_counter_ns() - started, replayed_objects=replayed, invalidated_objects=invalid,
-                goal=goal.summary(rt), checked_objects=by_kind,
-                results=[result_row(o) for o in checked if o['kind'] in ('cover', 'finite', 'pattern', 'density',
+                dropped_objects=dropped, goal=goal.summary(rt), checked_objects=by_kind,
+                results=[result_row(o) for o in checked if o['kind'] in ('cover', 'finite', 'pattern', 'density', 'theorem',
                                                                            'dcover', 'cfinite', 'cycle', 'exclusion')][-12:],
                 refutations=sum(1 for o in checked if o['kind'] == 'refutation'),
                 invented_moves=[dict(name=m['name'], origin=m['origin'], status=m['status'], dirs=m['dirs'],
@@ -730,6 +1028,8 @@ def run(task, state_path, limit, host):
                                 for m in (agent.macros if agent else macros)],
                 templates=[o['data'] for o in rt.objects.values() if o['kind'] == 'template'][:16],
                 directions_observed=agent.events if agent else {}, scheduler=ranking, log=agent.log[-24:] if agent else [],
+                failures=mine_failures(agent, goal, rt), related_problems=goal.related(),
+                strategy_library=dict(entries=len(entries), reports_loaded=len(retained)),
                 limits='Operators search bounded grammars; the checker admits every reported claim in its stated scope. '
                        'UNKNOWN leaves the problem open. Scores order moves and are not beliefs.')
 
@@ -742,6 +1042,8 @@ def result_row(o):
                                         via_divisor=ev.get('via_divisor'))
     if o['kind'] == 'density': row.update(modulus=d['cover']['modulus'], fraction=d['fraction'])
     if o['kind'] == 'pattern': row.update(modulus=d['cover']['modulus'], rule=d['rule'])
+    if o['kind'] == 'theorem': row.update(modulus=ev.get('modulus'), open_residues=ev.get('open_residues'),
+                                          open_coprime=ev.get('open_coprime'), lo=d['lo'], range_hi=ev.get('range_hi'))
     if o['kind'] == 'dcover': row.update(modulus=d['modulus'], covered=ev.get('covered'))
     if o['kind'] == 'cfinite': row.update(lo=d['lo'], hi=d['hi'])
     if o['kind'] == 'cycle': row.update(start=d['start'], length=d['length'])

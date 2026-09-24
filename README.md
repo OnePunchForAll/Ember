@@ -626,10 +626,10 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 313 implemented moves across
+`--pyramid` prints the map. Its base is a catalog of 319 implemented moves across
 29 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 156 operators of the typed language described below. The
-base holds 111 moves with an N component, 111 with W, 255 with S and 104 with E.
+or replay work) and the 162 operators of the typed language described below. The
+base holds 117 moves with an N component, 113 with W, 260 with S and 104 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
 fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
@@ -869,13 +869,14 @@ absence, a descent certificate, a cycle). `lexicon_check.py` is the only way a
 claim becomes checked. It imports no operator code, has its own exact arithmetic,
 and binds every claim to the question stated in its own data.
 
-156 operators in eight modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+162 operators in eight modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
 `ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`) consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
 
 - **N** a new candidate;
-- **W** a checked refutation, orbit exclusion, modular non-existence proof or
-  cycle, or a residual naming the open part;
+- **W** a checked refutation, orbit exclusion, modular non-existence proof,
+  cycle or certified wall (no classical family reaches a class), or a residual
+  naming the open part;
 - **S** an admission by the checker;
 - **E** a claim about another question derived from a checked claim.
 
@@ -892,8 +893,8 @@ The move bench runs every operator on its fixtures in a fresh runtime. It counts
 only the events that produced the objects the operator returned. An operator
 passes when its declared directions equal the union observed over its fixtures,
 every returned checked object is admitted again by a fresh checker call, and its
-argument and output kinds match its signature. All 156 pass: 56 have an N
-component, 46 W, 149 S and 78 E. Together with the subreasoner moves, every
+argument and output kinds match its signature. All 162 pass: 62 have an N
+component, 48 W, 154 S and 78 E. Together with the subreasoner moves, every
 direction of the pyramid now has more than one hundred moves. A package check
 changes one operator's declared directions and requires the bench to fail.
 Directions are observed on fixtures, not proved for every input.
@@ -904,6 +905,8 @@ Directions are observed on fixtures, not proved for every input.
 python -I -B -X utf8 ember.py examples/agent_decide.json
 python -I -B -X utf8 ember.py examples/agent_explore.json
 python -I -B -X utf8 ember.py examples/agent_unit_fraction_small.json --state small-instance.json
+python -I -B -X utf8 ember.py examples/agent_choose_lift.json --state lift-instance.json
+python -I -B -X utf8 tools/verdict.py lift-instance.json
 python -I -B -X utf8 ember.py examples/agent_collatz.json --work 2000000000
 python -I -B -X utf8 ember.py examples/agent_erdos_straus.json --state es-instance.json --work 20000000000
 ```
@@ -924,8 +927,46 @@ cost (0.01 + sum w t)/(1+S+F). A success is a checked result that changes the
 goal's progress. Samples are kept per context, strategy and task, at most 128.
 Reported samples from another run weigh min(0.25, 1/R), and every fifth unseen
 task reverses the order. Each strategy is tried once per target, and a target
-gets at most 24 moves. A class is refined toward the next modulus only after both
-family grammars have missed it. These are scheduling policies, not evidence.
+gets at most 24 moves. A move that fails only because its work allocation ran
+out is retried once with four times the allocation. A class is refined toward
+the next modulus only after all three family generators have missed it. With
+`extra_lifts`, she may add up to two refinement primes of her own choosing: she
+lifts a sample of the open classes by each candidate prime, counts the lifts a
+classical family reaches, and refines every open class by the prime with the
+best yield. These are scheduling policies, not evidence.
+
+For unit fractions she has three family generators. Two are divisor grammars:
+x = (s n + c)/a with every divisor shape of N², base and extended. The third
+gives the two classical fixed-parameter solution types, for any numerator a:
+- Type II: x = u v d, y = u w d n, z = v w d n, with a u v d = n + e and
+  e w = u + v. It is complete over every modulus a u v that divides the class
+  modulus.
+- Type I: x = u v d n, y = u w d, z = v w d, with (u+v) n + w = a u v w d. It
+  is searched with u <= v <= 120 and w <= 120.
+
+Each family is stated on the coarsest class its parameters need. Where the
+classical generator misses at the finest level, she can claim a wall
+(`nofamily`). The checker admits that claim only after enumerating every
+classical parameter set for the class and finding none. She can also state
+two patterns about a cover, each checked exhaustively over the coprime
+residues:
+- the least set of primes outside which every open class is a local square;
+- the residues the open classes reduce to modulo each prime power.
+
+From a checked finite range and the cover inside it she can state a whole
+reduction theorem (`theorem`): every n >= 2 whose residue is covered has a
+representation. The checker admits it only after checking each part of the
+chain again. Every family of the cover holds from its threshold, the range
+checks every n below its bound, and the cover's bound lies inside the range.
+The theorem names what stays open: the residues no family reaches. Nothing is
+claimed for those above the range.
+
+Every report mines its own failures. It lists the open targets, the moves each
+received and the residuals they left, and a profile of what stayed open (for
+unit fractions, the primes at which each open class is a non-residue). Measured
+strategy outcomes are kept in a bounded library in the state file, and later
+problems read them as discounted reports. Each goal names its closest related
+problems; for 4/n these are 5/n and 6/n with the same statement.
 
 The agent invents moves in three ways:
 
@@ -937,8 +978,9 @@ The agent invents moves in three ways:
 - the extended unit-fraction ansatz turns a family found outside the base grammar
   into a reusable template object.
 
-Invented moves are reported with their origin, uses and successes. Saved objects
-are proposals until the checker admits them again on resume. If a saved object is
+Invented moves are reported with their origin, uses and successes. Saved objects,
+including pattern, density and wall claims stored with a digest reference to
+their cover, are proposals until the checker admits them again on resume. If a saved object is
 refused, the scheduling memory built on it is discarded and the search is redone.
 The report lists only checked results, residuals, invented moves, the scheduler's
 ranking and the directions observed.

@@ -740,7 +740,16 @@ def family_polys(data, budget):
     need(set(data) == {'a', 'm', 'r', 'k0', 'x'}, 'family fields')
     a, m, r = class_of(data); k0 = integer(data['k0'], 0, 10 ** 6)
     xs = data['x']; need(type(xs) is list and 1 <= len(xs) <= 6, 'family term count')
-    return a, m, r, k0, [u_poly(e, 'k', budget) for e in xs]
+    return a, m, r, k0, [family_poly(e, budget) for e in xs]
+
+
+def family_poly(e, budget):
+    """A denominator in k: an expression tree, or its coefficient list [[num, den], ...] from k**0 up, trimmed."""
+    if type(e) is list and e and type(e[0]) is str: return u_poly(e, 'k', budget)
+    need(type(e) is list and 1 <= len(e) <= 17, 'coefficient list length')
+    out = [rat(c) for c in e]; budget.use(len(out))
+    need(out[-1] != 0, 'coefficient list must be trimmed')
+    return out
 
 
 def check_ufam(data, budget):
@@ -844,6 +853,26 @@ def check_finite(data, budget):
                       'unit remainder, or a checked divisor d of n scaled by n/d.')
 
 
+def check_theorem(data, budget):
+    """A reduction theorem assembled from a checked finite range and the cover inside it."""
+    need(set(data) == {'a', 'terms', 'lo', 'finite'}, 'theorem fields')
+    f = data['finite']; need(type(f) is dict and f.get('cover') is not None, 'the finite range must carry its cover')
+    need(f['a'] == data['a'] and f['terms'] == data['terms'] and f['lo'] == data['lo'], 'theorem and range state one question')
+    ranged = check_finite(f, budget); cover = f['cover']
+    need(cover['bound'] <= f['hi'], 'the cover bound must lie inside the checked range')
+    M = cover['modulus']; covered = cover_residues(cover); budget.use(M)
+    open_coprime = sum(1 for x in range(M) if gcd(x, M) == 1 and x not in covered)
+    return dict(ok=True, kind='theorem', modulus=M, open_residues=M - len(covered), open_coprime=open_coprime,
+                range_hi=f['hi'], cover_bound=cover['bound'], via_cover=ranged['via_cover'],
+                scope='For every integer n >= lo whose residue modulo the cover modulus is covered by the cover, a/n is a '
+                      'sum of the stated number of unit fractions. The open residues are exactly those no family of the '
+                      'cover reaches; nothing is claimed for them above the checked range.',
+                proof='Chain of checked parts: every family of the cover holds for all k >= k0 with threshold at most the '
+                      'cover bound; every n in [lo, hi) has a checked representation; the cover bound is at most hi, so '
+                      'every n >= lo in a covered class is represented, below hi by the range and at or above it by its '
+                      'family.')
+
+
 def check_reduction(data, budget):
     need(data == dict(a=data.get('a'), terms=data.get('terms'), rule='multiples'), 'reduction fields')
     integer(data['a'], 1, 64); integer(data['terms'], 2, 6)
@@ -851,7 +880,31 @@ def check_reduction(data, budget):
                 proof='a/(t n) = sum 1/(t x_i) whenever a/n = sum 1/x_i.')
 
 
+def check_local_pattern(data, budget):
+    need(set(data) == {'cover', 'rule', 'images'} and data['rule'] == 'uncovered_coprime_local_images',
+         'local image pattern fields')
+    check_cover(data['cover'], budget); M = data['cover']['modulus']
+    parts = {str(p ** e): p ** e for p, e in _prime_powers(M).items()}; images = data['images']
+    need(type(images) is dict and set(images) == set(parts), 'one image per prime-power factor of the modulus')
+    allowed = {}
+    for key, q in parts.items():
+        row = images[key]
+        need(type(row) is list and row == sorted(set(row)) and all(type(x) is int and 0 <= x < q and gcd(x, q) == 1
+                                                                    for x in row), 'image residues')
+        allowed[q] = set(row)
+    covered = cover_residues(data['cover']); budget.use(M)
+    for x in range(M):
+        if gcd(x, M) == 1 and x not in covered:
+            for q, row in allowed.items(): need(x % q in row, 'residue ' + str(x) + ' leaves the image modulo ' + str(q))
+    return dict(ok=True, kind='pattern', images={k: len(v) for k, v in images.items()},
+                scope='For this cover only: every uncovered coprime class reduces modulo each prime-power factor of the '
+                      'modulus into the listed residues.',
+                proof='Exhaustive comparison over the coprime residues.')
+
+
 def check_pattern(data, budget):
+    if data.get('rule') == 'uncovered_coprime_local_images': return check_local_pattern(data, budget)
+    if data.get('rule') == 'uncovered_coprime_square_outside': return check_signature_pattern(data, budget)
     need(set(data) == {'cover', 'rule'} and data['rule'] == 'uncovered_coprime_are_squares', 'pattern fields')
     check_cover(data['cover'], budget)
     M = data['cover']['modulus']; covered = cover_residues(data['cover'])
@@ -871,6 +924,100 @@ def check_density(data, budget):
     need(fraction == Q(len(cover_residues(data['cover'])), data['cover']['modulus']), 'covered fraction differs')
     return dict(ok=True, kind='density', scope='The listed residues form exactly this fraction of all residues.',
                 proof='Counting.')
+
+
+def _prime_powers(M):
+    out, p = {}, 2
+    while p * p <= M:
+        while M % p == 0: out[p] = out.get(p, 0) + 1; M //= p
+        p += 1
+    if M > 1: out[M] = out.get(M, 0) + 1
+    return out
+
+
+def nonresidue_primes(r, powers):
+    """Primes p with r a quadratic non-residue modulo p**e, for r coprime to the modulus with factorization powers."""
+    out = []
+    for p, e in sorted(powers.items()):
+        if p == 2:
+            if (e == 2 and r % 4 != 1) or (e >= 3 and r % 8 != 1): out.append(2)
+        elif pow(r % p, (p - 1) // 2, p) != 1: out.append(p)
+    return out
+
+
+def signature_breaks(cover, primes, budget):
+    """Residues breaking 'every coprime square is uncovered and every uncovered coprime class is a square
+    modulo each prime-power factor outside primes'."""
+    M = cover['modulus']; powers = _prime_powers(M); covered = cover_residues(cover); allowed = set(primes)
+    budget.use(2 * M)
+    for x in range(M):
+        if gcd(x, M) != 1: continue
+        bad = nonresidue_primes(x, powers)
+        if (not bad and x in covered) or (x not in covered and not set(bad) <= allowed): yield x
+
+
+def check_signature_pattern(data, budget):
+    need(set(data) == {'cover', 'rule', 'primes'} and data['rule'] == 'uncovered_coprime_square_outside',
+         'signature pattern fields')
+    check_cover(data['cover'], budget); M = data['cover']['modulus']; powers = _prime_powers(M)
+    primes = data['primes']
+    need(type(primes) is list and primes == sorted(set(primes)) and all(type(p) is int and p in powers for p in primes),
+         'exceptional primes must be sorted distinct prime factors of the modulus')
+    x = next(signature_breaks(data['cover'], primes, budget), None)
+    need(x is None, 'residue ' + str(x) + ' breaks the signature pattern')
+    return dict(ok=True, kind='pattern', primes=primes,
+                scope='For this cover only: every coprime square class is uncovered, and every uncovered coprime class '
+                      'is a quadratic residue modulo each prime-power factor of the modulus outside the listed primes.',
+                proof='Exhaustive comparison over the coprime residues; local residuosity by Euler\'s criterion and the '
+                      '2-adic rule. A statement about the cover, not about every n.')
+
+
+def classical_parameters(a, m, r, bound, budget):
+    """Fixed-parameter families of the two classical types covering n = r (mod m) for a/n = 1/x + 1/y + 1/z.
+
+    Type II: x = u*v*d, y = u*w*d*n, z = v*w*d*n with a*u*v*d = n + e and e*w = u + v; the class needs
+    a*u*v | m and n = -e (mod a*u*v). Type I: x = u*v*d*n, y = u*w*d, z = v*w*d with (u+v)*n + w = a*u*v*w*d;
+    the class needs a*u*v*w | (u+v)*m and a*u*v*w | (u+v)*r + w. Type II is complete over its moduli;
+    Type I is searched for u <= v <= bound and w <= bound."""
+    found = []
+    for D in _divisors(m):
+        if D % a: continue
+        uv = D // a; e = (-r) % D or D
+        for u in _divisors(uv):
+            v = uv // u
+            budget.use()
+            if u <= v and (u + v) % e == 0: found.append(('II', u, v, (u + v) // e))
+    for u in range(1, bound + 1):
+        for v in range(u, bound + 1):
+            s = u + v
+            for w in range(1, bound + 1):
+                budget.use(); q = a * u * v * w
+                if (s * m) % q == 0 and (s * r + w) % q == 0: found.append(('I', u, v, w))
+    return found
+
+
+def _divisors(n):
+    small, large, d = [], [], 1
+    while d * d <= n:
+        if n % d == 0:
+            small.append(d)
+            if d * d != n: large.append(n // d)
+        d += 1
+    return small + large[::-1]
+
+
+def check_nofamily(data, budget):
+    need(set(data) == {'a', 'terms', 'm', 'r', 'bound'}, 'no-family fields')
+    a, m, r = class_of(data); need(data['terms'] == 3, 'three unit fractions')
+    need(m <= 10 ** 7, 'no-family modulus bound'); bound = integer(data['bound'], 1, 120)
+    found = classical_parameters(a, m, r, bound, budget)
+    need(not found, 'a classical family covers the class: ' + str(found[0]) if found else '')
+    return dict(ok=True, kind='nofamily', bound=bound,
+                scope='No fixed-parameter family of the classical types covers n = r (mod m): no Type II family whose '
+                      'modulus a*u*v divides m, and no Type I family with u <= v <= bound and w <= bound. Families of '
+                      'other shapes, and families on finer moduli, are not excluded.',
+                proof='Exhaustive enumeration of the finite parameter sets against the divisibility conditions that '
+                      'make d(k) a polynomial with integer values on the whole class.')
 
 
 # ------------------------------------------------------------- matrices, divisibility and roots
@@ -1102,6 +1249,20 @@ def check_refutation(data, budget):
         need(a[i + 1] * u_eval([rat(x) for x in cd['q']], Q(i)) != a[i] * u_eval([rat(x) for x in cd['p']], Q(i)),
              'term ratio holds at the index')
         return dict(ok=True, kind='refutation', refutes=kind, index=i)
+    if kind == 'pattern' and cd.get('rule') == 'uncovered_coprime_local_images':
+        check_cover(cd['cover'], budget); M = cd['cover']['modulus']; x = integer(w.get('residue'), 0, M - 1)
+        need(gcd(x, M) == 1 and x not in cover_residues(cd['cover']), 'witness must be an uncovered coprime residue')
+        budget.use(M)
+        need(any(x % (p ** e) not in cd['images'].get(str(p ** e), []) for p, e in _prime_powers(M).items()),
+             'residue lies in every image')
+        return dict(ok=True, kind='refutation', refutes=kind, residue=x)
+    if kind == 'pattern' and cd.get('rule') == 'uncovered_coprime_square_outside':
+        check_cover(cd['cover'], budget); M = cd['cover']['modulus']; x = integer(w.get('residue'), 0, M - 1)
+        need(gcd(x, M) == 1, 'witness residue must be coprime')
+        bad = nonresidue_primes(x, _prime_powers(M)); covered = x in cover_residues(cd['cover']); budget.use(M)
+        need((not bad and covered) or (not covered and not set(bad) <= set(cd['primes'])),
+             'residue agrees with the signature pattern')
+        return dict(ok=True, kind='refutation', refutes=kind, residue=x)
     if kind == 'pattern':
         check_cover(cd['cover'], budget); M = cd['cover']['modulus']; x = integer(w.get('residue'), 0, M - 1)
         need(gcd(x, M) == 1, 'witness residue must be coprime')
@@ -1128,13 +1289,13 @@ def question(kind, data):
     if kind in ('invariant', 'semi', 'fixed', 'inverse', 'map'): return digest(dict(q='map', vars=data.get('vars'), map=data.get('map')))
     if kind in ('exclusion', 'reach'): return digest(dict(q='orbit', orbit=data.get('orbit')))
     if kind == 'orbit': return digest(dict(q='orbit', orbit=data))
-    if kind in ('ufam', 'eclass'):
+    if kind in ('ufam', 'eclass', 'nofamily'):
         return digest(dict(q='eclass', a=data.get('a'), m=data.get('m'), r=data.get('r'),
                            terms=len(data['x']) if 'x' in data else data.get('terms')))
     if kind == 'ufrac': return digest(dict(q='en', a=data.get('a'), n=data.get('n'), terms=len(data.get('x', []))))
     if kind == 'en': return digest(dict(q='en', a=data.get('a'), n=data.get('n'), terms=data.get('terms')))
     if kind == 'pattern': return digest(dict(q='esq', a=data['cover'].get('a'), terms=data['cover'].get('terms')))
-    if kind in ('cover', 'density', 'esq', 'finite', 'reduction'):
+    if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem'):
         body = data.get('cover', data) if kind == 'density' else data
         return digest(dict(q='esq', a=body.get('a'), terms=body.get('terms')))
     if kind in ('countval', 'count'):
@@ -1160,7 +1321,8 @@ CHECKS = dict(law=check_law, gf=check_gf, closed=check_closed, period=check_peri
               reduction=check_reduction, density=check_density, pattern=check_pattern, countval=check_countval, divis=check_divis,
               rootmod=check_rootmod, nosolmod=check_nosolmod, nosol=check_nosol, descent=check_descent,
               introot=check_introot, eigen=check_eigen, cycle=check_cycle,
-              dcover=check_dcover, cfinite=check_cfinite, refutation=check_refutation)
+              dcover=check_dcover, cfinite=check_cfinite, refutation=check_refutation, nofamily=check_nofamily,
+              theorem=check_theorem)
 
 
 def check(kind, data, budget):

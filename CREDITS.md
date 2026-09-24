@@ -119,7 +119,17 @@ the classical divisor method for Egyptian fractions. The residue-class covering
 approach to the Erdos-Straus conjecture follows Mordell's identities modulo 840
 and the known obstruction for quadratic-residue classes (Mordell; Schinzel;
 Yamamoto), which the agent's results are compared against but do not reprove. The
-agent's scheduling formula and sample rules are Seth's Elythrene research doctrine.
+classical family generator uses the classical Type I and Type II
+parametrizations of solutions, in the form stated by Elsholtz and Tao
+("Counting the number of solutions to the Erdős–Straus equation on unit
+fractions", 2013). The local-square and local-image patterns she checks are
+exhaustive statements about one cover. They are consistent with the known
+obstruction that a polynomial identity covering the class r (mod m) forces r
+not to be a square modulo m, and they do not reprove it. The campaign loop,
+its independent three-valued verdict, failure mining, strategy retention and
+the instruments added in each round follow Seth's standing directives for
+Ember's development. The agent's scheduling formula and sample rules are Seth's
+Elythrene research doctrine.
 Macro and template invention are bounded search control over checked results, not a
 claim of general scientific creativity. Reviews and tests came from the same model;
 they are not external replication.

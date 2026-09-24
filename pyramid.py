@@ -38,7 +38,7 @@ LEXICON_MODULES = ('ops_seq.py', 'ops_poly.py', 'ops_orbit.py', 'ops_egypt.py', 
                    'ops_matrix.py', 'ops_collatz.py')
 QUESTION_KINDS = frozenset(('seq', 'words', 'orbit', 'map', 'poly', 'esq', 'eclass', 'en', 'count', 'diophantine', 'modq',
                             'cmap', 'cclass', 'cproblem', 'matrixq'))
-EVIDENCE_KINDS = frozenset(('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle'))
+EVIDENCE_KINDS = frozenset(('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle', 'nofamily'))
 LAW_KINDS = frozenset(('law', 'gf', 'closed', 'period', 'invariant', 'semi'))
 
 

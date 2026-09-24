@@ -1,0 +1,16 @@
+{
+  "query": "autonomous_research",
+  "name": "4/n = 1/x + 1/y + 1/z: cover the classes modulo 24, then choose one refinement prime by measured yield",
+  "problem": {
+    "type": "unit_fraction_cover",
+    "a": 4,
+    "terms": 3,
+    "min": 2,
+    "modulus": 24,
+    "lifts": [],
+    "extra_lifts": 1,
+    "verify_to": 2000
+  },
+  "moves": 600,
+  "move_work": 2000000
+}

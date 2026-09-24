@@ -6,6 +6,7 @@ from fractions import Fraction
 import hashlib
 import io
 import json
+from math import gcd
 import os
 from pathlib import Path
 import platform
@@ -42,7 +43,7 @@ EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'orbit_ranking.json', 'eventual_recurrence.json',
             'recursive_lift.json', 'premise_lift_source.json', 'premise_lift_receiving.json',
             'agent_erdos_straus.json', 'agent_unit_fraction_small.json', 'agent_collatz.json', 'agent_decide.json',
-            'agent_explore.json')
+            'agent_explore.json', 'agent_choose_lift.json')
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 PRIVATE_PATH = re.compile(rb'(?<![A-Za-z0-9_])[A-Za-z]:[\\/]|/(?:home|Users)/')
 
@@ -91,7 +92,8 @@ def collect(root):
     paths.update({'examples/' + name: 'examples/' + name for name in EXAMPLES})
     paths.update({'LICENSE': 'LICENSE', 'THIRD_PARTY_NOTICES.md': 'THIRD_PARTY_NOTICES.md',
                   'tools/build_public_package.py': 'tools/build_public_package.py',
-                  'tools/helper_client.py': 'tools/helper_client.py'})
+                  'tools/helper_client.py': 'tools/helper_client.py', 'tools/verdict.py': 'tools/verdict.py',
+                  'CAMPAIGNS.md': 'CAMPAIGNS.md'})
     files = {name: (root / source).read_bytes() for name, source in paths.items()}
     readme = root / 'PUBLIC_README.md'
     files['README.md'] = (readme if readme.is_file() else root / 'README.md').read_bytes()
@@ -1447,7 +1449,21 @@ print(json.dumps(answers))
             (standalone_lexicon / name).write_bytes(files[name])
         saved_objects = [row for row in json.loads((root / 'agent-small.json').read_bytes())['observations']
                          if row.get('kind') == 'autonomous_research'][0]['objects']
-        (standalone_lexicon / 'evidence.json').write_bytes(encoded([row for row in saved_objects if row['kind'] != 'template']))
+        def by_digest(kind):
+            return {hashlib.sha256(json.dumps(row['data'], sort_keys=True, separators=(',', ':')).encode()).hexdigest():
+                    row['data'] for row in saved_objects if row['kind'] == kind}
+        saved_covers, saved_ranges = by_digest('cover'), by_digest('finite')
+
+        def expand(row):
+            # Compact claims name their cover or range by digest; expanding a reference is plumbing, the checker decides.
+            data = row['data']
+            if 'cover_ref' in data:
+                data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=saved_covers[data['cover_ref']])
+            if 'finite_ref' in data:
+                data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=saved_ranges[data['finite_ref']])
+            return dict(kind=row['kind'], data=data)
+        expanded_objects = [expand(row) for row in saved_objects if row['kind'] not in ('template', 'cover_tree')]
+        (standalone_lexicon / 'evidence.json').write_bytes(encoded(expanded_objects))
         lexicon_code = r'''import json, pathlib, runpy
 root = pathlib.Path.cwd()
 checker = runpy.run_path(str(root / 'lexicon_check.py'))
@@ -1467,7 +1483,7 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
                                    'elapsed_ns': time.perf_counter_ns() - began, 'stderr': lexicon_run.stderr})
         replayed_kinds = json.loads(lexicon_run.stdout) if lexicon_run.returncode == 0 else []
         check('agent_saved_evidence_replays_with_checker_only', lexicon_run.returncode == 0 and not lexicon_run.stderr
-              and 'cover' in replayed_kinds and 'finite' in replayed_kinds)
+              and {'cover', 'finite', 'pattern', 'nofamily', 'theorem'} <= set(replayed_kinds))
         collatz = cli('agent_collatz', 'examples/agent_collatz.json', ['--work', '2000000000'], expected_code=3)
 
         def open_classes(k):
@@ -1491,6 +1507,58 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
         explored = cli('agent_explore_words', 'examples/agent_explore.json')
         check('agent_explore_finds_checked_law_gf_period', explored['status'] == 'CHECKED_RESEARCH'
               and set(explored['goal']['found'][0]['checked_kinds']) >= {'law', 'gf', 'period'})
+        # The campaign loop: her own refinement choice, certified walls, mined failures, the independent
+        # three-valued verdict, and strategies carried to the related problem she offers.
+        lifted = cli('agent_choose_lift', 'examples/agent_choose_lift.json', ['--state', 'lift-state.json'], expected_code=3)
+        lift_levels = {row['modulus']: row for row in lifted['goal']['levels']}
+        squares_120 = sorted({x * x % 120 for x in range(120) if gcd(x, 120) == 1})
+        check('agent_chooses_refinement_prime_and_certifies_walls', sorted(lift_levels) == [24, 120]
+              and lift_levels[120]['chosen_by'] == 'agent' and lift_levels[120]['uncovered_coprime'] == squares_120 == [1, 49]
+              and lift_levels[120]['certified_walls'] == 2
+              and lift_levels[120]['signature_pattern'] == {'status': 'checked', 'primes': []}
+              and lift_levels[120]['local_images'] == {'3': [1], '5': [1, 4], '8': [1]})
+        theorem = next((row for row in lifted['results'] if row['kind'] == 'theorem' and row['modulus'] == 120), {})
+        check('agent_states_reduction_theorem', theorem.get('open_residues') == len(squares_120) == 2
+              and theorem.get('open_coprime') == 2 and theorem.get('lo') == 2 and theorem.get('range_hi') == 2000)
+        example = lifted['failures']['examples'][0]
+        check('agent_reports_mined_failures', lifted['failures']['profile']['nonresidue_signatures'] == {'square': 2}
+              and 'egypt_classical_family' in example['moves'] and 'classical miss' in example['residuals'])
+        verdict_path = str(root / 'tools' / 'verdict.py')
+
+        def verdict_run(label, state):
+            began = time.perf_counter_ns()
+            run = subprocess.run([python, '-I', '-B', '-X', 'utf8', verdict_path, state], cwd=root, capture_output=True,
+                                 text=True, encoding='utf-8', timeout=300, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            receipt['cli_runs'].append({'case': label, 'returncode': run.returncode, 'elapsed_ns': time.perf_counter_ns() - began,
+                                       'stderr': run.stderr})
+            return run.returncode, json.loads(run.stdout)
+        code, verdict = verdict_run('verdict_agent_state', 'lift-state.json')
+        check('verdict_verifies_every_saved_claim', code == 0 and verdict['bit'] == 'verified' and verdict['self_test']['ok']
+              and verdict['counts']['VERIFIED'] >= 9 and not verdict['counts']['REFUTED'] and not verdict['counts']['UNRESOLVED']
+              and {row['kind'] for row in verdict['claims']} >= {'cover', 'finite', 'pattern', 'density', 'nofamily', 'theorem'})
+        forged_lift = json.loads((root / 'lift-state.json').read_bytes())
+        lift_record = next(row for row in forged_lift['observations'] if row.get('kind') == 'autonomous_research')
+        next(row for row in lift_record['objects'] if row['kind'] == 'cover')['data']['entries'][0]['family']['x'][1] = \
+            ['num', 7, 1]
+        next(row for row in lift_record['objects'] if row['kind'] == 'nofamily')['data']['r'] = 11
+        (root / 'lift-forged.json').write_bytes(encoded(forged_lift))
+        code, forged_verdict = verdict_run('verdict_forged_state', 'lift-forged.json')
+        check('verdict_refutes_forged_claims', code == 3 and forged_verdict['bit'] == 'no, keep thinking'
+              and forged_verdict['counts']['REFUTED'] >= 2
+              and any(row['kind'] == 'nofamily' and row['verdict'] == 'REFUTED' for row in forged_verdict['claims']))
+        resumed = cli('agent_choose_lift_resume', 'examples/agent_choose_lift.json', ['--state', 'lift-state.json'],
+                      expected_code=3)
+        resumed_levels = {row['modulus']: row for row in resumed['goal']['levels']}
+        check('agent_resume_keeps_her_refinement_tree', sorted(resumed_levels) == [24, 120]
+              and resumed_levels[120]['chosen_by'] == 'agent' and resumed_levels[120]['uncovered_coprime'] == [1, 49]
+              and resumed['replayed_objects'] > 0 and resumed['invalidated_objects'] == 0
+              and resumed['moves_executed'] < lifted['moves_executed'])
+        related = dict(json.loads((root / 'examples/agent_choose_lift.json').read_bytes()), problem=lifted['related_problems'][0])
+        (root / 'lift-related.json').write_bytes(encoded(related))
+        carried = cli('agent_related_problem', 'lift-related.json', ['--state', 'lift-state.json'], expected_code=3)
+        check('strategy_library_carries_to_related_problem', lifted['related_problems'][0]['a'] == 5
+              and carried['problem']['a'] == 5 and carried['strategy_library']['reports_loaded'] > 0
+              and carried['strategy_library']['entries'] >= lifted['strategy_library']['entries'])
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',

@@ -5,6 +5,12 @@ ansatz takes x = (s*n + c)/a, so a/n - 1/x = e/N after reduction, and writes
 1/y + 1/z = e/N with y = (N + d)/e and z = (N + N^2/d)/e for a divisor d of N^2
 built from the primitive factors of N. Every family, witness, cover and finite
 range is admitted only by lexicon_check.py; an operator's search can miss.
+
+The classical operators use the two fixed-parameter solution types: Type II
+x = u*v*d, y = u*w*d*n, z = v*w*d*n with a*u*v*d = n + e and e*w = u + v, and
+Type I x = u*v*d*n, y = u*w*d, z = v*w*d with (u+v)*n + w = a*u*v*w*d. A class
+none of them reaches can be certified as such (a 'nofamily' claim), and the
+refinement prime for such classes can be chosen by measured yield.
 """
 from fractions import Fraction as Q
 import importlib.util
@@ -26,6 +32,8 @@ BASE_C = range(0, 40)
 EXTENDED_S = range(1, 25)
 EXTENDED_C = range(0, 240)
 PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31)
+CLASSICAL_BOUND = 120
+LIFT_CAP = 10 ** 7
 
 
 def op(name, dirs, consumes, produces, summary):
@@ -39,11 +47,17 @@ def op(name, dirs, consumes, produces, summary):
 # ------------------------------------------------------------- shared producer helpers
 
 def family_data(a, m, r, k0, polys):
-    return dict(a=a, m=m, r=r, k0=k0, x=[L.univariate_expr(p, 'k') for p in polys])
+    return dict(a=a, m=m, r=r, k0=k0, x=[[[c.numerator, c.denominator] for c in L.ptrim([Q(c) for c in p])] for p in polys])
 
 
 def family_polys(data):
-    return [L.univariate(e, 'k') for e in data['x']]
+    """Denominators as coefficient lists; saved families may still use expression trees."""
+    return [L.univariate(e, 'k') if e and type(e[0]) is str else [Q(n, d) for n, d in e] for e in data['x']]
+
+
+def compact_family(data):
+    """The same family with every denominator as a coefficient list: a shorter certificate for the same claim."""
+    return dict(data, x=[[[c.numerator, c.denominator] for c in L.ptrim(p)] for p in family_polys(data)])
 
 
 def least_start(polys, limit=64):
@@ -185,7 +199,7 @@ def assemble(families, a, terms, M):
     for f in sorted(families, key=lambda o: (o['data']['m'], o['data']['r'], o['data']['k0'])):
         d = f['data']
         if M % d['m'] or any(d['m'] % m == 0 and d['r'] % m == r for m, r in kept): continue
-        kept.append((d['m'], d['r'])); entries.append(dict(family=d))
+        kept.append((d['m'], d['r'])); entries.append(dict(family=compact_family(d)))
         bound = max(bound, d['m'] * d['k0'] + d['r'])
     return dict(a=a, terms=terms, modulus=M, entries=entries, bound=bound) if entries else None
 
@@ -207,6 +221,75 @@ def template_of(fam):
     x = polys[0]; s = x[1] * a / m; c = x[0] * a - s * r
     if s.denominator != 1 or c.denominator != 1 or s < 1 or c < 0: return None
     return int(s), int(c)
+
+
+# ------------------------------------------------------------- classical fixed-parameter families
+
+_CLASSICAL = {}
+
+
+def classical_tables(a, m, bound):
+    """Per modulus: Type II parameter pairs by modulus a*u*v | m, and Type I triples with a*u*v*w | (u+v)*m."""
+    key = (a, m, bound)
+    if key not in _CLASSICAL:
+        type2 = [(D, [(u, D // a // u) for u in L.divisors(D // a) if u <= D // a // u]) for D in L.divisors(m) if D % a == 0]
+        type1 = []
+        for u in range(1, bound + 1):
+            for v in range(u, bound + 1):
+                s = u + v; q0 = a * u * v
+                if (s * m) % q0: continue
+                type1 += [(u, v, w, s, q0 * w) for w in range(1, bound + 1) if (s * m) % (q0 * w) == 0]
+        if len(_CLASSICAL) > 64: _CLASSICAL.clear()
+        _CLASSICAL[key] = (type2, type1)
+    return _CLASSICAL[key]
+
+
+def classical_search(a, m, r, bound, budget, limit=1):
+    """Parameters of classical families on n = r (mod m), Type II first; the producer's own enumeration."""
+    type2, type1 = classical_tables(a, m, bound); out = []
+    for D, pairs in type2:
+        e = (-r) % D or D
+        for u, v in pairs:
+            budget.use()
+            if (u + v) % e == 0:
+                out.append(('II', u, v, (u + v) // e, e))
+                if len(out) >= limit: return out
+    for u, v, w, s, q in type1:
+        budget.use()
+        if (s * r + w) % q == 0:
+            out.append(('I', u, v, w, None))
+            if len(out) >= limit: return out
+    return out
+
+
+def classical_family(a, m, r, params):
+    """The family on the coarsest class its parameters need: modulus a*u*v (Type II) or a*u*v*w/gcd(a*u*v*w, u+v)."""
+    kind, u, v, w, e = params
+    if kind == 'II':
+        m = D = a * u * v; r %= m; n = [Q(r), Q(m)]
+        d = [Q(r + e, D), Q(m, D)]; dn = L.pmul(d, n)
+        polys = [L.pscale(d, u * v), L.pscale(dn, u * w), L.pscale(dn, v * w)]
+    else:
+        q = a * u * v * w; m = q // gcd(q, u + v); r %= m; n = [Q(r), Q(m)]
+        d = [Q((u + v) * r + w, q), Q((u + v) * m, q)]
+        polys = [L.pscale(L.pmul(d, n), u * v), L.pscale(d, u * w), L.pscale(d, v * w)]
+    k0 = least_start(polys + [n])
+    return family_data(a, m, r, 0 if k0 is None else k0, polys)
+
+
+def local_nonresidues(x, powers):
+    """Primes p of the modulus with x a quadratic non-residue modulo p**e (x coprime to the modulus)."""
+    out = []
+    for p, e in sorted(powers.items()):
+        if p == 2:
+            if (e == 2 and x % 4 != 1) or (e >= 3 and x % 8 != 1): out.append(2)
+        elif L.legendre(x % p, p) != 1: out.append(p)
+    return out
+
+
+def uncovered_coprime(cover_data, budget):
+    M = cover_data['modulus']; covered = cover_set(cover_data); budget.use(M)
+    return [x for x in range(M) if gcd(x, M) == 1 and x not in covered]
 
 
 # ------------------------------------------------------------- witnesses
@@ -318,7 +401,7 @@ def egypt_divide_numerator(rt, fam):
 @op('egypt_family_identity', 'SE', ('ufam',), ('identity',),
     'Transfer a checked family to the polynomial identity a*prod(x_i) = n*sum_i prod_{j!=i} x_j in k.')
 def egypt_family_identity(rt, fam):
-    d = fam['data']; xs = d['x']
+    d = fam['data']; xs = [L.univariate_expr(p, 'k') for p in family_polys(d)]
     n = L.add(L.mul(L.num(d['m']), L.var('k')), L.num(d['r']))
     rhs = L.mul(n, L.add(*[L.mul(L.num(1), *[x for j, x in enumerate(xs) if j != i]) for i in range(len(xs))]))
     claim = rt.transfer('identity', dict(vars=['k'], lhs=L.mul(L.num(d['a']), *xs), rhs=rhs), fam)
@@ -418,6 +501,27 @@ def egypt_generalize_witness(rt, rep):
     return []
 
 
+@op('egypt_classical_family', 'NWS', ('eclass',), ('ufam', 'residual'),
+    'Classical fixed-parameter families: Type II over every modulus a*u*v dividing m, Type I with u <= v <= 120 and '
+    'w <= 120, stated on the coarsest class the parameters need; a miss is a residual.')
+def egypt_classical_family(rt, cls):
+    a, terms, m, r = question_class(cls)
+    if terms != 3: return []
+    found = classical_search(a, m, r, CLASSICAL_BOUND, rt.budget)
+    if not found: return [rt.residual(cls, ['classical fixed-parameter families exhausted'], 'classical miss')]
+    fam = rt.propose('ufam', classical_family(a, m, r, found[0]), (cls,))
+    return [fam] if rt.check(fam) else []
+
+
+@op('egypt_classical_exclusion', 'NWS', ('eclass',), ('nofamily',),
+    'Claim that no fixed-parameter classical family reaches the class; the checker enumerates every such family.')
+def egypt_classical_exclusion(rt, cls):
+    a, terms, m, r = question_class(cls)
+    if terms != 3 or m > LIFT_CAP: return []
+    claim = rt.propose('nofamily', dict(a=a, terms=terms, m=m, r=r, bound=CLASSICAL_BOUND), (cls,))
+    return [claim] if rt.check(claim) else []
+
+
 @op('egypt_class_split', 'N', ('eclass',), ('eclass',),
     'Refine a class mod m into t subclasses mod t*m, for the least prime t not dividing m.')
 def egypt_class_split(rt, cls):
@@ -500,6 +604,64 @@ def egypt_square_pattern(rt, cover):
             refutation = rt.refute(claim, dict(residue=x))
             if refutation is not None: return [claim, refutation]
     return [claim]
+
+
+@op('egypt_signature_pattern', 'NS', ('cover',), ('pattern',),
+    'Find the least set of primes outside which every uncovered coprime class is a local square, and claim it.')
+def egypt_signature_pattern(rt, cover):
+    d = cover['data']; powers = L.factor(d['modulus']); primes = set()
+    for x in uncovered_coprime(d, rt.budget): primes.update(local_nonresidues(x, powers))
+    claim = rt.propose('pattern', dict(cover=d, rule='uncovered_coprime_square_outside', primes=sorted(primes)), (cover,))
+    return [claim] if rt.check(claim) else []
+
+
+@op('egypt_local_pattern', 'NS', ('cover',), ('pattern',),
+    'Record, for each prime-power factor of the modulus, the residues the uncovered coprime classes reduce to, '
+    'and claim that every uncovered class stays inside them.')
+def egypt_local_pattern(rt, cover):
+    d = cover['data']; powers = L.factor(d['modulus'])
+    images = {str(p ** e): set() for p, e in powers.items()}
+    for x in uncovered_coprime(d, rt.budget):
+        for p, e in powers.items(): images[str(p ** e)].add(x % p ** e)
+    claim = rt.propose('pattern', dict(cover=d, rule='uncovered_coprime_local_images',
+                                       images={k: sorted(v) for k, v in images.items()}), (cover,))
+    return [claim] if rt.check(claim) else []
+
+
+@op('egypt_choose_lift', 'N', ('esq',), ('esq', 'eclass'),
+    'Choose the next refinement prime by measured yield: lift a sample of uncovered classes by each candidate prime, '
+    'count the lifts a classical family reaches, then refine every uncovered class by the best prime.')
+def egypt_choose_lift(rt, esq):
+    d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
+    cover = best_cover(rt, a, terms, M)
+    if cover is None or terms != 3: return []
+    stuck = uncovered_coprime(cover['data'], rt.budget)
+    if not stuck: return []
+    sample = stuck[::max(1, len(stuck) // 6)][:6]; best = None
+    for p in PRIMES:
+        if M * p > LIFT_CAP: continue
+        lifts = [x + M * j for x in sample for j in range(p) if gcd(x + M * j, M * p) == 1]
+        lifts = lifts[::max(1, len(lifts) // 24)][:24]
+        hits = sum(1 for y in lifts if classical_search(a, M * p, y, CLASSICAL_BOUND, rt.budget))
+        if hits and (best is None or Q(hits, len(lifts)) > best[0]): best = (Q(hits, len(lifts)), p)
+    if best is None: return []
+    p = best[1]; covered = cover_set(cover['data'])
+    out = [rt.propose('esq', dict(d, modulus=M * p), (esq,))]
+    for x in range(M):
+        if x in covered: continue
+        parent = rt.given('eclass', dict(a=a, terms=terms, m=M, r=x))
+        out += [rt.propose('eclass', dict(a=a, terms=terms, m=M * p, r=x + M * j), (parent,)) for j in range(p)]
+    return out
+
+
+@op('egypt_reduction_theorem', 'NS', ('finite',), ('theorem',),
+    'State the theorem a checked range and its cover prove together: every n >= min outside the open residue '
+    'classes has a representation; the checker verifies the whole chain.')
+def egypt_reduction_theorem(rt, finite):
+    d = finite['data']
+    if finite['status'] != 'checked' or d['cover'] is None or d['cover']['bound'] > d['hi']: return []
+    claim = rt.propose('theorem', dict(a=d['a'], terms=d['terms'], lo=d['lo'], finite=d), (finite,))
+    return [claim] if rt.check(claim) else []
 
 
 @op('egypt_density', 'NS', ('cover',), ('density',),
@@ -585,6 +747,20 @@ def _assembly(rt):
     return [_esq(rt, 24)]
 
 
+def _classical_cover(rt, M=120):
+    """Every class mod M that a classical family reaches, as one checked cover."""
+    fams = []
+    for r in range(1, M):
+        found = classical_search(4, M, r, CLASSICAL_BOUND, rt.budget)
+        if found: fams.append(_checked(rt, 'ufam', classical_family(4, M, r, found[0])))
+    return _checked(rt, 'cover', assemble(fams, 4, 3, M))
+
+
+def _lift_inputs(rt):
+    _classical_cover(rt)
+    return [_esq(rt, 120)]
+
+
 FIXTURES = {
     'egypt_witness_search': [lambda rt: [_en(rt, 1009)], lambda rt: [_en(rt, 7, a=5, terms=4)],
                              lambda rt: [_en(rt, 3, terms=2)]],
@@ -613,4 +789,11 @@ FIXTURES = {
     'egypt_square_pattern': [lambda rt: [_cover(rt)], lambda rt: [_small_cover(rt)]],
     'egypt_density': [lambda rt: [_cover(rt)]],
     'egypt_finite_verify': [lambda rt: [_esq(rt, 24, verify_to=400)], lambda rt: [_esq(rt, 24, terms=4, verify_to=5)]],
+    'egypt_classical_family': [lambda rt: [_cls(rt, 840, 11)], lambda rt: [_cls(rt, 840, 1)]],
+    'egypt_classical_exclusion': [lambda rt: [_cls(rt, 840, 1)]],
+    'egypt_signature_pattern': [lambda rt: [_classical_cover(rt)]],
+    'egypt_local_pattern': [lambda rt: [_classical_cover(rt)]],
+    'egypt_reduction_theorem': [lambda rt: egypt_finite_verify(rt, _esq(rt, 24, verify_to=400))
+                                if _classical_cover(rt, 24) else []],
+    'egypt_choose_lift': [_lift_inputs],
 }
