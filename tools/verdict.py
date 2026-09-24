@@ -128,7 +128,44 @@ def cover_verdict(cover):
         if cover['bound'] < f['m'] * f['k0'] + f['r']: return 'REFUTED', 'bound below a family threshold'
         verdict, detail = family_verdict(f)
         if verdict != 'VERIFIED': return verdict, 'family ' + str(f['m']) + ':' + str(f['r']) + ': ' + detail
+    if 'chain' in cover:
+        if not chain_ok(cover): return 'REFUTED', 'the chain is not a divisibility chain ending at the modulus'
+        return 'VERIFIED', str(M - len(open_set(cover))) + ' residues covered (sieved)'
     return 'VERIFIED', str(len(covered_residues(cover))) + ' residues covered'
+
+
+def chain_ok(cover):
+    chain = cover['chain']
+    return (type(chain) is list and chain and chain[-1] == cover['modulus'] and 1 <= chain[0] <= 10 ** 5
+            and all(type(c) is int for c in chain) and all(b > a and b % a == 0 for a, b in zip(chain, chain[1:])))
+
+
+def open_set(cover):
+    """Residues no family reaches. With a chain: start from every residue of the first modulus and carry only the
+    unreached ones to each finer modulus, testing them against the families that first divide that modulus."""
+    M = cover['modulus']
+    if 'chain' not in cover: return set(range(M)) - covered_residues(cover)
+    groups = {}
+    for e in cover['entries']: groups.setdefault(e['family']['m'], set()).add(e['family']['r'] % e['family']['m'])
+    chain = cover['chain']; alive = list(range(chain[0])); seen = 1
+    for step in chain:
+        tests = [(m, rs) for m, rs in groups.items() if step % m == 0 and seen % m != 0]
+        if step != chain[0]: alive = [x + seen * j for x in alive for j in range(step // seen)]
+        alive = [x for x in alive if all(x % m not in rs for m, rs in tests)]; seen = step
+    return set(alive)
+
+
+def unit_square_count(M):
+    """Squares of units modulo M: counted by brute force on each prime-power factor, multiplied by CRT."""
+    total, q, rest = 1, 2, M
+    while rest > 1:
+        if q * q > rest: q = rest
+        if rest % q == 0:
+            power = 1
+            while rest % q == 0: rest //= q; power *= q
+            total *= len({y * y % power for y in range(power) if y % q})
+        q += 1
+    return total
 
 
 def finite_verdict(d):
@@ -193,6 +230,7 @@ def nonresidue_set(x, M):
 def pattern_verdict(d):
     verdict, detail = cover_verdict(d['cover'])
     if verdict != 'VERIFIED': return verdict, 'cover: ' + detail
+    if 'chain' in d['cover']: return sieved_pattern_verdict(d)
     M = d['cover']['modulus']; covered = covered_residues(d['cover'])
     for x in range(M):
         if gcd(x, M) != 1: continue
@@ -209,12 +247,38 @@ def pattern_verdict(d):
     return 'VERIFIED', 'exhaustive over the coprime residues'
 
 
+def sieved_pattern_verdict(d):
+    """The same rules over a sieved cover: only open units are listed, so 'every square is open' is decided by
+    counting the open squares against the number of squares of units."""
+    M = d['cover']['modulus']; units = sorted(x for x in open_set(d['cover']) if gcd(x, M) == 1)
+    squares = [x for x in units if not nonresidue_set(x, M)]
+    if d['rule'] == 'uncovered_coprime_are_squares':
+        if len(squares) != len(units): return 'REFUTED', 'open residue ' + str(min(set(units) - set(squares))) + ' is not a square'
+        if len(squares) != unit_square_count(M): return 'REFUTED', 'some square class is covered'
+    elif d['rule'] == 'uncovered_coprime_square_outside':
+        bad = [x for x in units if not nonresidue_set(x, M) <= set(d['primes'])]
+        if bad: return 'REFUTED', 'residue ' + str(bad[0]) + ' breaks the signature pattern'
+        if len(squares) != unit_square_count(M): return 'REFUTED', 'some square class is covered'
+    elif d['rule'] == 'uncovered_coprime_local_images':
+        for x in units:
+            if any(x % int(q) not in set(row) for q, row in d['images'].items()):
+                return 'REFUTED', 'residue ' + str(x) + ' leaves a local image'
+    else: return 'UNRESOLVED', 'unknown pattern rule'
+    return 'VERIFIED', 'decided over the ' + str(len(units)) + ' open units'
+
+
+_DIVISORS = {}
+
+
 def divisor_list(n):
-    out = set(); i = 1
-    while i * i <= n:
-        if n % i == 0: out.update((i, n // i))
-        i += 1
-    return sorted(out)
+    if n not in _DIVISORS:
+        out = set(); i = 1
+        while i * i <= n:
+            if n % i == 0: out.update((i, n // i))
+            i += 1
+        if len(_DIVISORS) > 256: _DIVISORS.clear()
+        _DIVISORS[n] = sorted(out)
+    return _DIVISORS[n]
 
 
 def classical_hit(a, m, r, bound):
@@ -234,29 +298,64 @@ def classical_hit(a, m, r, bound):
 
 
 def nofamily_verdict(d):
-    if d['m'] > 10 ** 8: return 'UNRESOLVED', 'modulus beyond the independent enumeration bound'
+    if d['m'] > 10 ** 12: return 'UNRESOLVED', 'modulus beyond the independent enumeration bound'
     hit = classical_hit(d['a'], d['m'], d['r'], d['bound'])
     return ('REFUTED', 'classical family ' + str(hit)) if hit else ('VERIFIED', 'no classical parameters')
 
 
 def theorem_verdict(d):
-    """The chain: the range verifies, it carries its cover, and the cover bound lies inside the range."""
+    """The chain: the range verifies and carries its cover, and every covered class has a family reaching it whose
+    threshold is at most the class's first member at or past the range (members below the range are in the range)."""
     f = d['finite']
     if f.get('cover') is None or (f['a'], f['terms'], f['lo']) != (d['a'], d['terms'], d['lo']):
         return 'REFUTED', 'the theorem and its range state different questions'
-    if f['cover']['bound'] > f['hi']: return 'REFUTED', 'cover bound above the checked range'
     verdict, detail = finite_verdict(f)
     if verdict != 'VERIFIED': return verdict, 'range: ' + detail
-    M = f['cover']['modulus']
-    return 'VERIFIED', 'every n >= ' + str(d['lo']) + ' outside ' + str(M - len(covered_residues(f['cover']))) + \
+    cover = f['cover']; M, hi = cover['modulus'], f['hi']; reached, safe = set(), set()
+    if 'chain' in cover:
+        x = sieved_gap(cover, hi)
+        if x is not None:
+            return 'REFUTED', 'chain gap: class ' + str(x) + ' has members past the range below every family threshold ' \
+                              '(the certificate fails, not the statement)'
+        return 'VERIFIED', 'every n >= ' + str(d['lo']) + ' outside ' + str(len(open_set(cover))) + \
+            ' open residues mod ' + str(M) + ' is represented (sieved)'
+    for e in cover['entries']:
+        g = e['family']; threshold = g['m'] * g['k0'] + g['r']
+        for x in range(g['r'] % g['m'], M, g['m']):
+            reached.add(x)
+            if x + M * max(0, -(-(hi - x) // M)) >= threshold: safe.add(x)
+    if reached - safe:
+        x = min(reached - safe)
+        return 'REFUTED', 'chain gap: class ' + str(x) + ' mod ' + str(M) + \
+            ' has members past the range below every family threshold (the certificate fails, not the statement)'
+    return 'VERIFIED', 'every n >= ' + str(d['lo']) + ' outside ' + str(M - len(reached)) + \
         ' open residues mod ' + str(M) + ' is represented'
+
+
+def sieved_gap(cover, hi):
+    """Walk the chain; a class reached by some family whose least threshold is above its first member past hi is
+    carried to the next modulus, and one still failing at the last modulus is a gap."""
+    least = {}
+    for e in cover['entries']:
+        g = e['family']; key = (g['m'], g['r'] % g['m'])
+        least[key] = min(least.get(key, g['m'] * g['k0'] + g['r']), g['m'] * g['k0'] + g['r'])
+    chain = cover['chain']; todo = list(range(chain[0]))
+    for i, Mi in enumerate(chain):
+        keep = []
+        for x in todo:
+            ts = [t for (m, r), t in least.items() if Mi % m == 0 and x % m == r]
+            if ts and x + Mi * max(0, -(-(hi - x) // Mi)) >= min(ts): continue
+            if ts and i == len(chain) - 1: return x
+            keep.append(x)
+        if i < len(chain) - 1: todo = [x + Mi * j for x in keep for j in range(chain[i + 1] // Mi)]
+    return None
 
 
 def density_verdict(d):
     verdict, detail = cover_verdict(d['cover'])
     if verdict != 'VERIFIED': return verdict, 'cover: ' + detail
-    fraction = F(d['fraction'][0], d['fraction'][1])
-    exact = F(len(covered_residues(d['cover'])), d['cover']['modulus'])
+    fraction = F(d['fraction'][0], d['fraction'][1]); M = d['cover']['modulus']
+    exact = F(M - len(open_set(d['cover'])), M) if 'chain' in d['cover'] else F(len(covered_residues(d['cover'])), M)
     return ('VERIFIED', str(exact)) if fraction == exact else ('REFUTED', 'covered fraction is ' + str(exact))
 
 
@@ -339,8 +438,31 @@ def self_test():
         'true descent verifies': verdict('descent', dict(map=collatz, modulus=4, residue=1, steps=2, bound=5))[0] == 'VERIFIED',
         'false descent refuted': verdict('descent', dict(map=collatz, modulus=4, residue=3, steps=2, bound=3))[0] == 'REFUTED',
         'short range verifies': verdict('cfinite', dict(map=collatz, lo=2, hi=500, cap=1000))[0] == 'VERIFIED',
+        'theorem chain verifies': verdict('theorem', theorem_case(good, 0))[0] == 'VERIFIED',
+        'theorem chain with a gap refuted': verdict('theorem', theorem_case(good, 5))[0] == 'REFUTED',
+        'sieve agrees with enumeration': all(open_set(dict(c, chain=[2, 4])) == open_set(c) for c in
+                                             (theorem_case(good, 0)['finite']['cover'], theorem_case(good, 5)['finite']['cover'])),
+        'sieved theorem chain verifies': verdict('theorem', sieved(theorem_case(good, 0)))[0] == 'VERIFIED',
+        'sieved theorem chain with a gap refuted': verdict('theorem', sieved(theorem_case(good, 5)))[0] == 'REFUTED',
+        'broken sieve chain refuted': verdict('cover', dict(theorem_case(good, 0)['finite']['cover'], chain=[3, 4]))[0] == 'REFUTED',
     }
     return all(checks.values()), checks
+
+
+def theorem_case(family, k0):
+    """4/n on n = 3 (mod 4) with a range below 10. With k0 = 0 the chain is complete; with k0 = 5 the family starts
+    at 23, so 11, 15 and 19 lie past the range and below the family: a gap in the chain, whatever the truth."""
+    f = dict(family, k0=k0); start = 4 * k0 + 3
+    cover = dict(a=4, terms=3, modulus=4, entries=[dict(family=f)], bound=start)
+    witnesses = {'2': [1, 2], '4': [2, 3], '5': [2, 4]}
+    if k0: witnesses.update({'3': [1, 4], '7': [2, 15]})
+    finite = dict(a=4, terms=3, lo=2, hi=10, witnesses=witnesses, divisors={'6': 3, '8': 4, '9': 3}, cover=cover)
+    return dict(a=4, terms=3, lo=2, finite=finite)
+
+
+def sieved(case):
+    cover = dict(case['finite']['cover'], chain=[2, 4])
+    return dict(case, finite=dict(case['finite'], cover=cover))
 
 
 def digest(value):

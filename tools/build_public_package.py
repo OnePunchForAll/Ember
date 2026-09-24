@@ -1559,6 +1559,62 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
         check('strategy_library_carries_to_related_problem', lifted['related_problems'][0]['a'] == 5
               and carried['problem']['a'] == 5 and carried['strategy_library']['reports_loaded'] > 0
               and carried['strategy_library']['entries'] >= lifted['strategy_library']['entries'])
+        # Instruments from Campaigns 1 and 2: sieved covers, the per-class theorem chain, the pruned wall search and
+        # the retirement policy, each checked against an independent computation.
+        sieve_code = r"""import json, pathlib, runpy, sys
+from math import gcd
+root = pathlib.Path.cwd()
+ember = runpy.run_path(str(root / 'ember.py'))
+L = ember['local_module']('lexicon'); C = ember['local_module']('lexicon_check')
+sys.path.insert(0, str(root / 'tools')); import verdict as V
+registry, fixtures = L.load_ops()
+rt = L.Runtime(C, ember['Budget'](10 ** 10))
+E = registry['egypt_cover_assemble']['fn'].__globals__
+fams = E['_classical_families'](rt, 9240, [r for r in range(1, 9240, 7) if gcd(r, 9240) == 1][:160])
+plain = E['assemble'](fams, 4, 3, 9240); sieved = dict(plain, chain=[840, 9240])
+class B:
+    work = 0
+    def use(self, n=1): self.work += n
+b1, b2 = B(), B()
+same = (C.check_cover(plain, b1)['covered'] == C.check_cover(sieved, b2)['covered']
+        and C.unreached(plain, B()) == C.unreached(sieved, B()) == sorted(V.open_set(sieved)) == sorted(V.open_set(plain)))
+good = dict(a=4, m=4, r=3, k0=0, x=[V.poly_node([V.F(1), V.F(1)]), V.poly_node([V.F(6), V.F(14), V.F(8)]),
+                                    V.poly_node([V.F(6), V.F(14), V.F(8)])])
+mixed = V.theorem_case(good, 0); mixed['finite']['cover']['entries'].append(dict(family=dict(good, k0=3)))
+mixed['finite']['cover']['bound'] = 15
+def admits(data):
+    try: return C.check_theorem(data, B())['ok']
+    except C.Invalid: return False
+theorem = (admits(mixed) and V.verdict('theorem', mixed)[0] == 'VERIFIED' and not admits(V.theorem_case(good, 5))
+           and V.verdict('theorem', V.theorem_case(good, 5))[0] == 'REFUTED')
+def unpruned(a, m, r, bound):
+    found = []
+    for D in C._divisors(m):
+        if D % a: continue
+        uv = D // a; e = (-r) % D or D
+        found += [('II', u, uv // u, (u + uv // u) // e) for u in C._divisors(uv) if u <= uv // u and (u + uv // u) % e == 0]
+    return found + [('I', u, v, w) for u in range(1, bound + 1) for v in range(u, bound + 1) for w in range(1, bound + 1)
+                    if ((u + v) * m) % (a * u * v * w) == 0 and ((u + v) * r + w) % (a * u * v * w) == 0]
+walls = all(C.classical_parameters(a, m, r, 30, B()) == unpruned(a, m, r, 30)
+            for a, m in ((4, 840), (4, 9240), (5, 27720)) for r in (1, 11, 121, 2521 % m, 421))
+A = ember['local_module']('agent'); goal = A.CoverGoal(dict(a=4, terms=3, min=2, modulus=24, lifts=[5], verify_to=100), L)
+square = 'unit_fraction_cover:eclass:coprime:square'
+retire = (goal.retirable(square, 'egypt_ansatz_extend') and not goal.retirable(square, 'egypt_classical_family')
+          and not goal.retirable(square, 'egypt_classical_exclusion') and not goal.retirable('unit_fraction_cover:esq', 'x'))
+print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire)))
+"""
+        began = time.perf_counter_ns()
+        sieve_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', sieve_code], cwd=root, capture_output=True,
+                                   text=True, encoding='utf-8', timeout=300,
+                                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'campaign_instruments_standalone', 'returncode': sieve_run.returncode,
+                                   'elapsed_ns': time.perf_counter_ns() - began, 'stderr': sieve_run.stderr})
+        sieve_result = json.loads(sieve_run.stdout) if sieve_run.returncode == 0 else {}
+        receipt['sieve_work'] = sieve_result.get('work')
+        check('sieved_cover_matches_enumeration_and_verdict', sieve_result.get('sieve') is True)
+        check('theorem_chain_is_checked_class_by_class', sieve_result.get('theorem') is True)
+        check('pruned_wall_search_matches_unpruned_search', sieve_result.get('walls') is True)
+        check('retirement_spares_the_classical_generator_and_walls', sieve_result.get('retire') is True)
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',

@@ -28,6 +28,8 @@ MAX_BITS = 60000
 MAX_STEPS = 4096
 MAX_MODULAR_STATES = 1 << 20
 MAX_RANGE = 2_000_000
+MAX_CHAIN = 16
+SIEVE_LIFTS = 4_000_000
 QUESTION_KINDS = ('seq', 'words', 'orbit', 'map', 'poly', 'esq', 'eclass', 'en', 'count', 'diophantine', 'modq',
                   'cmap', 'cclass', 'cproblem', 'template', 'residual', 'matrixq')
 
@@ -722,7 +724,7 @@ def check_reach(data, budget):
 # ------------------------------------------------------------- unit fractions
 
 def class_of(data):
-    a = integer(data.get('a'), 1, 64); m = integer(data.get('m'), 1, 10 ** 9); r = integer(data.get('r'), 0, m - 1)
+    a = integer(data.get('a'), 1, 64); m = integer(data.get('m'), 1, 10 ** 12); r = integer(data.get('r'), 0, m - 1)
     return a, m, r
 
 
@@ -791,8 +793,10 @@ def _uadd(a, b):
 
 
 def check_cover(data, budget, families_checked=None):
-    need(set(data) == {'a', 'terms', 'modulus', 'entries', 'bound'}, 'cover fields')
-    a = integer(data['a'], 1, 64); terms = integer(data['terms'], 2, 6); M = integer(data['modulus'], 1, 10 ** 7)
+    sieved = 'chain' in data
+    need(set(data) == {'a', 'terms', 'modulus', 'entries', 'bound'} | ({'chain'} if sieved else set()), 'cover fields')
+    a = integer(data['a'], 1, 64); terms = integer(data['terms'], 2, 6)
+    M = integer(data['modulus'], 1, 10 ** 12 if sieved else 10 ** 7)
     bound = integer(data['bound'], 1); entries = data['entries']
     need(type(entries) is list and 1 <= len(entries) <= 4096, 'cover entries')
     for entry in entries:
@@ -802,13 +806,60 @@ def check_cover(data, budget, families_checked=None):
         checked = check_ufam(family, budget)
         need(M % family['m'] == 0, 'family modulus must divide the cover modulus')
         need(bound >= checked['bound'], 'cover bound below a family threshold')
-    budget.use(M)
-    covered = cover_residues(data)
-    return dict(ok=True, kind='cover', covered=len(covered), modulus=M, bound=bound,
+    if sieved: covered = M - len(sieve_open(data, budget))
+    else: budget.use(M); covered = len(cover_residues(data))
+    return dict(ok=True, kind='cover', covered=covered, modulus=M, bound=bound,
                 scope='Every n >= bound whose residue mod the modulus lies in a listed family class has an a/n '
                       'representation.',
                 proof='Each covered residue lies in the class m*k + r of a checked family, m dividing the modulus, '
-                      'whose threshold m*k0 + r is at most bound.')
+                      'whose threshold m*k0 + r is at most bound.' +
+                      (' Coverage is counted by a sieve along the chain: only classes no family reaches are lifted to '
+                       'the next modulus, since a family that reaches a class reaches every lift of it.' if sieved else ''))
+
+
+def sieve_open(cover, budget):
+    """The residues modulo the cover modulus that no family reaches, found by lifting only unreached classes along
+    the chain M0 | M1 | ... | Mk = modulus. The chain is a hint for speed: for any valid chain the result is the whole
+    unreached set, because a family whose modulus divides a coarser level reaches every lift of a class it reaches."""
+    chain = cover['chain']; M = cover['modulus']
+    need(type(chain) is list and 1 <= len(chain) <= MAX_CHAIN and all(type(c) is int and c >= 1 for c in chain),
+         'sieve chain')
+    need(chain[-1] == M and chain[0] <= 100_000, 'the chain starts at most 100000 and ends at the cover modulus')
+    for lower, upper in zip(chain, chain[1:]):
+        need(upper > lower and upper % lower == 0, 'each chain modulus divides the next')
+    index = {}
+    for entry in cover['entries']:
+        f = entry['family']; index.setdefault(f['m'], set()).add(f['r'] % f['m'])
+    fresh = [(m, rs) for m, rs in index.items() if chain[0] % m == 0]; budget.use(chain[0] * (1 + len(fresh)))
+    level = [x for x in range(chain[0]) if not any(x % m in rs for m, rs in fresh)]
+    for lower, upper in zip(chain, chain[1:]):
+        need(len(level) * (upper // lower) <= SIEVE_LIFTS, 'sieve lift bound')
+        # Families whose modulus divides the previous level already failed to reach these classes.
+        fresh = [(m, rs) for m, rs in index.items() if upper % m == 0 and lower % m]
+        budget.use(len(level) * (upper // lower) * (1 + len(fresh)))
+        level = [y for x in level for y in range(x, upper, lower) if not any(y % m in rs for m, rs in fresh)]
+    return sorted(level)
+
+
+def unreached(cover, budget):
+    """The residues modulo the cover modulus that no family of the cover reaches (sieved or enumerated)."""
+    if 'chain' in cover: return sieve_open(cover, budget)
+    M = cover['modulus']; covered = cover_residues(cover); budget.use(M)
+    return [x for x in range(M) if x not in covered]
+
+
+def reaches(cover, x, budget):
+    """Whether some family of the cover reaches the residue x modulo the cover modulus."""
+    M = cover['modulus']; budget.use(len(cover['entries']))
+    return any(M % e['family']['m'] == 0 and x % e['family']['m'] == e['family']['r'] for e in cover['entries'])
+
+
+def coprime_square_count(M):
+    """The number of squares of units modulo M, a product over its prime-power factors (Chinese remainders)."""
+    count = 1
+    for p, e in _prime_powers(M).items():
+        count *= (1 if e <= 2 else 2 ** (e - 3)) if p == 2 else p ** (e - 1) * (p - 1) // 2
+    return count
 
 
 def cover_residues(data):
@@ -858,19 +909,61 @@ def check_theorem(data, budget):
     need(set(data) == {'a', 'terms', 'lo', 'finite'}, 'theorem fields')
     f = data['finite']; need(type(f) is dict and f.get('cover') is not None, 'the finite range must carry its cover')
     need(f['a'] == data['a'] and f['terms'] == data['terms'] and f['lo'] == data['lo'], 'theorem and range state one question')
-    ranged = check_finite(f, budget); cover = f['cover']
-    need(cover['bound'] <= f['hi'], 'the cover bound must lie inside the checked range')
-    M = cover['modulus']; covered = cover_residues(cover); budget.use(M)
-    open_coprime = sum(1 for x in range(M) if gcd(x, M) == 1 and x not in covered)
-    return dict(ok=True, kind='theorem', modulus=M, open_residues=M - len(covered), open_coprime=open_coprime,
-                range_hi=f['hi'], cover_bound=cover['bound'], via_cover=ranged['via_cover'],
+    ranged = check_finite(f, budget); cover = f['cover']; hi = f['hi']; M = cover['modulus']
+    gap = theorem_gap(cover, hi, budget)
+    need(gap is None, 'members of class ' + str(gap) + ' between the checked range and its family threshold')
+    opened = unreached(cover, budget)
+    return dict(ok=True, kind='theorem', modulus=M, open_residues=len(opened),
+                open_coprime=sum(1 for x in opened if gcd(x, M) == 1),
+                range_hi=hi, cover_bound=cover['bound'], via_cover=ranged['via_cover'],
                 scope='For every integer n >= lo whose residue modulo the cover modulus is covered by the cover, a/n is a '
                       'sum of the stated number of unit fractions. The open residues are exactly those no family of the '
                       'cover reaches; nothing is claimed for them above the checked range.',
-                proof='Chain of checked parts: every family of the cover holds for all k >= k0 with threshold at most the '
-                      'cover bound; every n in [lo, hi) has a checked representation; the cover bound is at most hi, so '
-                      'every n >= lo in a covered class is represented, below hi by the range and at or above it by its '
-                      'family.')
+                proof='Chain of checked parts: every family of the cover holds for all k >= k0, from its threshold '
+                      'm*k0 + r; every n in [lo, hi) has a checked representation; for every covered residue x, the least '
+                      'threshold t(x) among the families reaching x is at most the first member of x at or past hi. So '
+                      'every n >= lo in a covered class is represented: below hi by the range, and at or past hi by a '
+                      'family, since n >= t(x) there.')
+
+
+def theorem_gap(cover, hi, budget):
+    """A residue with a member at or past hi below the least threshold of every family reaching it, or None. A
+    sieved cover is examined along its chain; a reached class is lifted only while its threshold test fails, which is
+    exact: a lift's first member past hi is no smaller, and its least threshold no larger."""
+    M = cover['modulus']
+    if 'chain' not in cover:
+        least = class_thresholds(cover, budget); budget.use(M)
+        return next((x for x, t in enumerate(least)
+                     if t is not None and (x if x >= hi else x + M * -(-(hi - x) // M)) < t), None)
+    chain = cover['chain']; rows = {}
+    for entry in cover['entries']:
+        f = entry['family']; row = rows.setdefault(f['m'], {}); t = f['m'] * f['k0'] + f['r']
+        row[f['r']] = min(row.get(f['r'], t), t)
+    level = list(range(chain[0])); budget.use(chain[0])
+    for i, Mi in enumerate(chain):
+        usable = [(m, row) for m, row in rows.items() if Mi % m == 0]; pending = []
+        for x in level:
+            budget.use(1 + len(usable))
+            ts = [row[x % m] for m, row in usable if x % m in row]
+            if not ts: pending.append(x); continue
+            if (x if x >= hi else x + Mi * -(-(hi - x) // Mi)) >= min(ts): continue
+            if i + 1 == len(chain): return x
+            pending.append(x)
+        if i + 1 < len(chain):
+            need(len(pending) * (chain[i + 1] // Mi) <= SIEVE_LIFTS, 'sieve lift bound')
+            level = [y for x in pending for y in range(x, chain[i + 1], Mi)]
+    return None
+
+
+def class_thresholds(cover, budget):
+    """For each residue modulo the cover modulus, the least threshold m*k0 + r among the families that reach it."""
+    M = cover['modulus']; least = [None] * M
+    for entry in cover['entries']:
+        f = entry['family']; t = f['m'] * f['k0'] + f['r']
+        for x in range(f['r'], M, f['m']):
+            budget.use()
+            if least[x] is None or t < least[x]: least[x] = t
+    return least
 
 
 def check_reduction(data, budget):
@@ -892,9 +985,8 @@ def check_local_pattern(data, budget):
         need(type(row) is list and row == sorted(set(row)) and all(type(x) is int and 0 <= x < q and gcd(x, q) == 1
                                                                     for x in row), 'image residues')
         allowed[q] = set(row)
-    covered = cover_residues(data['cover']); budget.use(M)
-    for x in range(M):
-        if gcd(x, M) == 1 and x not in covered:
+    for x in unreached(data['cover'], budget):
+        if gcd(x, M) == 1:
             for q, row in allowed.items(): need(x % q in row, 'residue ' + str(x) + ' leaves the image modulo ' + str(q))
     return dict(ok=True, kind='pattern', images={k: len(v) for k, v in images.items()},
                 scope='For this cover only: every uncovered coprime class reduces modulo each prime-power factor of the '
@@ -907,6 +999,16 @@ def check_pattern(data, budget):
     if data.get('rule') == 'uncovered_coprime_square_outside': return check_signature_pattern(data, budget)
     need(set(data) == {'cover', 'rule'} and data['rule'] == 'uncovered_coprime_are_squares', 'pattern fields')
     check_cover(data['cover'], budget)
+    if 'chain' in data['cover']:
+        # Every unreached unit is a local square, and there are exactly as many as there are squares of units.
+        M = data['cover']['modulus']; powers = _prime_powers(M)
+        opened = [x for x in unreached(data['cover'], budget) if gcd(x, M) == 1]
+        for x in opened: need(not nonresidue_primes(x, powers), 'residue ' + str(x) + ' breaks the pattern')
+        need(len(opened) == coprime_square_count(M), 'a coprime square is reached by a family')
+        return dict(ok=True, kind='pattern', squares=len(opened),
+                    scope='For this cover only: a coprime residue is uncovered exactly when it is a square mod the modulus.',
+                    proof='Every unreached unit is a square modulo each prime-power factor, hence a square by the Chinese '
+                          'remainder theorem, and their number equals the number of squares of units.')
     M = data['cover']['modulus']; covered = cover_residues(data['cover'])
     budget.use(2 * M)
     squares = {x * x % M for x in range(M) if gcd(x, M) == 1}
@@ -921,7 +1023,8 @@ def check_density(data, budget):
     need(set(data) == {'cover', 'fraction'}, 'density fields')
     check_cover(data['cover'], budget)
     fraction = rat(data['fraction'])
-    need(fraction == Q(len(cover_residues(data['cover'])), data['cover']['modulus']), 'covered fraction differs')
+    M = data['cover']['modulus']
+    need(fraction == Q(M - len(unreached(data['cover'], budget)), M), 'covered fraction differs')
     return dict(ok=True, kind='density', scope='The listed residues form exactly this fraction of all residues.',
                 proof='Counting.')
 
@@ -963,8 +1066,15 @@ def check_signature_pattern(data, budget):
     primes = data['primes']
     need(type(primes) is list and primes == sorted(set(primes)) and all(type(p) is int and p in powers for p in primes),
          'exceptional primes must be sorted distinct prime factors of the modulus')
-    x = next(signature_breaks(data['cover'], primes, budget), None)
-    need(x is None, 'residue ' + str(x) + ' breaks the signature pattern')
+    if 'chain' in data['cover']:
+        opened = [x for x in unreached(data['cover'], budget) if gcd(x, M) == 1]; squares = 0
+        for x in opened:
+            bad = nonresidue_primes(x, powers); squares += not bad
+            need(set(bad) <= set(primes), 'residue ' + str(x) + ' breaks the signature pattern')
+        need(squares == coprime_square_count(M), 'a coprime square is reached by a family')
+    else:
+        x = next(signature_breaks(data['cover'], primes, budget), None)
+        need(x is None, 'residue ' + str(x) + ' breaks the signature pattern')
     return dict(ok=True, kind='pattern', primes=primes,
                 scope='For this cover only: every coprime square class is uncovered, and every uncovered coprime class '
                       'is a quadratic residue modulo each prime-power factor of the modulus outside the listed primes.',
@@ -989,7 +1099,8 @@ def classical_parameters(a, m, r, bound, budget):
             if u <= v and (u + v) % e == 0: found.append(('II', u, v, (u + v) // e))
     for u in range(1, bound + 1):
         for v in range(u, bound + 1):
-            s = u + v
+            s = u + v; budget.use()
+            if (s * m) % (a * u * v): continue  # a*u*v*w | (u+v)*m needs a*u*v | (u+v)*m, whatever w is
             for w in range(1, bound + 1):
                 budget.use(); q = a * u * v * w
                 if (s * m) % q == 0 and (s * r + w) % q == 0: found.append(('I', u, v, w))
@@ -997,19 +1108,16 @@ def classical_parameters(a, m, r, bound, budget):
 
 
 def _divisors(n):
-    small, large, d = [], [], 1
-    while d * d <= n:
-        if n % d == 0:
-            small.append(d)
-            if d * d != n: large.append(n // d)
-        d += 1
-    return small + large[::-1]
+    """All divisors of n in increasing order, generated from its factorization."""
+    out = [1]
+    for p, e in _prime_powers(n).items(): out = [d * p ** k for d in out for k in range(e + 1)]
+    return sorted(out)
 
 
 def check_nofamily(data, budget):
     need(set(data) == {'a', 'terms', 'm', 'r', 'bound'}, 'no-family fields')
     a, m, r = class_of(data); need(data['terms'] == 3, 'three unit fractions')
-    need(m <= 10 ** 7, 'no-family modulus bound'); bound = integer(data['bound'], 1, 120)
+    need(m <= 10 ** 12, 'no-family modulus bound'); bound = integer(data['bound'], 1, 120)
     found = classical_parameters(a, m, r, bound, budget)
     need(not found, 'a classical family covers the class: ' + str(found[0]) if found else '')
     return dict(ok=True, kind='nofamily', bound=bound,
@@ -1251,23 +1359,22 @@ def check_refutation(data, budget):
         return dict(ok=True, kind='refutation', refutes=kind, index=i)
     if kind == 'pattern' and cd.get('rule') == 'uncovered_coprime_local_images':
         check_cover(cd['cover'], budget); M = cd['cover']['modulus']; x = integer(w.get('residue'), 0, M - 1)
-        need(gcd(x, M) == 1 and x not in cover_residues(cd['cover']), 'witness must be an uncovered coprime residue')
-        budget.use(M)
+        need(gcd(x, M) == 1 and not reaches(cd['cover'], x, budget), 'witness must be an uncovered coprime residue')
         need(any(x % (p ** e) not in cd['images'].get(str(p ** e), []) for p, e in _prime_powers(M).items()),
              'residue lies in every image')
         return dict(ok=True, kind='refutation', refutes=kind, residue=x)
     if kind == 'pattern' and cd.get('rule') == 'uncovered_coprime_square_outside':
         check_cover(cd['cover'], budget); M = cd['cover']['modulus']; x = integer(w.get('residue'), 0, M - 1)
         need(gcd(x, M) == 1, 'witness residue must be coprime')
-        bad = nonresidue_primes(x, _prime_powers(M)); covered = x in cover_residues(cd['cover']); budget.use(M)
+        bad = nonresidue_primes(x, _prime_powers(M)); covered = reaches(cd['cover'], x, budget)
         need((not bad and covered) or (not covered and not set(bad) <= set(cd['primes'])),
              'residue agrees with the signature pattern')
         return dict(ok=True, kind='refutation', refutes=kind, residue=x)
     if kind == 'pattern':
         check_cover(cd['cover'], budget); M = cd['cover']['modulus']; x = integer(w.get('residue'), 0, M - 1)
         need(gcd(x, M) == 1, 'witness residue must be coprime')
-        square = any(y * y % M == x for y in range(M) if gcd(y, M) == 1); budget.use(M)
-        need(square == (x in cover_residues(cd['cover'])), 'residue agrees with the pattern')
+        square = not nonresidue_primes(x, _prime_powers(M)); budget.use(len(_prime_powers(M)))
+        need(square == reaches(cd['cover'], x, budget), 'residue agrees with the pattern')
         return dict(ok=True, kind='refutation', refutes=kind, residue=x)
     raise Invalid('no refutation rule for this claim kind')
 

@@ -50,6 +50,10 @@ LIBRARY_ENTRIES = 256
 LIBRARY_REPORTS = 2
 # A class is handed to refinement only after every family grammar missed it.
 FAMILY_MISSES = frozenset(('ansatz miss', 'extended ansatz miss', 'classical miss'))
+# The generator whose miss each family residual records: a retired generator's miss is taken as known.
+MISS_SOURCES = {'ansatz miss': 'egypt_divisor_ansatz', 'extended ansatz miss': 'egypt_ansatz_extend',
+                'classical miss': 'egypt_classical_family'}
+RETIRE_AFTER = 64
 
 
 def digest(value):
@@ -125,6 +129,17 @@ class Goal:
 
     def context(self, target): return self.kind + ':' + target['kind']
 
+    limit_kinds = ()
+    retired = frozenset()
+
+    def retirable(self, context, strategy):
+        """Whether a strategy may be retired in a context after repeated failure (a scheduling policy)."""
+        return False
+
+    def transfer(self, rt, rows):
+        """Checked objects from records of related problems, admitted again by the checker; returns (admitted, refused)."""
+        return 0, 0
+
     def done(self, rt): return False
 
     def failure_profile(self, rt): return {}
@@ -141,6 +156,7 @@ class CoverGoal(Goal):
     kind = 'unit_fraction_cover'
     persist = ('cover', 'finite')
     capped = ('eclass', 'en')
+    limit_kinds = ('nofamily',)
 
     def __init__(self, p, L):
         self.p, self.L = p, L
@@ -148,7 +164,7 @@ class CoverGoal(Goal):
         for q in p['lifts']: self.levels.append(self.levels[-1] * q)
         self.limit = len(self.levels) + p.get('extra_lifts', 0)
         self.fam = {}; self.residual = set(); self.base_miss = set(); self.misses = {}; self.refined = set(); self.seen = 0
-        self.classes = []; self.classical_miss = set(); self._ready = None
+        self.classes = []; self.classical_miss = set(); self._ready = None; self._powers = {}
         # Incremental indexes: the step loop reads these instead of rescanning the workspace.
         self.results = []; self.covers_at = {}; self._open = {}; self.fam_count = 0
 
@@ -211,7 +227,15 @@ class CoverGoal(Goal):
         return any(m % fm == 0 and r % fm in rs for fm, rs in index.items())
 
     def residual_of(self, rt, target):
-        return target['id'] in self.base_miss
+        """Every family generator has missed the class, or was retired in its context and is taken to miss."""
+        if target['id'] in self.base_miss: return True
+        found = self.misses.get(target['id'], set()); context = self.context(target)
+        return all(note in found or (context, MISS_SOURCES[note]) in self.retired for note in FAMILY_MISSES)
+
+    def retirable(self, context, strategy):
+        # The classical generator and wall certificates decide every class's status; they are never retired.
+        return context.startswith(self.kind + ':eclass') and strategy not in ('egypt_classical_family',
+                                                                              'egypt_classical_exclusion')
 
     def targets(self, rt):
         self.update(rt); out = []
@@ -261,7 +285,7 @@ class CoverGoal(Goal):
         return True
 
     def schedule_key(self, rt):
-        self.update(rt); return (len(self.classical_miss), len(self.levels))
+        self.update(rt); return (len(self.classical_miss), len(self.levels), len(self.retired))
 
     def top_ready(self, rt):
         """Every open class at the finest level has been tried by the classical generator, and a cover exists there."""
@@ -274,8 +298,13 @@ class CoverGoal(Goal):
         return self._ready[1]
 
     def context(self, target):
+        """Classes are told apart by whether they share a factor with the modulus and, if not, by whether they are
+        squares modulo every prime-power factor: a feature the agent observes, not a claim."""
         if target['kind'] != 'eclass': return self.kind + ':' + target['kind']
-        return self.kind + ':eclass:' + ('coprime' if gcd(target['data']['r'], target['data']['m']) == 1 else 'shared')
+        m, r = target['data']['m'], target['data']['r']
+        if gcd(r, m) != 1: return self.kind + ':eclass:shared'
+        if m not in self._powers: self._powers[m] = self.L.factor(m)
+        return self.kind + ':eclass:coprime:' + ('nonsquare' if nonresidue_primes(r, self._powers[m]) else 'square')
 
     def progress(self, rt):
         """A cheap signature that changes exactly when a checked family class or a result object is added."""
@@ -372,6 +401,27 @@ class CoverGoal(Goal):
                 # The families were checked inside the cover check; restating them keeps coverage bookkeeping exact.
                 family = rt.propose('ufam', entry['family'])
                 if rt.check(family): admitted += 1
+        return admitted, refused
+
+    def transfer(self, rt, rows):
+        """Families, covers, walls and templates are claims about the equation a/n = 1/x + 1/y + 1/z itself, whatever
+        the refinement budget of the problem that found them: they carry over to a problem with the same a and terms.
+        Each is a proposal until the checker admits it again; level-specific claims (ranges, patterns) do not carry."""
+        a, terms = self.p['a'], self.p['terms']
+        def same(row):
+            d = row['data']
+            if row['kind'] == 'ufam': return d.get('a') == a and len(d.get('x', ())) == terms
+            if row['kind'] in ('cover', 'nofamily'): return d.get('a') == a and d.get('terms') == terms
+            return row['kind'] == 'template' and d.get('a') == a
+        admitted = refused = 0
+        for row in rows:
+            if row['kind'] not in ('ufam', 'cover', 'nofamily', 'template') or not same(row): continue
+            obj = rt.propose(row['kind'], row['data'])
+            if obj['kind'] == 'template' or rt.check(obj): admitted += 1
+            else: refused += 1
+            if row['kind'] == 'cover' and obj['status'] == 'checked':
+                for entry in row['data']['entries']:
+                    if rt.check(rt.propose('ufam', entry['family'])): admitted += 1
         return admitted, refused
 
     def level_uncovered(self):
@@ -626,8 +676,8 @@ def bind(task, host, L):
     if kind == 'unit_fraction_cover':
         need = {'type', 'a', 'terms', 'min', 'modulus', 'lifts', 'verify_to'}
         if not need <= set(p) <= need | {'extra_lifts'}: raise host.Refused('unit fraction cover fields')
-        if type(p.get('extra_lifts', 0)) is not int or not 0 <= p.get('extra_lifts', 0) <= 2:
-            raise host.Refused('at most two refinement primes chosen by the agent')
+        if type(p.get('extra_lifts', 0)) is not int or not 0 <= p.get('extra_lifts', 0) <= 4:
+            raise host.Refused('at most four refinement primes chosen by the agent')
         if type(p['a']) is not int or not 1 <= p['a'] <= 16 or p['terms'] != 3: raise host.Refused('numerator 1..16 and three terms')
         if type(p['min']) is not int or not 2 <= p['min'] <= 1000: raise host.Refused('minimum n')
         if type(p['modulus']) is not int or not 1 <= p['modulus'] <= 100_000: raise host.Refused('cover modulus')
@@ -661,6 +711,8 @@ class Agent:
         self.attempts = {}; self.by_kind = {}; self.children = {}; self.indexed = 0; self.rederivable = set()
         self.target_moves = {}; self.exhausted = {}; self.outcomes = {}; self.escalated = {}; self.memo = {}
         self.checkable = set(checker.CHECKS) | {'invariant', 'semi'}
+        # Strategies retired per context after RETIRE_AFTER failures without a success in this run.
+        self.retired = {}; goal.retired = self.retired
 
     def index(self):
         """Incrementally index new workspace objects by kind and by parent."""
@@ -703,7 +755,9 @@ class Agent:
         return out
 
     def allowed(self, name, target, table):
-        """A macro obeys the goal's policy at every one of its steps."""
+        """A macro obeys the goal's policy at every one of its steps; a strategy retired in the target's context
+        is not tried again there in this run."""
+        if self.retired and (self.goal.context(target), name) in self.retired: return False
         steps = table[name].get('steps') or [name]
         return all(self.goal.allowed(step, target, self.rt) for step in steps)
 
@@ -835,6 +889,7 @@ class Agent:
     def execute(self, target, context, name, args, key, allocation):
         host = self.host; budget = host.Budget(allocation); parent = self.rt.budget
         before = self.goal.progress(self.rt); began = time.perf_counter_ns(); reason = None; out = []
+        existing = set(self.rt.objects) if self.goal.limit_kinds else None
         try: out = self.run_op(name, args, budget)
         except (host.Exhausted, RuntimeError, self.checker.Limit) as exc: reason = 'limit: ' + str(exc)[:120]
         except (ValueError, KeyError, TypeError, IndexError, ZeroDivisionError) as exc:
@@ -842,7 +897,9 @@ class Agent:
         self.rt.budget = parent
         parent.use(budget.work)
         seconds = (time.perf_counter_ns() - began) / 1e9
-        success = self.goal.progress(self.rt) != before
+        # Progress, or a newly checked certificate of a limit (a wall): a certified limitation is a result.
+        success = self.goal.progress(self.rt) != before or (existing is not None and any(
+            o['id'] not in existing and o['kind'] in self.goal.limit_kinds and o['status'] == 'checked' for o in out))
         self.moves += 1
         if reason and reason.startswith('limit') and key not in self.escalated:
             # Out of resources, not out of ideas: the same move gets one retry with a larger allocation.
@@ -857,6 +914,9 @@ class Agent:
                                                         seconds=round(seconds, 6), weight=1, source='local'))
         tally = self.outcomes.setdefault((context, name), [0, 0, 0.0])
         tally[0 if success else 1] += 1; tally[2] += seconds
+        if not tally[0] and tally[1] >= RETIRE_AFTER and self.goal.retirable(context, name) \
+                and (context, name) not in self.retired:
+            self.retired[(context, name)] = dict(failures=tally[1], seconds=round(tally[2], 3), at_move=self.moves)
         for m in self.macros:
             if m['name'] == name:
                 m['uses'] += 1; m['successes'] += int(success)
@@ -970,6 +1030,7 @@ def run(task, state_path, limit, host):
     goal = GOALS[problem['type']](problem, L); goal.init(rt)
     library, retained = load_library(state)
     samples, macros, tried, unseen, replayed, invalid = retained + list(reports), [], set(), 0, 0, 0
+    carried = (0, 0)
     agent = None
     try:
         if old is not None:
@@ -986,6 +1047,11 @@ def run(task, state_path, limit, host):
             if invalid:
                 # Refused evidence invalidates the scheduling memory built on it; the search is redone.
                 tried = set()
+        else:
+            # A new problem starts from what related problems already proved about the same equation.
+            rows = [o for rec in state['observations'] if rec.get('kind') == 'autonomous_research'
+                    for o in rec.get('objects', []) if type(o) is dict and type(o.get('data')) is dict]
+            carried = goal.transfer(rt, rows)
         agent = Agent(host, L, checker, registry, goal, rt, per, samples[-MAX_SAMPLES:], macros, tried, unseen)
         status = 'UNKNOWN'; reason = 'move allowance used'
         for _ in range(moves):
@@ -997,7 +1063,7 @@ def run(task, state_path, limit, host):
     except host.Exhausted as exc:
         reason = str(exc)
     if goal.done(rt): status, reason = 'CHECKED_RESEARCH', 'goal settled by checked results'
-    record = dict(task_id=identity, kind='autonomous_research', generation=gen,
+    record = dict(task_id=identity, kind='autonomous_research', generation=gen, problem=problem,
                   objects=[compact(o) for o in goal.persisted(rt)], macros=agent.macros if agent else macros,
                   samples=[s for s in (agent.samples if agent else samples) if s.get('source') == 'local'],
                   tried=sorted(agent.tried if agent else tried)[-MAX_TRIED:], unseen=agent.unseen if agent else unseen,
@@ -1019,7 +1085,8 @@ def run(task, state_path, limit, host):
     return dict(status=status, reason=reason, task_id=identity, problem=problem, generation=gen,
                 moves_executed=agent.moves if agent else 0, work=budget.work,
                 elapsed_ns=time.perf_counter_ns() - started, replayed_objects=replayed, invalidated_objects=invalid,
-                dropped_objects=dropped, goal=goal.summary(rt), checked_objects=by_kind,
+                dropped_objects=dropped, carried_objects=dict(admitted=carried[0], refused=carried[1]),
+                goal=goal.summary(rt), checked_objects=by_kind,
                 results=[result_row(o) for o in checked if o['kind'] in ('cover', 'finite', 'pattern', 'density', 'theorem',
                                                                            'dcover', 'cfinite', 'cycle', 'exclusion')][-12:],
                 refutations=sum(1 for o in checked if o['kind'] == 'refutation'),
@@ -1028,6 +1095,7 @@ def run(task, state_path, limit, host):
                                 for m in (agent.macros if agent else macros)],
                 templates=[o['data'] for o in rt.objects.values() if o['kind'] == 'template'][:16],
                 directions_observed=agent.events if agent else {}, scheduler=ranking, log=agent.log[-24:] if agent else [],
+                retired_strategies=[dict(context=c, strategy=s, **info) for (c, s), info in agent.retired.items()] if agent else [],
                 failures=mine_failures(agent, goal, rt), related_problems=goal.related(),
                 strategy_library=dict(entries=len(entries), reports_loaded=len(retained)),
                 limits='Operators search bounded grammars; the checker admits every reported claim in its stated scope. '

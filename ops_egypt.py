@@ -34,6 +34,8 @@ EXTENDED_C = range(0, 240)
 PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31)
 CLASSICAL_BOUND = 120
 LIFT_CAP = 10 ** 7
+LIFT_CLASSES = 60_000
+WALL_CAP = 10 ** 12
 
 
 def op(name, dirs, consumes, produces, summary):
@@ -186,11 +188,45 @@ def cover_set(data):
     return out
 
 
+def open_residues(data, budget):
+    """Residues modulo the cover modulus that no family reaches. A cover with a chain of levels is sieved: only the
+    classes left open at one level are lifted to the next, so the work follows the open classes, not the modulus."""
+    M = data['modulus']
+    if 'chain' not in data:
+        covered = cover_set(data); budget.use(M)
+        return [x for x in range(M) if x not in covered]
+    by = {}
+    for entry in data['entries']: by.setdefault(entry['family']['m'], set()).add(entry['family']['r'])
+    level, prev = None, None
+    for step in data['chain']:
+        mods = [(m, rs) for m, rs in by.items() if step % m == 0 and (prev is None or prev % m)]
+        candidates = range(step) if prev is None else [y for x in level for y in range(x, step, prev)]
+        budget.use(len(candidates))
+        level = [y for y in candidates if not any(y % m in rs for m, rs in mods)]; prev = step
+    return sorted(level)
+
+
+def covered_fraction(o, budget):
+    d = o['data']; covered = o.get('evidence', {}).get('covered')
+    if covered is None: covered = d['modulus'] - len(open_residues(d, budget))
+    return Q(covered, d['modulus'])
+
+
 def best_cover(rt, a, terms, modulus=None):
     covers = [o for o in rt.objects.values() if o['kind'] == 'cover' and o['status'] == 'checked'
               and o['data']['a'] == a and o['data']['terms'] == terms
               and (modulus is None or o['data']['modulus'] == modulus)]
-    return max(covers, key=lambda o: (Q(len(cover_set(o['data'])), o['data']['modulus']), -o['data']['bound']), default=None)
+    return max(covers, key=lambda o: (covered_fraction(o, rt.budget), -o['data']['bound']), default=None)
+
+
+def level_chain(rt, a, terms, M):
+    """The question's own refinement levels dividing M, as a divisibility chain ending at M (None for one level)."""
+    levels = sorted({o['data']['modulus'] for o in rt.objects.values() if o['kind'] == 'esq' and o['data']['a'] == a
+                     and o['data']['terms'] == terms and M % o['data']['modulus'] == 0} | {M})
+    chain = []
+    for m in levels:
+        if not chain or m % chain[-1] == 0: chain.append(m)
+    return chain if len(chain) > 1 and chain[0] <= 100_000 else None
 
 
 def assemble(families, a, terms, M):
@@ -288,8 +324,8 @@ def local_nonresidues(x, powers):
 
 
 def uncovered_coprime(cover_data, budget):
-    M = cover_data['modulus']; covered = cover_set(cover_data); budget.use(M)
-    return [x for x in range(M) if gcd(x, M) == 1 and x not in covered]
+    M = cover_data['modulus']
+    return [x for x in open_residues(cover_data, budget) if gcd(x, M) == 1]
 
 
 # ------------------------------------------------------------- witnesses
@@ -517,7 +553,7 @@ def egypt_classical_family(rt, cls):
     'Claim that no fixed-parameter classical family reaches the class; the checker enumerates every such family.')
 def egypt_classical_exclusion(rt, cls):
     a, terms, m, r = question_class(cls)
-    if terms != 3 or m > LIFT_CAP: return []
+    if terms != 3 or m > WALL_CAP: return []
     claim = rt.propose('nofamily', dict(a=a, terms=terms, m=m, r=r, bound=CLASSICAL_BOUND), (cls,))
     return [claim] if rt.check(claim) else []
 
@@ -555,6 +591,8 @@ def egypt_cover_assemble(rt, esq):
     d = esq['data']
     data = assemble(checked_families(rt, d['a'], d['terms']), d['a'], d['terms'], d['modulus'])
     if data is None: return []
+    chain = level_chain(rt, d['a'], d['terms'], d['modulus'])
+    if chain: data = dict(data, chain=chain)
     cover = rt.propose('cover', data, (esq,))
     return [cover] if rt.check(cover) else []
 
@@ -565,7 +603,7 @@ def egypt_cover_lift(rt, cover):
     d = cover['data']; M = d['modulus']
     t = next(p for p in PRIMES if M % p)
     if M * t > 10 ** 6: return []
-    lifted = rt.propose('cover', dict(d, modulus=M * t), (cover,))
+    lifted = rt.propose('cover', dict(d, modulus=M * t, **({'chain': d['chain'] + [M * t]} if 'chain' in d else {})), (cover,))
     return [lifted] if rt.check(lifted) else []
 
 
@@ -586,8 +624,7 @@ def egypt_cover_merge(rt, first, second):
 @op('egypt_residual', 'W', ('cover',), ('residual',),
     'Name the residues modulo the cover modulus that no checked family covers.')
 def egypt_residual(rt, cover):
-    d = cover['data']; covered = cover_set(d)
-    left = [x for x in range(d['modulus']) if x not in covered]
+    d = cover['data']; left = open_residues(d, rt.budget)
     return [rt.residual(cover, left[:4096], str(len(left)) + ' residues mod ' + str(d['modulus']) + ' uncovered')]
 
 
@@ -597,7 +634,17 @@ def egypt_square_pattern(rt, cover):
     d = cover['data']
     claim = rt.propose('pattern', dict(cover=d, rule='uncovered_coprime_are_squares'), (cover,))
     if rt.check(claim): return [claim]
-    covered = cover_set(d); M = d['modulus']
+    M = d['modulus']
+    if 'chain' in d:
+        # An open unit that is not a local square, or else a square of a unit that some family reaches.
+        powers = L.factor(M); opened = uncovered_coprime(d, rt.budget)
+        witness = next((x for x in opened if local_nonresidues(x, powers)), None)
+        if witness is None:
+            shut = set(opened)
+            witness = next((y * y % M for y in range(1, min(M, 200_000)) if gcd(y, M) == 1 and y * y % M not in shut), None)
+        refutation = rt.refute(claim, dict(residue=witness)) if witness is not None else None
+        return [claim, refutation] if refutation is not None else [claim]
+    covered = cover_set(d)
     squares = {x * x % M for x in range(M) if gcd(x, M) == 1}
     for x in range(M):
         if gcd(x, M) == 1 and (x in squares) == (x in covered):
@@ -635,20 +682,20 @@ def egypt_choose_lift(rt, esq):
     d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
     cover = best_cover(rt, a, terms, M)
     if cover is None or terms != 3: return []
-    stuck = uncovered_coprime(cover['data'], rt.budget)
+    left = open_residues(cover['data'], rt.budget); stuck = [x for x in left if gcd(x, M) == 1]
     if not stuck: return []
     sample = stuck[::max(1, len(stuck) // 6)][:6]; best = None
     for p in PRIMES:
-        if M * p > LIFT_CAP: continue
+        # The lifts to examine, not the size of the modulus, bound a refinement: covers are sieved along the levels.
+        if len(left) * p > LIFT_CLASSES or M * p > WALL_CAP: continue
         lifts = [x + M * j for x in sample for j in range(p) if gcd(x + M * j, M * p) == 1]
         lifts = lifts[::max(1, len(lifts) // 24)][:24]
         hits = sum(1 for y in lifts if classical_search(a, M * p, y, CLASSICAL_BOUND, rt.budget))
         if hits and (best is None or Q(hits, len(lifts)) > best[0]): best = (Q(hits, len(lifts)), p)
     if best is None: return []
-    p = best[1]; covered = cover_set(cover['data'])
+    p = best[1]
     out = [rt.propose('esq', dict(d, modulus=M * p), (esq,))]
-    for x in range(M):
-        if x in covered: continue
+    for x in left:
         parent = rt.given('eclass', dict(a=a, terms=terms, m=M, r=x))
         out += [rt.propose('eclass', dict(a=a, terms=terms, m=M * p, r=x + M * j), (parent,)) for j in range(p)]
     return out
@@ -656,10 +703,10 @@ def egypt_choose_lift(rt, esq):
 
 @op('egypt_reduction_theorem', 'NS', ('finite',), ('theorem',),
     'State the theorem a checked range and its cover prove together: every n >= min outside the open residue '
-    'classes has a representation; the checker verifies the whole chain.')
+    'classes has a representation; the checker verifies the whole chain, class by class.')
 def egypt_reduction_theorem(rt, finite):
     d = finite['data']
-    if finite['status'] != 'checked' or d['cover'] is None or d['cover']['bound'] > d['hi']: return []
+    if finite['status'] != 'checked' or d['cover'] is None: return []
     claim = rt.propose('theorem', dict(a=d['a'], terms=d['terms'], lo=d['lo'], finite=d), (finite,))
     return [claim] if rt.check(claim) else []
 
@@ -668,7 +715,8 @@ def egypt_reduction_theorem(rt, finite):
     'State the exact fraction of residues a cover covers.')
 def egypt_density(rt, cover):
     d = cover['data']
-    claim = rt.propose('density', dict(cover=d, fraction=L.enc(Q(len(cover_set(d)), d['modulus']))), (cover,))
+    claim = rt.propose('density', dict(cover=d, fraction=L.enc(Q(d['modulus'] - len(open_residues(d, rt.budget)),
+                                                                   d['modulus']))), (cover,))
     return [claim] if rt.check(claim) else []
 
 
@@ -747,18 +795,39 @@ def _assembly(rt):
     return [_esq(rt, 24)]
 
 
-def _classical_cover(rt, M=120):
-    """Every class mod M that a classical family reaches, as one checked cover."""
+def _classical_families(rt, M, residues=None):
     fams = []
-    for r in range(1, M):
+    for r in residues or range(1, M):
         found = classical_search(4, M, r, CLASSICAL_BOUND, rt.budget)
         if found: fams.append(_checked(rt, 'ufam', classical_family(4, M, r, found[0])))
-    return _checked(rt, 'cover', assemble(fams, 4, 3, M))
+    return fams
+
+
+def _classical_cover(rt, M=120):
+    """Every class mod M that a classical family reaches, as one checked cover."""
+    return _checked(rt, 'cover', assemble(_classical_families(rt, M), 4, 3, M))
 
 
 def _lift_inputs(rt):
     _classical_cover(rt)
     return [_esq(rt, 120)]
+
+
+def _sieved_cover(rt, M=120, chain=(24, 120), residues=None):
+    """Classical families on classes mod M (all, or the listed residues) as one cover checked through a sieve."""
+    return _checked(rt, 'cover', dict(assemble(_classical_families(rt, M, residues), 4, 3, M), chain=list(chain)))
+
+
+def _sieved_assembly(rt):
+    _esq(rt, 24); _fam(rt, 24, 11); _fam(rt, 24, 23)
+    for r in (1, 49):
+        found = classical_search(4, 120, r, CLASSICAL_BOUND, rt.budget)
+        if found: _checked(rt, 'ufam', classical_family(4, 120, r, found[0]))
+    return [_esq(rt, 120)]
+
+
+def _sieved_range(rt):
+    _sieved_cover(rt); return egypt_finite_verify(rt, _esq(rt, 120, verify_to=400))
 
 
 FIXTURES = {
@@ -782,18 +851,20 @@ FIXTURES = {
     'egypt_class_split': [lambda rt: [_cls(rt, 840, 1)]],
     'egypt_class_refine': [lambda rt: [_cls(rt, 9240, 2521), _esq(rt, 27720)], lambda rt: [_cls(rt, 9240, 2521), _esq(rt, 83160)]],
     'egypt_family_refute': [lambda rt: [rt.propose('ufam', family_data(4, 840, 1, 0, [[Q(1), Q(210)], [Q(1)], [Q(1)]]))]],
-    'egypt_cover_assemble': [_assembly],
-    'egypt_cover_lift': [lambda rt: [_cover(rt)]],
+    'egypt_cover_assemble': [_assembly, _sieved_assembly],
+    'egypt_cover_lift': [lambda rt: [_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_cover_merge': [_two_covers],
-    'egypt_residual': [lambda rt: [_cover(rt)]],
-    'egypt_square_pattern': [lambda rt: [_cover(rt)], lambda rt: [_small_cover(rt)]],
-    'egypt_density': [lambda rt: [_cover(rt)]],
+    'egypt_residual': [lambda rt: [_cover(rt)], lambda rt: [_sieved_cover(rt)]],
+    'egypt_square_pattern': [lambda rt: [_cover(rt)], lambda rt: [_small_cover(rt)], lambda rt: [_sieved_cover(rt)],
+                             lambda rt: [_sieved_cover(rt, 840, (120, 840))],
+                             lambda rt: [_sieved_cover(rt, 120, (24, 120), (2, 3))]],
+    'egypt_density': [lambda rt: [_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_finite_verify': [lambda rt: [_esq(rt, 24, verify_to=400)], lambda rt: [_esq(rt, 24, terms=4, verify_to=5)]],
     'egypt_classical_family': [lambda rt: [_cls(rt, 840, 11)], lambda rt: [_cls(rt, 840, 1)]],
     'egypt_classical_exclusion': [lambda rt: [_cls(rt, 840, 1)]],
-    'egypt_signature_pattern': [lambda rt: [_classical_cover(rt)]],
-    'egypt_local_pattern': [lambda rt: [_classical_cover(rt)]],
+    'egypt_signature_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
+    'egypt_local_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_reduction_theorem': [lambda rt: egypt_finite_verify(rt, _esq(rt, 24, verify_to=400))
-                                if _classical_cover(rt, 24) else []],
+                                if _classical_cover(rt, 24) else [], _sieved_range],
     'egypt_choose_lift': [_lift_inputs],
 }
