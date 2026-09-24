@@ -4,6 +4,8 @@
   Theory Pyramid Mapper method and its requested application to mathematical search.
 - **OpenAI Codex**: the source reader, source investigation, present Ember runtime,
   mathematical boundary analysis, experiment implementations and this integration work.
+- **Anthropic Claude (Claude Code)**: the apex reasoning layer, the audited Theory
+  Pyramid catalog of Ember's reasoning moves, and the synthesized routes of generation 16.
 - **Earlier AI collaborators and project contributors**: the supplied Organon,
   TPM, Elythrene/APORIA, HNIS, MAI, TRIAD and 21-engine sources retain their original
   attribution. Individual authorship claims remain source-reported until their
@@ -83,6 +85,18 @@ sources, claims, tension, unresolved questions and checked synthesis. The proof
 transfer uses freshly replayed original evidence and complete dependency closure.
 The public source-episode example wraps the attributed recursive question data;
 it includes no donor program, supplied proof or private source provenance.
+
+The apex layer, the reasoning catalog with its source audit, the law-instance,
+orbit-exclusion and recursive memory-transfer routes, and their checker were
+authored by Anthropic's Claude (Claude Code) under Seth's direction. They follow
+Seth's request to catalog every type of reasoning Ember holds, synthesize the types
+with each other in four TPM directions up to an apex, and install that apex above
+the existing subreasoners. The fifteen-node direction lattice and its typed
+composition rule formalize that request. The syntheses use established
+mathematics: linear recurrences and their evaluation, polynomial invariants that
+separate reachable states, periodicity of finite orbits and checked proof
+transfer. Parallel read-only catalog reviews came from subagents of the same
+model; they are not external replication.
 
 The current runtime was authored here; it does not import donor programs
 or copy their private runtimes. Newly authored code and public documentation

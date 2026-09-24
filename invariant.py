@@ -54,11 +54,13 @@ def build_operator(binding, basis, budget, checker, algebra):
     return columns
 
 
-def search_operator(binding, basis, columns, budget, checker, diagnostics=None):
+def search_operator(binding, basis, columns, budget, checker, diagnostics=None, select=None):
     """Propose the first focus-relevant nullspace basis vector by exact elimination.
 
     If any vector in this kernel involves focus, at least one vector of a full
     nullspace basis does. Failure here remains an unadmitted search result.
+    An explicit linear selector replaces the focus test; a linear functional
+    that vanishes on every basis vector vanishes on the whole kernel.
     """
     basis = validate_basis(binding, basis, budget, checker)
     width = len(basis)
@@ -99,9 +101,13 @@ def search_operator(binding, basis, columns, budget, checker, diagnostics=None):
             vector[lead] = -total
         if diagnostics is not None:
             diagnostics['candidate_vectors'] += 1
-        budget.use(width * len(binding['focus']))
-        if not any(q and any(basis[j][i] for i in binding['focus']) for j, q in enumerate(vector)):
-            continue
+        if select is not None:
+            if not select(vector):
+                continue
+        else:
+            budget.use(width * len(binding['focus']))
+            if not any(q and any(basis[j][i] for i in binding['focus']) for j, q in enumerate(vector)):
+                continue
         poly = {powers: q for powers, q in zip(basis, vector) if q}
         scale = poly[min(poly)]
         for powers in poly:

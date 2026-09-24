@@ -14,6 +14,18 @@ def generation():
         ('ember.py','algebra.py','algebra_check.py','word_series.py','word_check.py','campaign.py','recurrence.py','recurrence_check.py','invariant.py','invariant_check.py','invariant_map.py','recursive.py','recursive_check.py'))).hexdigest()
 
 
+def validate(problem,host,budget=None):
+    """Bind one supported original with its own query binder; shared by higher layers."""
+    query=problem['query']
+    if query=='transition_count': host.bind(problem)
+    elif query=='test_overlap_shortcut': host.bind_discovery(problem)
+    elif query=='word_avoidance_identity': host.local_module('word_check').bind(problem)
+    elif query in ('discover_recurrence','discover_word_recurrence'): host.local_module('recurrence_check').bind(problem)
+    elif query=='discover_invariant':host.local_module('invariant_check').bind(problem)
+    elif query=='prove_recursive_identity':host.local_module('recursive_check').bind(problem,budget)
+    else: host.local_module('algebra_check').bind(problem)
+
+
 def binding(task,host,budget=None):
     allowed={'query','problems','attempt_work','max_attempts','policy','name','discover_after_solving','reuse_invariants','localize_polynomials','reuse_guarded_polynomials'}
     if type(task) is not dict or set(task)-allowed or task.get('query')!='research_campaign':
@@ -34,14 +46,7 @@ def binding(task,host,budget=None):
     if policy not in ('fixed','structure_first','learned'): raise host.Refused('campaign scheduling policy')
     for problem in problems:
         if type(problem) is not dict or problem.get('query') not in QUERIES: raise host.Refused('supported original campaign task required')
-        query=problem['query']
-        if query=='transition_count': host.bind(problem)
-        elif query=='test_overlap_shortcut': host.bind_discovery(problem)
-        elif query=='word_avoidance_identity': host.local_module('word_check').bind(problem)
-        elif query in ('discover_recurrence','discover_word_recurrence'): host.local_module('recurrence_check').bind(problem)
-        elif query=='discover_invariant':host.local_module('invariant_check').bind(problem)
-        elif query=='prove_recursive_identity':host.local_module('recursive_check').bind(problem,budget)
-        else: host.local_module('algebra_check').bind(problem)
+        validate(problem,host,budget)
     original={'query':'research_campaign','problems':problems,'attempt_work':per,'policy':policy}
     if generalize:original['discover_after_solving']=True
     if reuse_invariants:original['reuse_invariants']=True
@@ -259,22 +264,28 @@ def checkpoint(state,path,record,host):
     temp.write_text(host.canonical(state)+'\n',encoding='utf-8',newline='\n'); temp.replace(target)
 
 
-def run(task,state_path,limit,host):
+def run(task,state_path,limit,host,layer=None):
+    """A layer (the apex) may supply binding, plan, face schedule, synthesized
+    execution and admission. Replay, checkpoints and budgets stay here; with no
+    layer every campaign decision is unchanged."""
     start=time.perf_counter_ns(); budget=host.Budget(limit)
     try:
-        problems,per,steps,policy,identity=binding(task,host,budget)
+        problems,per,steps,policy,identity=(layer.binding if layer else binding)(task,host,budget)
     except (host.Exhausted,host.local_module('recursive_check').Limit) as exc:
         # Charged input validation must return UNKNOWN without touching an
         # existing fuller checkpoint when its allowance ends before binding.
         return dict(status='UNKNOWN',reason=str(exc),work=budget.work,
                     elapsed_ns=time.perf_counter_ns()-start)
-    gen=generation()
+    gen=layer.generation() if layer else generation()
     state=host.read_state(state_path); samples=samples_read(state,host)
-    plan=[r for i,p in enumerate(problems) for r in routes(p,i,host,task.get('discover_after_solving',False),
-          task.get('reuse_invariants',False),task.get('localize_polynomials',False),task.get('reuse_guarded_polynomials',False))]
+    if layer: plan=layer.plan(problems,host)
+    else:
+        plan=[r for i,p in enumerate(problems) for r in routes(p,i,host,task.get('discover_after_solving',False),
+              task.get('reuse_invariants',False),task.get('localize_polynomials',False),task.get('reuse_guarded_polynomials',False))]
     byid={r['id']:r for r in plan}
-    old=next((o for o in state['observations'] if o['task_id']==identity and o.get('kind')=='research_campaign'),None)
-    record={'task_id':identity,'kind':'research_campaign','generation':gen,'attempts':[],
+    kind=layer.kind if layer else 'research_campaign'
+    old=next((o for o in state['observations'] if o['task_id']==identity and o.get('kind')==kind),None)
+    record={'task_id':identity,'kind':kind,'generation':gen,'attempts':[],
             'superseded_attempts':[],'superseded_dropped':0}
     outcomes={}; invalidated=[]; executed=[]; decisions=[]; replay_work=0
     context_invalidated=[]
@@ -285,6 +296,13 @@ def run(task,state_path,limit,host):
     if any(p['query']=='prove_recursive_identity' for p in problems):
         errors=(*errors,host.local_module('recursive_check').Invalid)
         limits=(*limits,host.local_module('recursive_check').Limit)
+    if layer:
+        errors=(*errors,*layer.errors); limits=(*limits,*layer.limits)
+        admission=lambda route,result:layer.admit(route,result,budget,host)
+        context_of=lambda route:layer.proposal_context(route,state,host)
+    else:
+        admission=lambda route,result:admit(route['task'],result,budget,host)
+        context_of=lambda route:proposal_context(route,state,host)
     if old is not None:
         prior=old.get('attempts')
         if type(prior) is not list or len(prior)>64: raise host.Refused('campaign checkpoint attempt shape')
@@ -308,7 +326,7 @@ def run(task,state_path,limit,host):
             route=byid[attempt['route_id']]; result=attempt.get('result')
             if type(result) is dict and result.get('status')=='UNKNOWN':
                 # No-result records only skip the exact unchanged generation/bounds.
-                current_context=proposal_context(route,state,host)
+                current_context=context_of(route)
                 same_context=(current_context is None or attempt.get('proposal_context')==current_context)
                 if old.get('generation')==gen and type(attempt.get('attempt_work_bound')) is int and attempt['attempt_work_bound']>=per and same_context:
                     record['attempts'].append(attempt); outcomes[route['id']]=result
@@ -316,7 +334,7 @@ def run(task,state_path,limit,host):
                 continue
             before=budget.work
             try:
-                admit(route['task'],result,budget,host)
+                admission(route,result)
                 record['attempts'].append(attempt); outcomes[route['id']]=result
             except errors:
                 invalidated.append(route['id'])
@@ -349,7 +367,7 @@ def run(task,state_path,limit,host):
             kept_attempts=[]
             for attempt in record['attempts']:
                 route=byid[attempt['route_id']]
-                current_context=proposal_context(route,state,host)
+                current_context=context_of(route)
                 if (attempt['result'].get('status')=='UNKNOWN' and current_context is not None
                     and attempt.get('proposal_context')!=current_context and not terminal(route['problem'])):
                     outcomes.pop(route['id'],None);context_invalidated.append(route['id'])
@@ -360,32 +378,40 @@ def run(task,state_path,limit,host):
             if not available: break
             # Ordered original problems remain fair; score routes within that problem.
             first=min(r['problem'] for r in available); available=[r for r in available if r['problem']==first]
-            samples=samples_read(state,host)
-            if policy=='learned': available.sort(key=lambda r:score(samples,r,gen),reverse=True)
-            elif policy=='structure_first' and problems[first].get('assumptions'):
-                available.sort(key=lambda r:r['strategy']!='assumption_slices')
-            problem_id=host.digest(problems[first])
-            own=[r for r in plan if r['problem']==first]
-            multiple_originals=sum(r['role']=='original' for r in own)>1
-            choice_strategies={r['strategy'] for r in own if multiple_originals or r['role']!='original'}
-            # A forced original check must not consume the later exploration choice.
-            unseen=not any(s['task_id']==problem_id and s['generation']==gen and s['strategy'] in choice_strategies for s in samples)
-            contexts={s['task_id'] for s in samples if s['generation']==gen and s['context']==available[0]['context'] and s['task_id']!=problem_id}
-            reverse=policy=='learned' and unseen and (len(contexts)+1)%5==0
-            if reverse: available.reverse()
+            samples=samples_read(state,host); extra={}
+            if layer:
+                available,extra=layer.order(available,record,byid,samples,gen,
+                                            min(per,max(1,(limit-budget.work)//2)),host)
+                reverse=False
+            else:
+                if policy=='learned': available.sort(key=lambda r:score(samples,r,gen),reverse=True)
+                elif policy=='structure_first' and problems[first].get('assumptions'):
+                    available.sort(key=lambda r:r['strategy']!='assumption_slices')
+                problem_id=host.digest(problems[first])
+                own=[r for r in plan if r['problem']==first]
+                multiple_originals=sum(r['role']=='original' for r in own)>1
+                choice_strategies={r['strategy'] for r in own if multiple_originals or r['role']!='original'}
+                # A forced original check must not consume the later exploration choice.
+                unseen=not any(s['task_id']==problem_id and s['generation']==gen and s['strategy'] in choice_strategies for s in samples)
+                contexts={s['task_id'] for s in samples if s['generation']==gen and s['context']==available[0]['context'] and s['task_id']!=problem_id}
+                reverse=policy=='learned' and unseen and (len(contexts)+1)%5==0
+                if reverse: available.reverse()
             route=available[0]; remaining=limit-budget.work
             decisions.append({'problem':first,'eligible_order':[r['strategy'] for r in available],
-                              'selected':route['strategy'],'exploration_reversed':reverse})
+                              'selected':route['strategy'],'exploration_reversed':reverse,**extra})
             if remaining<=0: raise host.Exhausted('campaign work budget exhausted')
             # Reserve some work for independent admission; a miss cannot fabricate success.
             allocation=min(per,max(1,remaining//2)); before=budget.work; began=time.perf_counter_ns()
             options=dict(route['options'])
-            attempt_context=proposal_context(route,state,host)
+            attempt_context=context_of(route)
             if route['task']['query']=='polynomial_consequence':
                 options['lemma_records']=polynomial_candidates(route,state,host)
             if route['task']['query']=='discover_invariant' and options.get('invariant_policy')=='reuse_first':
                 options['invariant_records']=host.invariant_candidates(state)
-            if route['task']['query']=='prove_recursive_identity':
+            if layer and 'synthesis' in route:
+                # Synthesized routes compose subreasoners; admission below stays separate.
+                result,candidate_state=layer.execute(route,state,allocation,host)
+            elif route['task']['query']=='prove_recursive_identity':
                 # Work on an isolated in-memory candidate instance. The outer
                 # campaign owns the single atomic commit after original replay.
                 candidate_state=copy.deepcopy(state)
@@ -401,7 +427,7 @@ def run(task,state_path,limit,host):
                 result=host.solve(route['task'],None,allocation,**options)
             budget.use(result.get('work',allocation))
             kept=compact(result); success=False
-            if result['status']!='UNKNOWN': success=admit(route['task'],kept,budget,host)
+            if result['status']!='UNKNOWN': success=admission(route,kept)
             if candidate_state is not None:
                 # UNKNOWN carries provisional progress, never an admission. The
                 # producer replays its proofs again on every future invocation.
@@ -413,6 +439,7 @@ def run(task,state_path,limit,host):
                     for item in kept['accepted']:
                         host.remember_lemma(state,item['task'],
                             {'status':'CHECKED_IMPLICATION','certificate':item['certificate']})
+                if layer: layer.remember(state,route,kept,host)
             elapsed=time.perf_counter_ns()-began
             attempt={'route_id':route['id'],'result':kept,'work':budget.work-before,'elapsed_ns':elapsed,
                      'attempt_work_bound':allocation}
@@ -436,10 +463,13 @@ def run(task,state_path,limit,host):
             if route['problem']==i and route['id'] in outcomes:
                 rows.append({'strategy':route['strategy'],'role':route['role'],'task':route['task'],
                              'result':outcomes[route['id']]})
+                if layer: rows[-1].update(face=route['face'],node=route['node'])
         summaries.append({'original_task':problem,'attempts':rows})
-    return {'status':status,'reason':reason,'task_id':identity,'generation':gen,
+    answer={'status':status,'reason':reason,'task_id':identity,'generation':gen,
             'problems':summaries,'executed_routes':executed,'scheduling_decisions':decisions,'invalidated_saved_routes':invalidated,
             'invalidated_proposal_context_routes':context_invalidated,
             'saved_attempt_count':len(record['attempts']),'replay_work':replay_work,'work':budget.work,
             'elapsed_ns':time.perf_counter_ns()-start,'policy':policy,
             'limits':'Finite typed workflow. A checked refutation settles only its original claim; repaired tasks keep their added assumptions. Learning ranks work, not mathematical truth.'}
+    if layer: answer.update(layer.report(plan,outcomes,record,byid,executed))
+    return answer

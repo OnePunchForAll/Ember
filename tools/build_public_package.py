@@ -18,7 +18,8 @@ import zipfile
 RUNTIME = ('ember.py', 'algebra.py', 'algebra_check.py', 'word_series.py',
            'word_check.py', 'campaign.py', 'recurrence.py', 'recurrence_check.py',
            'invariant.py', 'invariant_check.py', 'invariant_map.py', 'obligations.py',
-           'recursive.py', 'recursive_check.py', 'source_episode.py')
+           'recursive.py', 'recursive_check.py', 'source_episode.py', 'apex.py', 'apex_check.py',
+           'pyramid.py')
 EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'polynomial_consequence.json', 'discover_algebra_guards.json',
             'discover_affine_guards.json', 'word_identity.json', 'word_shortcut.json',
@@ -33,7 +34,8 @@ EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'guarded_receiving.json', 'campaign_guarded_transfer.json',
             'recursive_reverse_involution.json', 'recursive_qrev.json',
             'recursive_wrong_order.json', 'recursive_add_right_zero.json',
-            'campaign_recursive_identity.json', 'source_research_episode.json')
+            'campaign_recursive_identity.json', 'source_research_episode.json',
+            'orbit_exclusion.json', 'hidden_rank_count.json', 'apex_research.json')
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 PRIVATE_PATH = re.compile(rb'(?<![A-Za-z0-9_])[A-Za-z]:[\\/]|/(?:home|Users)/')
 
@@ -104,7 +106,9 @@ def collect(root):
         'license_scope': 'Newly authored Ember code and public documentation; adapted MIT example data attributed in THIRD_PARTY_NOTICES.md; donor archives and runtimes excluded.',
         'standing': 'EXPERIMENTAL / SELF_ISOLATED',
         'runtime_source_bytes': sum(len(files[n]) for n in RUNTIME),
-        'python_requirement': 'External standard-library Python; tested with Python 3.14.6 on Windows only.',
+        'python_requirement': ('External standard-library Python. Generations through ember-pyramid-15 were tested '
+                               'with Python 3.14.6 on Windows; ember-pyramid-16 was verified with Python 3.11.15 '
+                               'on Linux x86_64 only.'),
         'packaging': 'Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.',
         'manifest_self_hash': 'Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.',
         'files': [{'path': n, 'bytes': len(files[n]), 'sha256': sha(files[n])} for n in sorted(files)],
@@ -965,6 +969,186 @@ print(json.dumps(answers))
         check('campaign_restarts_progress', len(attempts) > 1 and all(b > a for a, b in zip(attempts, attempts[1:])))
         final = cli('campaign_evidence_restart', 'short-campaign.json', ['--state', 'campaign-state.json'])
         check('campaign_restart_rechecks', final.get('replay_work', 0) > 0 and not final.get('executed_routes'))
+        # The apex layer, its synthesized routes and the audited reasoning pyramid.
+        check('capabilities_apex_interface', {'apex_research', 'prove_orbit_exclusion'} <= set(capabilities.get('queries', []))
+              and capabilities.get('layers') == ['direct', 'apex']
+              and capabilities.get('apex', {}).get('faces') == ['N', 'W', 'S', 'E']
+              and capabilities.get('apex', {}).get('synthesized_routes')
+                  == ['law_instance', 'recursive_seeded', 'orbit_prefix', 'orbit_transfer', 'orbit_invariant']
+              and capabilities.get('limits', {}).get('orbit_steps') == 1024)
+        pyramid = cli('pyramid_map', '--pyramid')
+        nodes = {row['node']: row for row in pyramid['lattice']}
+        check('pyramid_audit_binds_catalog_to_source', pyramid['status'] == 'PYRAMID' and pyramid['audit']['ok'] is True
+              and not pyramid['audit']['problems'] and pyramid['audit']['modules'] == len(RUNTIME) - 1
+              and pyramid['audit']['trace_labels'] > 0 and len(pyramid['base']) == pyramid['audit']['moves'])
+        check('pyramid_fifteen_nodes_with_realized_apex', [row['level'] for row in pyramid['lattice']]
+              == [1] * 4 + [2] * 6 + [3] * 4 + [4] and nodes['NWSE']['realized'] and bool(pyramid['apex'])
+              and all(nodes[face]['realized'] for face in 'NWSE'))
+        tampered = root / 'pyramid-tamper'; tampered.mkdir()
+        for name in RUNTIME:
+            (tampered / name).write_bytes(files[name])
+        (tampered / 'apex.py').write_bytes(files['apex.py'].replace(
+            b"operation='refute_reachability_by_repeated_state'", b"operation='unlisted_refutation'"))
+        began = time.perf_counter_ns()
+        tamper_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', str(tampered / 'ember.py'), '--pyramid'],
+                                    cwd=tampered, capture_output=True, text=True, encoding='utf-8', timeout=90,
+                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        tamper_report = json.loads(tamper_run.stdout)
+        receipt['cli_runs'].append({'case': 'pyramid_tampered_label', 'returncode': tamper_run.returncode,
+                                   'status': tamper_report.get('status'), 'elapsed_ns': time.perf_counter_ns() - began})
+        check('pyramid_audit_detects_uncatalogued_label', tamper_run.returncode == 2 and not tamper_run.stderr
+              and tamper_report['audit']['ok'] is False
+              and any('unlisted_refutation' in problem for problem in tamper_report['audit']['problems']))
+        orbit_task = json.loads((root / 'examples/orbit_exclusion.json').read_bytes())
+        orbit = cli('orbit_invariant_separation', 'examples/orbit_exclusion.json', ['--state', 'orbit-state.json'])
+        check('orbit_excluded_by_checked_separating_invariant', orbit['status'] == 'CHECKED_ORBIT_EXCLUSION'
+              and orbit['face'] == 'N' and orbit['certificate']['kind'] == 'invariant_separation'
+              and orbit['certificate']['invariant']['polynomial'] == [[[0, 1], [1, 1]], [[3, 0], [-1, 1]]]
+              and orbit['certificate']['invariant']['initial_value'] == [3, 1]
+              and orbit['certificate']['target_value'] == [2, 1]
+              and [row['face'] for row in orbit['faces_tried']] == ['S', 'E', 'N'])
+        orbit_replay = cli('orbit_restart', 'examples/orbit_exclusion.json', ['--state', 'orbit-state.json'])
+        check('orbit_certificate_freshly_replayed', orbit_replay.get('reused_after_fresh_check') is True
+              and orbit_replay['certificate'] == orbit['certificate'])
+        forged_orbit = json.loads((root / 'orbit-state.json').read_bytes())
+        saved_orbit = next(row for row in forged_orbit['observations'] if row.get('kind') == 'prove_orbit_exclusion')
+        saved_orbit['certificate']['invariant']['polynomial'] = [[[0, 1], [1, 1]]]
+        saved_orbit['certificate']['target_value'] = [10, 1]
+        (root / 'orbit-forged.json').write_bytes(encoded(forged_orbit))
+        repaired_orbit = cli('orbit_forged_separation', 'examples/orbit_exclusion.json', ['--state', 'orbit-forged.json'])
+        check('orbit_nonconserved_separation_not_admitted', repaired_orbit['status'] == 'CHECKED_ORBIT_EXCLUSION'
+              and not repaired_orbit.get('reused_after_fresh_check')
+              and repaired_orbit['certificate'] == orbit['certificate'])
+        reaching = dict(orbit_task, target=[[2, 1], [11, 1]])
+        (root / 'orbit-reaches.json').write_bytes(encoded(reaching))
+        reached = cli('orbit_reaching_witness', 'orbit-reaches.json')
+        check('orbit_reachable_target_gets_exact_witness', reached['status'] == 'CHECKED_ORBIT_REACHES'
+              and reached['certificate'] == {'kind': 'orbit_witness', 'task_id': reached['task_id'], 'index': 2})
+        turn = {'query': 'prove_orbit_exclusion', 'domain': 'QQ', 'variables': ['x', 'y'], 'transition': ['y', '-x'],
+                'initial': [[3, 1], [4, 1]], 'target': [[5, 1], [0, 1]], 'max_degree': 2, 'max_steps': 8}
+        (root / 'orbit-turn.json').write_bytes(encoded(turn))
+        periodic = cli('orbit_periodic_refutation', 'orbit-turn.json')
+        check('orbit_repeated_state_excludes_invariant_blind_target', periodic['status'] == 'CHECKED_ORBIT_EXCLUSION'
+              and periodic['certificate'] == {'kind': 'periodic_orbit', 'task_id': periodic['task_id'], 'start': 0, 'period': 4})
+        (root / 'orbit-blind.json').write_bytes(encoded(dict(turn, max_steps=3)))
+        blind = cli('orbit_short_prefix_same_invariant_value', 'orbit-blind.json', expected_code=3)
+        check('orbit_unknown_does_not_claim_reachability', blind['status'] == 'UNKNOWN'
+              and [row['status'] for row in blind['faces_tried']] == ['UNKNOWN'] * 3
+              and 'separates' in blind['faces_tried'][2]['reason'])
+        check('orbit_zero_work_unknown', cli('orbit_zero_work', 'examples/orbit_exclusion.json', ['--work', '0'],
+                                             expected_code=3)['status'] == 'UNKNOWN')
+        (root / 'orbit-extra.json').write_bytes(encoded(dict(orbit_task, proof='trusted')))
+        check('orbit_supplied_proof_field_refused', cli('orbit_extra_field', 'orbit-extra.json',
+                                                       expected_code=2)['status'] == 'REFUSED')
+        (root / 'orbit-steps.json').write_bytes(encoded(dict(orbit_task, max_steps=1025)))
+        check('orbit_step_bound_refused', cli('orbit_step_bound', 'orbit-steps.json', expected_code=2)['status'] == 'REFUSED')
+        rank_task = json.loads((root / 'examples/hidden_rank_count.json').read_bytes())
+        rank_direct = cli('hidden_rank_default_direct', 'examples/hidden_rank_count.json', expected_code=3)
+        check('hidden_rank_exact_iteration_exceeds_default_work', rank_direct['status'] == 'UNKNOWN')
+        rank_exact = cli('hidden_rank_large_work_direct', 'examples/hidden_rank_count.json', ['--work', '20000000'])
+        rank_apex = cli('hidden_rank_apex_layer', 'examples/hidden_rank_count.json',
+                        ['--layer', 'apex', '--state', 'rank-state.json'])
+        law = next(row for row in rank_apex['problems'][0]['attempts'] if row['strategy'] == 'law_instance')
+        check('apex_law_instance_matches_exact_iteration', rank_apex['status'] == 'CHECKED_CAMPAIGN'
+              and rank_exact['status'] == 'EXACT_DIRECT' and law['result']['status'] == 'CHECKED_EXACT'
+              and law['result']['answer'] == rank_exact['answer'] and law['face'] == 'N'
+              and law['result']['certificate']['kind'] == 'law_instance')
+        check('apex_defers_exact_iteration_beyond_allocation', rank_apex['scheduling_decisions'][0]['selected'] == 'law_instance'
+              and rank_apex['scheduling_decisions'][0]['deferred'] == ['auto', 'direct', 'quotient'])
+        rank_replay = cli('hidden_rank_apex_restart', 'examples/hidden_rank_count.json',
+                          ['--layer', 'apex', '--state', 'rank-state.json'])
+        check('apex_law_instance_replayed_without_search', rank_replay['status'] == 'CHECKED_CAMPAIGN'
+              and not rank_replay['executed_routes'] and rank_replay['replay_work'] > 0)
+        forged_rank = json.loads((root / 'rank-state.json').read_bytes())
+        rank_record = next(row for row in forged_rank['observations'] if row.get('kind') == 'apex_research')
+        forged_law = next(row for row in rank_record['attempts']
+                          if row['result'].get('certificate', {}).get('kind') == 'law_instance')
+        forged_law['result']['answer'] += 1
+        (root / 'rank-forged.json').write_bytes(encoded(forged_rank))
+        rank_repaired = cli('hidden_rank_forged_answer', 'examples/hidden_rank_count.json',
+                            ['--layer', 'apex', '--state', 'rank-forged.json'])
+        check('apex_forged_law_answer_invalidated_and_recomputed', rank_repaired['status'] == 'CHECKED_CAMPAIGN'
+              and forged_law['route_id'] in rank_repaired['invalidated_saved_routes']
+              and 'law_instance' in rank_repaired['executed_routes'])
+        apex_first = cli('apex_research_example', 'examples/apex_research.json', ['--state', 'apex-state.json'])
+        rows = [{row['strategy']: row for row in problem['attempts']} for problem in apex_first['problems']]
+        check('apex_example_settles_every_original_across_four_faces', apex_first['status'] == 'CHECKED_CAMPAIGN'
+              and rows[0]['invariant_full']['result']['status'] == 'CHECKED_INVARIANT'
+              and rows[1]['orbit_prefix']['result']['status'] == 'UNKNOWN'
+              and rows[1]['orbit_transfer']['result']['status'] == 'CHECKED_ORBIT_EXCLUSION'
+              and rows[1]['orbit_transfer']['face'] == 'E'
+              and rows[2]['orbit_prefix']['result']['certificate']['kind'] == 'periodic_orbit'
+              and rows[3]['original_implication']['result']['status'] == 'CHECKED_COUNTEREXAMPLE'
+              and rows[3]['assumption_slices']['result']['status'] == 'CHECKED_GUARDS'
+              and rows[3]['assumption_slices']['face'] == 'W'
+              and rows[4]['law_instance']['result']['status'] == 'CHECKED_EXACT' and rows[4]['law_instance']['face'] == 'N'
+              and {face for counts in apex_first['face_attempts'] for face, n in counts.items() if n} == {'N', 'W', 'S', 'E'})
+        transferred = rows[1]['orbit_transfer']['result']['certificate']
+        check('apex_transferred_law_is_the_receiving_systems_checked_law', transferred['kind'] == 'invariant_separation'
+              and transferred['invariant']['polynomial'] == [[[0, 1], [1, 1]], [[3, 0], [-1, 1]]]
+              and transferred['invariant']['initial_value'] == [3, 1] and transferred['target_value'] == [2, 1])
+        apex_replay = cli('apex_research_restart', 'examples/apex_research.json', ['--state', 'apex-state.json'])
+        check('apex_restart_rechecks_every_saved_outcome', apex_replay['status'] == 'CHECKED_CAMPAIGN'
+              and not apex_replay['executed_routes'] and apex_replay['replay_work'] > 0)
+        forged_apex = json.loads((root / 'apex-state.json').read_bytes())
+        apex_record = next(row for row in forged_apex['observations'] if row.get('kind') == 'apex_research')
+        wrong_orbit = next(row for row in apex_record['attempts']
+                           if row['result'].get('certificate', {}).get('kind') == 'periodic_orbit')
+        wrong_orbit['result']['status'] = 'CHECKED_ORBIT_REACHES'
+        (root / 'apex-forged.json').write_bytes(encoded(forged_apex))
+        apex_repaired = cli('apex_forged_orbit_status', 'examples/apex_research.json', ['--state', 'apex-forged.json'])
+        check('apex_forged_orbit_status_invalidated', apex_repaired['status'] == 'CHECKED_CAMPAIGN'
+              and wrong_orbit['route_id'] in apex_repaired['invalidated_saved_routes'])
+        standalone_apex = root / 'apex-standalone'; standalone_apex.mkdir()
+        for name in ('apex_check.py', 'recurrence_check.py', 'invariant_check.py', 'algebra_check.py'):
+            (standalone_apex / name).write_bytes(files[name])
+        packet = [{'task': rank_task, 'certificate': law['result']['certificate']},
+                  {'task': orbit_task, 'certificate': orbit['certificate']},
+                  {'task': turn, 'certificate': periodic['certificate']},
+                  {'task': reaching, 'certificate': reached['certificate']}]
+        (standalone_apex / 'evidence.json').write_bytes(encoded(packet))
+        apex_standalone_code = standalone_code.replace("'recursive_check.py'", "'apex_check.py'")
+        began = time.perf_counter_ns()
+        apex_standalone = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', apex_standalone_code],
+            cwd=standalone_apex, capture_output=True, text=True, encoding='utf-8', timeout=90,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'apex_standalone_certificates', 'returncode': apex_standalone.returncode,
+            'elapsed_ns': time.perf_counter_ns() - began, 'stderr': apex_standalone.stderr})
+        apex_checks = json.loads(apex_standalone.stdout)
+        check('apex_certificates_replay_with_only_checkers', apex_standalone.returncode == 0 and not apex_standalone.stderr
+              and [row['ok'] for row in apex_checks] == [True] * 4
+              and apex_checks[0]['answer'] == rank_exact['answer']
+              and [row.get('outcome') for row in apex_checks[1:]] == ['EXCLUDED', 'EXCLUDED', 'REACHES'])
+        for label, extra, wanted in (('apex_helper_orbit', [], 'CHECKED_ORBIT_EXCLUSION'),
+                                     ('apex_helper_layer', ['--layer', 'apex'], 'CHECKED_CAMPAIGN')):
+            began = time.perf_counter_ns()
+            process = subprocess.run([python, '-I', '-B', '-X', 'utf8', str(root / 'tools/helper_client.py'),
+                'examples/orbit_exclusion.json', *extra], cwd=root, capture_output=True, text=True, encoding='utf-8',
+                timeout=90, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            envelope = json.loads(process.stdout)
+            receipt['cli_runs'].append({'case': label, 'returncode': process.returncode, 'status': envelope.get('status'),
+                                       'elapsed_ns': time.perf_counter_ns() - began, 'stderr': process.stderr})
+            check(label, process.returncode == 0 and not process.stderr and envelope.get('outcome') == 'closed'
+                  and envelope.get('status') == wanted)
+        involution = json.loads((root / 'examples/recursive_reverse_involution.json').read_bytes())
+        accumulator = json.loads((root / 'examples/recursive_qrev.json').read_bytes())
+        (root / 'apex-recursive-pair.json').write_bytes(encoded({'query': 'apex_research', 'problems': [involution, accumulator]}))
+        pair = cli('apex_recursive_memory_transfer', 'apex-recursive-pair.json', ['--state', 'apex-recursive.json'])
+        pair_rows = [{row['strategy']: row for row in problem['attempts']} for problem in pair['problems']]
+        check('apex_recursive_proof_seeds_same_definition_question', pair['status'] == 'CHECKED_CAMPAIGN'
+              and pair_rows[0]['recursive_residual']['result']['status'] == 'CHECKED_RECURSIVE_IDENTITY'
+              and pair_rows[0]['recursive_seeded']['result']['status'] == 'UNKNOWN'
+              and pair_rows[1]['recursive_seeded']['face'] == 'E'
+              and pair_rows[1]['recursive_seeded']['result']['status'] == 'CHECKED_RECURSIVE_IDENTITY')
+        pair_replay = cli('apex_recursive_memory_restart', 'apex-recursive-pair.json', ['--state', 'apex-recursive.json'])
+        check('apex_recursive_transfer_replayed_on_original', pair_replay['status'] == 'CHECKED_CAMPAIGN'
+              and not pair_replay['executed_routes'] and pair_replay['replay_work'] > 0)
+        big = {'query': 'transition_count', 'matrix': [[1000000, 1000000], [1000000, 1000000]],
+               'initial': [1, 0], 'terminal': [1, 1], 'horizon': 700}
+        (root / 'big-answer.json').write_bytes(encoded(big))
+        big_result = cli('exact_answer_beyond_default_digit_limit', 'big-answer.json')
+        check('large_exact_answer_serialized', big_result['status'] == 'CHECKED_EXACT'
+              and big_result['answer'] == 2 ** 700 * 10 ** 4200)
         # Child audit hook permits only relocated files and the installed interpreter
         # tree after startup. It refuses new socket use and external source reads.
         audit = r'''import os, pathlib, runpy, sys
@@ -1063,6 +1247,13 @@ runpy.run_path(str(root / 'ember.py'), run_name='__main__')
             check('audited_relocated_obligation_stage_' + str(stage), audited_stage.returncode == expected_code
                   and not audited_stage.stderr
                   and audit_result['status'] == ('UNKNOWN' if stage == 1 else 'CHECKED_IMPLICATION'))
+        apex_audit = audit.replace("'examples/word_identity.json', '--state', 'audited-state.json'",
+            "'examples/apex_research.json', '--state', 'audited-apex-state.json'")
+        audited_apex = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', apex_audit], cwd=root,
+            capture_output=True, text=True, encoding='utf-8', timeout=90,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        check('audited_relocated_apex_research', audited_apex.returncode == 0 and not audited_apex.stderr
+              and json.loads(audited_apex.stdout)['status'] == 'CHECKED_CAMPAIGN')
         # Rebuilding from only public members must not need the development README,
         # private provenance files or an original checkout.
         rebuilt = Path(temporary) / 'rebuilt.zip'
@@ -1093,6 +1284,8 @@ def save_receipt(path, receipt):
 
 
 def main():
+    if hasattr(sys, 'set_int_max_str_digits'):
+        sys.set_int_max_str_digits(100_000)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--verify', action='store_true')

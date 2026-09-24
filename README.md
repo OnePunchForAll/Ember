@@ -6,9 +6,12 @@ representations, their assumptions, counterexamples and checked reuse.
 
 This source package runs with Python's standard library. It requires no model,
 API key, downloaded weights, third-party package or source archive. Python itself
-is an external prerequisite and is **not** included. The tested host is Windows
-with Python 3.14.6; other Python versions, operating systems and devices remain
-unverified. CPU, memory and storage are still required for each calculation.
+is an external prerequisite and is **not** included. Generations through
+`ember-pyramid-15` were tested on Windows with Python 3.14.6. This generation,
+`ember-pyramid-16`, adds the apex layer and was verified on Linux x86_64 with
+Python 3.11.15 only; it has not been rerun on the Windows host. Other Python
+versions, operating systems and devices remain unverified. CPU, memory and
+storage are still required for each calculation.
 
 Standing: **EXPERIMENTAL / SELF_ISOLATED**. Ember does not currently offer general
 mathematical intelligence, unrestricted invention, or a solution to every open
@@ -32,6 +35,16 @@ example checks an implication against its supplied equations. The rational-repai
 example explores a condition requiring a fractional witness. The word example
 checks a generating-function identity for every nonnegative length for the two
 supplied forbidden words, using a finite exact polynomial certificate.
+
+The higher reasoning layer described in
+[Apex: the higher reasoning layer](#apex-the-higher-reasoning-layer) plans any
+supported original from four directions:
+
+```text
+python -I -B -X utf8 ember.py --pyramid
+python -I -B -X utf8 ember.py examples/apex_research.json --state apex-instance.json
+python -I -B -X utf8 ember.py examples/hidden_rank_count.json --layer apex --state apex-instance.json
+```
 
 Each invocation prints one JSON result. The files in `examples/` contain the full
 task inputs. They can be inspected or modified with a text editor. State paths
@@ -579,6 +592,167 @@ kept the same choice. This verifies a causal selection mechanism, not better
 subsequent progress, generalization or speed. The eight-episode bank does not
 provide a competing-receiver experiment for measuring that score's benefit.
 
+## Apex: the higher reasoning layer
+
+```text
+python -I -B -X utf8 ember.py --pyramid
+python -I -B -X utf8 ember.py examples/apex_research.json --state apex-instance.json
+python -I -B -X utf8 ember.py examples/apex_research.json --state apex-instance.json
+python -I -B -X utf8 ember.py examples/hidden_rank_count.json --layer apex --state rank-instance.json
+python -I -B -X utf8 ember.py examples/orbit_exclusion.json --state orbit-instance.json
+python -I -B -X utf8 tools/helper_client.py examples/orbit_exclusion.json --layer apex
+```
+
+The apex sits above the subreasoners described earlier in this README. It keeps
+a map of Ember's own reasoning and plans every original question from four
+Theory Pyramid Mapping directions:
+
+- **S** attacks the question as stated with its native routes.
+- **W** refutes it, extracts a residual, or repairs it with explicit added assumptions.
+- **N** generalizes it or changes its representation: a quotient, an all-index
+  law, a higher degree or a lemma grammar.
+- **E** transfers checked knowledge from other questions.
+
+### The reasoning pyramid
+
+`--pyramid` prints the map. Its base is a catalog of 135 implemented moves across
+17 modules: 128 reasoning moves and 7 control moves that schedule, persist or
+replay work. Each move names its functions, directions, the evidence types it
+consumes and produces, and how its output is admitted. The layers above are the
+fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
+move sits at its own directions. A synthesis, a composition of moves, sits at
+the union of its steps' directions, and a chained synthesis must pass each
+step's produced type to the next step.
+
+An audit binds the catalog to the source text. Every named function must exist,
+every explicit `direction`/`operation` trace label in the code must be claimed by
+a move with that direction, and every chain must type-check. `--pyramid` exits 2
+when the audit fails. Fourteen of the fifteen nodes are realized by code. The
+unrealized node, NWE, would transfer a repair without checking it on an
+original; every admitted Ember result passes through S. The map records 14
+syntheses that predate the apex, 8 that the apex realizes, and 7 proposed ones.
+Each proposed synthesis names the capability it still needs: counting forbidden
+words at a large length from a checked recurrence, ranking-function orbit
+exclusion, lifting an obligation child's counterexample to its parent, recurrences
+as rational generating functions, invariant level-set lemmas, recurrence-order
+minimality and counterexample instance lifting. Directions classify operations;
+the map is a description bound to source text, not evidence that any claim holds.
+
+### Scheduling
+
+`apex_research` accepts one to sixteen original questions of the campaign kinds,
+plus `prove_orbit_exclusion`. `--layer apex` sends a single original through the
+same layer. The apex reuses the campaign's durable executor: saved outcomes are
+checked again on restart, and an unchanged miss is not searched again. It enables
+the campaign's optional generalization, localization and reuse routes.
+
+For each obligation the apex chooses the face with the fewest executed attempts,
+counting stages that a resumed episode superseded. Ties go to the face holding
+the best measured route score, then to the order S, E, W, N. Inside a face,
+routes are ranked by the campaign's measured success and cost score. Exact
+iteration waits behind other faces when its edge-count bound exceeds the attempt
+allocation; a quotient cannot compress when every terminal weight differs.
+Results report each attempt's face and pyramid node, face counts, node coverage
+and the synthesized-route trace. Faces and scores schedule work; they never
+admit an answer. Synthesized results are admitted by `apex_check.py`, and every
+other result by its original checker.
+
+### Synthesized routes
+
+- `law_instance` (N, then S) answers a transition count from an all-index law.
+  When partition refinement compresses the system to at most 64 states, the law
+  is discovered on the checked quotient and lifted through MP=PQ and v=Pw.
+  Otherwise the original carrier is used when it has at most 64 states. The
+  checker rechecks the quotient equations and the recurrence on the carrier and
+  recomputes the answer; the producer's value is not trusted.
+- `prove_orbit_exclusion` asks whether an exact rational orbit x(n+1)=F(x(n))
+  ever reaches a target point. The S face iterates a bounded prefix and returns
+  a witness index (`CHECKED_ORBIT_REACHES`). In the same pass, the W face returns
+  a repeated state, which confines the orbit to a finite set that avoids the
+  target. The N face selects, among all polynomial invariants within the degree
+  bound, one whose value differs at the start and the target. The E face renames
+  checked laws stored by other questions and admits only a receiving separation.
+  Separating invariants are admitted by the existing complete-grid invariant
+  checker against the original transition, and the target value is recomputed.
+- `recursive_seeded` (E) uses proofs admitted for other questions with the same
+  complete definitions as checked seeds for a residual episode, through the
+  source-episode seed transport. Seeds are rechecked under the receiving
+  definitions, and the final certificate is checked against the receiving original.
+
+Admitted separating invariants and recursive proofs are remembered for later E
+routes. A kernel selector that vanishes on every kernel basis vector vanishes on
+the whole kernel, so an N-face miss is complete for its monomial grammar, but it
+remains `UNKNOWN`: it does not show that the target is reachable.
+
+`examples/orbit_exclusion.json` asks whether the orbit of (0,3) under
+x -> x+1, y -> y+3*x*x+3*x+1 reaches (2,10). No prefix repeats, and none hits the
+target. The N face finds y-x**3, which is 3 at the start and 2 at the target. For
+the quarter turn from (3,4) to (5,0), x*x+y*y takes the value 25 at both points,
+so no invariant of degree two separates them; the orbit instead repeats after
+four steps.
+
+`examples/hidden_rank_count.json` is a constructed control: a dense 56-state
+system with distinct terminal weights and hidden rank-two dynamics. Exact
+iteration exceeds the default ten-million-unit budget, and no quotient
+compresses. The apex's N face settles it with the checked law
+`a(h+3) = 4*a(h+1)`, using 887,534 work units for that route. A package check
+compares the 1,236-digit answer with exact iteration under a larger budget.
+
+`examples/apex_research.json` contains five questions:
+
+1. an invariant question;
+2. a renamed orbit question that the S face cannot settle, but the E face settles
+   with the first question's law;
+3. the quarter-turn orbit;
+4. a false polynomial claim, refuted and then repaired with the guard `2*y-1`;
+5. the hidden rank-two count.
+
+One call settles all five across the four faces. A second call rechecks the
+saved evidence without searching.
+
+### Measured comparison
+
+The comparison used 27 original tasks: 23 shared example questions, the hidden
+rank-two count and three orbit questions. Each task started from a fresh state
+with 1,000,000 work units per attempt, 64 attempts and 10,000,000 units per call,
+and calls were repeated until the result closed or a call executed nothing. The
+host was Linux x86_64 with Python 3.11.15, in one run of each configuration.
+
+| Configuration | Originals settled (27) | Shared settled (23) | Shared work | Shared wall time |
+|---|---|---|---|---|
+| campaign `fixed` | 20 | 20 | 3,774,082 | 7.95 s |
+| campaign `structure_first` | 20 | 20 | 3,780,352 | 7.73 s |
+| campaign `learned` | 20 | 20 | 4,719,560 | 8.45 s |
+| campaign `fixed`, all optional routes | 23 | 23 | 1,889,066 | 4.27 s |
+| apex | 27 | 23 | 2,354,845 | 5.19 s |
+
+The apex's gain on the shared tasks comes from the optional routes it enables;
+a campaign with the same routes settles the same 23 tasks with about 25% less
+work. The four extra settlements are the hidden rank-two count and the three orbit
+questions, which the campaigns refuse. On the two resumed recursive identities,
+rotating faces spent 848,295 and 190,160 units, against 491,462 and 129,172 for
+the fixed campaign order.
+
+Two scheduling details were changed after inspecting these development tasks.
+Superseded attempts now count toward their face; without that, a resumed
+recursive episode kept reopening one face and spent 19.6 million units on one
+task. The tie order also places W before N. The bank is exposed development
+data, not a held-out evaluation, and it establishes no general speed or
+intelligence claim.
+
+### Limits
+
+The apex plans only over implemented routes and bounded grammars. It does not
+invent subreasoners, proof systems or research agendas. The orbit question
+allows one to six variables, transitions of conservative degree at most four,
+invariant degree one to three and at most 1,024 prefix steps, with exact
+arithmetic up to 8192 bits. `UNKNOWN` never means that the target is reachable.
+The law route needs a carrier of at most 64 states whose entries fit the
+recurrence checker. Recurrence discovery cost grows roughly with the fourth power
+of the carrier dimension, so the route pays off when the hidden law has low order
+relative to the horizon. The checkers are custom code, not a formally verified
+kernel.
+
 ## Task and result interface
 
 The CLI accepts a JSON task filename, optional `--state`, and optional `--work`.
@@ -616,6 +790,8 @@ bound does not impose a child-process disk quota.
 | `prove_recursive_identity` | Attempt an original Nat/List equation using explicit rewriting, structural induction and bounded checked lemma invention, or return an original counterexample. |
 | `source_research_episode` | Interpret bounded structured sources, preserve original claims and questions, and attempt checked same-definition proof transfer. |
 | `research_campaign` | Persist a bounded sequence of original-task and repair attempts across calls. |
+| `apex_research` | Plan one to sixteen originals from the four TPM faces, with synthesized law, orbit and memory-transfer routes; admit only original-task certificates. |
+| `prove_orbit_exclusion` | Decide whether an exact rational polynomial orbit reaches a target: witness, repeated state, or checked separating invariant. |
 
 Exit code `0` means the returned result is closed within its stated scope. Exit
 code `3` with `status: "UNKNOWN"` means the evidence did not settle the request
@@ -629,6 +805,13 @@ route. Direct numerical answers use exact arithmetic; quotient transformations
 also receive a distinct equation check. The algebra and word certificates are
 checked by separate exact code against the original task. These checkers are
 custom software, not a formally verified proof-assistant kernel.
+
+Exact answers can exceed Python's default 4,300-digit limit for converting an
+integer to text. The CLI and helper raise that limit to 100,000 digits, so such
+answers print as JSON; earlier generations exited with a traceback instead of a
+result. `--layer apex` wraps a single original as the only obligation of an
+`apex_research` task; policy flags for individual subreasoners then stay at their
+defaults because the apex chooses routes itself.
 
 `--work` limits charged search and checking operations, not operating-system time,
 memory or integer bit complexity. Input and instance state are bounded to 1 MiB;
@@ -672,7 +855,12 @@ stored maps, forged certificates, helper calls and campaigns whose original
 degree bound remains unresolved despite a checked expansion.
 They also check cross-system invariant candidate reuse, changed dynamics, forged
 source evidence, and a campaign that revisits an earlier question after learning.
-These checks do not demonstrate another
+Apex checks cover the audited pyramid, including a
+tampered trace label that the audit must reject. They also cover orbit witnesses,
+repeated states and separating invariants with forged saved evidence, the law
+answer against exact iteration, forged apex checkpoints, recursive memory transfer,
+standalone replay of apex certificates with only the checkers present, helper
+calls and a large exact answer. These checks do not demonstrate another
 operating system or enforced network isolation. There is no package installation
 step and no background service.
 
@@ -695,7 +883,8 @@ development observation, not operating-system sandboxing.
 
 Seth supplied the project direction and original TPM approach. OpenAI Codex and
 earlier AI collaborators contributed the research and engineering described in
-[CREDITS.md](CREDITS.md). Established mathematics is credited separately from the
+[CREDITS.md](CREDITS.md). Anthropic's Claude contributed the apex layer and the
+reasoning pyramid in this generation. Established mathematics is credited separately from the
 implementation. Existing source families retain their attribution and rights.
 
 The newly authored Ember code and public documentation in this package use the

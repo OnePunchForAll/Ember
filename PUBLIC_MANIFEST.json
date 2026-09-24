@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 6057,
+      "bytes": 7056,
       "path": "CREDITS.md",
-      "sha256": "776f82d1d1cbfefac072d5d3de5022b611053946fa99e2843186d951b1e89aac"
+      "sha256": "ab9f32e7f0f86647816240d348182af6d4dce95379a72bf0273b05c9f964ad5b"
     },
     {
       "bytes": 1078,
@@ -11,9 +11,9 @@
       "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
     },
     {
-      "bytes": 45144,
+      "bytes": 56345,
       "path": "README.md",
-      "sha256": "e571f7c407edc4cc14c1a7adcbcefefc8465e6970356e70541c00ce93744d30f"
+      "sha256": "e24dd1546802c4546918ea5408f4c4dddc614984af60409c1780da1499cc9044"
     },
     {
       "bytes": 1633,
@@ -31,14 +31,29 @@
       "sha256": "44571acbcb6e7516f3b974d7b7a8f6f7eb709bde4ed3ac811d259d63dc0ca54e"
     },
     {
-      "bytes": 29214,
-      "path": "campaign.py",
-      "sha256": "7fd9fc038f003b879d5ea60d31d5d27ac2188f7d82c65875858c4d1d33f7d352"
+      "bytes": 30284,
+      "path": "apex.py",
+      "sha256": "fc6351569037e742f7e0505427cbac8abdbcaf3c273ff8141a543dd1ec340129"
     },
     {
-      "bytes": 45041,
+      "bytes": 12333,
+      "path": "apex_check.py",
+      "sha256": "f1520407c3661c7baf3d032c603549b217757984a18b761adadf488bdc5bd52f"
+    },
+    {
+      "bytes": 30796,
+      "path": "campaign.py",
+      "sha256": "5bd5b241860abf2a107901ff911bbe20b86f304b17d3f03dbdc0a8c92c8586dc"
+    },
+    {
+      "bytes": 47691,
       "path": "ember.py",
-      "sha256": "d42df189786b5355a8e0ceb5130c4e41442225445e2ffdfd456ebae7c4e602b1"
+      "sha256": "537c3b89d2a2ffc7e7f068904dda78747c38b890abd3c4c7870220895a35f3ed"
+    },
+    {
+      "bytes": 12200,
+      "path": "examples/apex_research.json",
+      "sha256": "d13f137812c2a8d076a4ce4c4b710e5a6b94b25e1bb933141250671bb0eb78a5"
     },
     {
       "bytes": 370,
@@ -121,6 +136,11 @@
       "sha256": "d28421f6f197838e732c06c1a29f4a85ef23aa687485c27ec80561e21cd195fe"
     },
     {
+      "bytes": 11097,
+      "path": "examples/hidden_rank_count.json",
+      "sha256": "18459fd8f380fb26b81b7ffa48ed73bd419c514bdffb4749857606ae0e81ea77"
+    },
+    {
       "bytes": 237,
       "path": "examples/invariant_cancellation.json",
       "sha256": "31a7fd72c6766f9313bf53fc47998189396c6f4bf30b0ae7440698969b2f268f"
@@ -171,6 +191,11 @@
       "sha256": "5ab79ce13910f38dc6d80d58e563743512df55984af1604d5289b0b295287c7b"
     },
     {
+      "bytes": 409,
+      "path": "examples/orbit_exclusion.json",
+      "sha256": "857aad638dd552adcf3045c8ff5f28543dcffad4b0309cfe5757c6d26e2b376e"
+    },
+    {
       "bytes": 288,
       "path": "examples/polynomial_consequence.json",
       "sha256": "33a5a417cda2b6aeb4056907728020679706f1f5f31591dc184218210bef69cd"
@@ -216,9 +241,9 @@
       "sha256": "09dc5b5d54780d01149e00b2c841e5034c7efb262d716675c2570ca4045e4f43"
     },
     {
-      "bytes": 21149,
+      "bytes": 21426,
       "path": "invariant.py",
-      "sha256": "22635146ffb049269e67cee19e0dccbd935f4e79e7185373de30b30701ff1aa0"
+      "sha256": "a347c34dc56064feaadc826329f700f670fbec22a9a1cfd82bf2cee43c7da646"
     },
     {
       "bytes": 5693,
@@ -234,6 +259,11 @@
       "bytes": 18244,
       "path": "obligations.py",
       "sha256": "c92b470d7bf397933384eaec885427dad2464b175014b734b1010cf3bc6a0993"
+    },
+    {
+      "bytes": 58743,
+      "path": "pyramid.py",
+      "sha256": "c923499648d58d90eb71e076f1e181d7ebbc814ce6105f0075df4216e4f02dcf"
     },
     {
       "bytes": 4790,
@@ -261,14 +291,14 @@
       "sha256": "5996e841943e8631d4bf4984bb7ad6c7af67949d92471fcbbc4709e73ba1ede8"
     },
     {
-      "bytes": 90529,
+      "bytes": 107857,
       "path": "tools/build_public_package.py",
-      "sha256": "98ae379fde4db8742586f61f04c8fdc9372e255f446677c37ee23d7c397f866f"
+      "sha256": "abf33a68c22d484295539956a88c32c0b34fec1afe015804c9cd135ec82fc27c"
     },
     {
-      "bytes": 11494,
+      "bytes": 12030,
       "path": "tools/helper_client.py",
-      "sha256": "bedfe6e90a86281f942759954f1aeccf9f07c00b3d838a6f5a21d62b44de3c18"
+      "sha256": "323c3e7b06b4b859e11dd8d97292e5eebea0d211135101b5cd2fe6fc13bdee6a"
     },
     {
       "bytes": 9009,
@@ -285,10 +315,10 @@
   "license_scope": "Newly authored Ember code and public documentation; adapted MIT example data attributed in THIRD_PARTY_NOTICES.md; donor archives and runtimes excluded.",
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
-  "python_requirement": "External standard-library Python; tested with Python 3.14.6 on Windows only.",
-  "runtime_source_bytes": 336925,
+  "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 was verified with Python 3.11.15 on Linux x86_64 only.",
+  "runtime_source_bytes": 442794,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",
-  "version": "ember-pyramid-15"
+  "version": "ember-pyramid-16"
 }
