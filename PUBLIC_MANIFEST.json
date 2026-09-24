@@ -26,9 +26,9 @@
       "sha256": "88b621357e7f2677281eca67b3a3c825e590c74764a438e790eeb2935db6805a"
     },
     {
-      "bytes": 93142,
+      "bytes": 93702,
       "path": "agent.py",
-      "sha256": "671f97468d138b7ee6ce2f6ec2b4200903cd8bb3b2ed0701dfce1aa5d8e28812"
+      "sha256": "5af2d2953c41da6ae26afad307a4558214d670137c78c799c373e163d30f589f"
     },
     {
       "bytes": 64204,
@@ -461,7 +461,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 and -17 were verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 886144,
+  "runtime_source_bytes": 886704,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",

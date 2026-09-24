@@ -572,28 +572,35 @@ class CoverGoal(Goal):
         return self.fam_count, done
 
     def persisted(self, rt):
-        """Templates, the finest checked cover (its families rebuild coverage), the latest finite range, and every
-        claim about that cover in compact form (the cover replaced by its digest), then the certified walls."""
+        """Her theorem's chain first: the cover her latest checked range uses, the range and every claim about that
+        cover in compact form (the cover replaced by its digest); then the finest checked cover and its claims when it
+        is another cover; her lemmas, templates, walls and refinement tree; and the families outside both covers."""
         covers = [o for o in rt.objects.values() if o['kind'] == 'cover' and o['status'] == 'checked']
         finite = [o for o in rt.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked']
         best = max(covers, key=lambda o: (o['data']['modulus'], len(o['data']['entries'])), default=None)
+        chain = next((o for o in covers if finite and o['data'] == finite[-1]['data']['cover']), None) or best
+        heads = [chain] + ([best] if best is not None and best is not chain else []) if chain is not None else []
         families = [rt.objects[i] for i in self.family_ids(rt)]
-        claims = []
-        if best is not None:
-            inside = {self.L.digest(e['family']) for e in best['data']['entries']}
+        claims = {id(o): [] for o in heads}
+        for head in heads:
+            inside = {self.L.digest(e['family']) for e in head['data']['entries']}
             families = [o for o in families if self.L.digest(o['data']) not in inside
-                        and not self.covered_by(best['data'], o['data'])]
-            ref = self.L.digest(best['data'])
+                        and not self.covered_by(head['data'], o['data'])]
+            ref = self.L.digest(head['data'])
             for o in rt.objects.values():
-                if o['kind'] in ('pattern', 'density') and o['status'] == 'checked' and o['data']['cover'] == best['data']:
+                if o['kind'] in ('pattern', 'density') and o['status'] == 'checked' and o['data']['cover'] == head['data']:
                     body = {k: v for k, v in o['data'].items() if k != 'cover'}
-                    claims.append(dict(kind=o['kind'], data=dict(body, cover_ref=ref)))
+                    claims[id(head)].append(dict(kind=o['kind'], data=dict(body, cover_ref=ref)))
+        chained = []
         if finite:
             # The theorem about the saved range is kept with the range replaced by its digest.
             ref = self.L.digest(finite[-1]['data'])
-            claims += [dict(kind='theorem', data=dict({k: v for k, v in o['data'].items() if k != 'finite'}, finite_ref=ref))
-                       for o in rt.objects.values() if o['kind'] == 'theorem' and o['status'] == 'checked'
-                       and o['data']['finite'] == finite[-1]['data']]
+            chained = [compact_range(self.L, finite[-1], chain)] + [
+                dict(kind='theorem', data=dict({k: v for k, v in o['data'].items() if k != 'finite'}, finite_ref=ref))
+                for o in rt.objects.values() if o['kind'] == 'theorem' and o['status'] == 'checked'
+                and o['data']['finite'] == finite[-1]['data']]
+        claims_first = ([chain] + chained + claims[id(chain)] if chain is not None else chained)
+        claims_first += [row for head in heads[1:] for row in [head] + claims[id(head)]]
         lemmas = [o for o in rt.objects.values() if (o['kind'] == 'obstruction' and o['status'] == 'checked') or
                   (o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'obstruction')]
         batches = {}
@@ -614,8 +621,8 @@ class CoverGoal(Goal):
         # Most valuable first, since the state bound trims from the end: her theorem's chain (the cover, the range and
         # the claims that name them), her lemmas, templates and walls, then the refinement tree (bookkeeping for a
         # resume), and last the families outside the cover, which her generators find again.
-        return (([best] if best else []) + [compact_range(self.L, o, best) for o in finite[-1:]] + claims + lemmas
-                + [o for o in rt.objects.values() if o['kind'] == 'template'] + walls + [self.tree(rt)] + families)
+        return (claims_first + lemmas + [o for o in rt.objects.values() if o['kind'] == 'template'] + walls
+                + [self.tree(rt)] + families)
 
     def tree(self, rt):
         """The refinement tree as bookkeeping, not a claim: every level (the agent's own included), the classes that
