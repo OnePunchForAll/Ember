@@ -1112,50 +1112,42 @@ def classical_parameters(a, m, r, bound, budget):
     return found
 
 
-_TYPE1 = {}
-_TYPE1_INDEX = {}
-
-
-def _type1_index(a, m, budget):
-    """The classes the Type I families for modulus m reach: (u+v)*r + w = 0 (mod q), q = a*u*v*w, has solutions
-    exactly when g = gcd(u+v, q) divides w, and then they form one class modulo q/g, which divides m. Indexed once
-    per modulus as {q/g: {residue: (u, v, w)}}; each use is charged the full enumeration."""
-    triples = _type1_all(a, m, budget)
-    if (a, m) not in _TYPE1_INDEX:
-        index = {}
-        for u, v, w in triples:
-            s = u + v; q = a * u * v * w; g = gcd(s, q)
-            if w % g: continue
-            mod = q // g; r0 = (-(w // g) * pow(s // g, -1, mod)) % mod if mod > 1 else 0
-            index.setdefault(mod, {}).setdefault(r0, (u, v, w))
-        if len(_TYPE1_INDEX) > 16: _TYPE1_INDEX.clear()
-        _TYPE1_INDEX[(a, m)] = dict(sorted(index.items()))
-    return _TYPE1_INDEX[(a, m)]
-
-
-def _type1_all(a, m, budget):
-    """Every Type I parameter set for modulus m: u = d*u', v = d*v' with gcd(u', v') = 1 and u' <= v'. Then
-    a*u*v*w | (u+v)*m becomes a*d*u'*v'*w | (u'+v')*m; u'*v' is coprime to u'+v', so u'*v' | m and d*w divides
-    (u'+v')*m/(a*u'*v'). The enumeration is complete. The list is kept per modulus and charged in full each time."""
-    if (a, m) not in _TYPE1:
-        out = []; ds = _divisors(m)
-        for up in ds:
-            for vp in ds:
-                if vp < up or gcd(up, vp) != 1 or m % (up * vp): continue
-                X = (up + vp) * (m // (up * vp))
-                if X % a: continue
-                for t in _divisors(X // a): out += [(d * up, d * vp, t // d) for d in _divisors(t)]
-        if len(_TYPE1) > 16: _TYPE1.clear()
-        _TYPE1[(a, m)] = out
-    budget.use(len(_TYPE1[(a, m)]))
-    return _TYPE1[(a, m)]
-
-
 def _divisors(n):
     """All divisors of n in increasing order, generated from its factorization."""
     out = [1]
     for p, e in _prime_powers(n).items(): out = [d * p ** k for d in out for k in range(e + 1)]
     return sorted(out)
+
+
+_TYPE1_INDEX = {}
+
+
+def _type1_index(a, m, budget):
+    """The classes the Type I families for modulus m reach. Every parameter set: u = d*u', v = d*v' with
+    gcd(u', v') = 1 and u' <= v'; then a*u*v*w | (u+v)*m becomes a*d*u'*v'*w | (u'+v')*m, and u'*v' is coprime to
+    u'+v', so u'*v' | m and d*w divides (u'+v')*m/(a*u'*v'): a finite set, enumerated completely. For each set,
+    (u+v)*r + w = 0 (mod q), q = a*u*v*w, has solutions exactly when g = gcd(u+v, q) divides w, and then they form
+    one class modulo q/g, which divides m. Kept as {q/g: {residue: (u, v, w)}} for a few moduli (the parameter
+    list itself is not kept); each use is charged the full enumeration."""
+    if (a, m) not in _TYPE1_INDEX:
+        index = {}; count = 0; ds = _divisors(m)
+        for up in ds:
+            for vp in ds:
+                if vp < up or gcd(up, vp) != 1 or m % (up * vp): continue
+                X = (up + vp) * (m // (up * vp))
+                if X % a: continue
+                for t in _divisors(X // a):
+                    for d in _divisors(t):
+                        u, v, w = d * up, d * vp, t // d; count += 1
+                        s = u + v; q = a * u * v * w; g = gcd(s, q)
+                        if w % g: continue
+                        mod = q // g; r0 = (-(w // g) * pow(s // g, -1, mod)) % mod if mod > 1 else 0
+                        index.setdefault(mod, {}).setdefault(r0, (u, v, w))
+        if len(_TYPE1_INDEX) >= 4: _TYPE1_INDEX.clear()
+        _TYPE1_INDEX[(a, m)] = (count, dict(sorted(index.items())))
+    count, index = _TYPE1_INDEX[(a, m)]
+    budget.use(count)
+    return index
 
 
 def check_nofamily(data, budget):

@@ -301,41 +301,31 @@ def classical_hit(a, m, r, bound):
     return None
 
 
-_ALL_TYPE1 = {}
 _REACH = {}
 
 
 def type1_reach(a, m):
-    """For each Type I triple, the residues r modulo m with a*u*v*w | (u+v)*r + w, found by solving the congruence
-    directly: they form a single class modulo q/g (g = gcd(u+v, q)) when g divides w, and none otherwise."""
+    """For each Type I triple (u, v, w), u <= v, with a*u*v*w | (u+v)*m, the residues r modulo m with
+    a*u*v*w | (u+v)*r + w. With g = gcd(u, v), u = g*x and v = g*y give a*g*x*y*w | (x+y)*m, where x*y is coprime to
+    x+y; so x*y | m and g*w | (x+y)*(m/(x*y))/a. The congruence is solved directly: a single class modulo q/c
+    (c = gcd(u+v, q), q = a*u*v*w) when c divides w, and none otherwise. Only the classes are kept."""
     if (a, m) not in _REACH:
-        reach = {}
-        for u, v, w in type1_everything(a, m):
-            q = a * u * v * w; s = u + v; g = gcd(s, q)
-            if w % g: continue
-            modulus = q // g; inverse = pow(s // g, -1, modulus) if modulus > 1 else 0
-            reach.setdefault(modulus, {}).setdefault((-(w // g) * inverse) % modulus, (u, v, w))
-        if len(_REACH) > 16: _REACH.clear()
-        _REACH[(a, m)] = reach
-    return _REACH[(a, m)]
-
-
-def type1_everything(a, m):
-    """All Type I triples (u, v, w), u <= v, with a*u*v*w | (u+v)*m. With g = gcd(u, v), u = g*x and v = g*y give
-    a*g*x*y*w | (x+y)*m, where x*y is coprime to x+y; so x*y | m and g*w | (x+y)*(m/(x*y))/a."""
-    if (a, m) not in _ALL_TYPE1:
-        found = []; ds = divisor_list(m)
+        reach = {}; ds = divisor_list(m)
         for x in ds:
-            if m % x: continue
             for y in ds:
                 if y < x or (m // x) % y or gcd(x, y) != 1: continue
                 rest = (x + y) * (m // (x * y))
                 if rest % a: continue
                 for gw in divisor_list(rest // a):
-                    found += [(g * x, g * y, gw // g) for g in divisor_list(gw)]
-        if len(_ALL_TYPE1) > 16: _ALL_TYPE1.clear()
-        _ALL_TYPE1[(a, m)] = found
-    return _ALL_TYPE1[(a, m)]
+                    for g in divisor_list(gw):
+                        u, v, w = g * x, g * y, gw // g
+                        q = a * u * v * w; s = u + v; c = gcd(s, q)
+                        if w % c: continue
+                        modulus = q // c; inverse = pow(s // c, -1, modulus) if modulus > 1 else 0
+                        reach.setdefault(modulus, {}).setdefault((-(w // c) * inverse) % modulus, (u, v, w))
+        if len(_REACH) >= 4: _REACH.clear()
+        _REACH[(a, m)] = reach
+    return _REACH[(a, m)]
 
 
 def nofamily_verdict(d):

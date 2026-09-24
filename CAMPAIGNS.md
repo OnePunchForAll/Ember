@@ -380,3 +380,17 @@ rounds 1 and 2, through the warm start.
   Products near 10^25 factor in milliseconds. The same profile of Campaign 1
   round 5 found 22% of its time recomputing her square/non-square context
   for every candidate move; the context is now kept per class.
+
+### Round 3, second attempt (fingerprint eeb4510f, stopped after 3 CPU minutes)
+
+- **Failure mining.** Factoring was no longer the bottleneck. The process
+  had grown to 2 GB, though, because the checker kept up to 16 complete
+  Type I parameter lists of about 1.5 million triples each, and the
+  generator kept up to 64 class indexes. At deeper levels that would have
+  exhausted memory. A complete wall also scanned every triple, about 0.2 s
+  per class at moduli near 2 x 10^7.
+- **Instrument.** The checker, the generator and the verdict each keep only
+  the classes the Type I families reach, as an index built once per modulus
+  for a few moduli, and never the parameter lists. A wall is now a few
+  hundred lookups. Three moduli near 2 x 10^7 take 10 s with a peak of
+  110 MB, and the three implementations agree on every sampled class.

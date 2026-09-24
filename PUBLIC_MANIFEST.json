@@ -346,9 +346,9 @@
       "sha256": "b995d063f27c7c492e83e774819988a05e3f5440fe7425dd72907b2e4a7b9ed7"
     },
     {
-      "bytes": 79478,
+      "bytes": 79329,
       "path": "lexicon_check.py",
-      "sha256": "91ae7e25356c8b8d0e5773eb6d9cc54415312ac9ca3a9e6662b92cb94efa6176"
+      "sha256": "adac42541f7714983675073a309e2eacfdaa1da1d1b73084e903a9754241afef"
     },
     {
       "bytes": 3884,
@@ -371,9 +371,9 @@
       "sha256": "9a8eeaacabd2770397e831bbc936a47ca0ba96a940b9e526d57439590d8d9a40"
     },
     {
-      "bytes": 42235,
+      "bytes": 42199,
       "path": "ops_egypt.py",
-      "sha256": "ad3f4292165b47b587395f07018c202c37c3a970df08d90c2bb19265b75190ac"
+      "sha256": "23922eff9df36fd5177e7416c65b9cb1d0f47889e30571903fb14b870dec3842"
     },
     {
       "bytes": 9902,
@@ -441,9 +441,9 @@
       "sha256": "f860bd1961f445a93bc42d5514111d3caf40a4fbd8ac66b7eb3ace6f46d66a4b"
     },
     {
-      "bytes": 27070,
+      "bytes": 26844,
       "path": "tools/verdict.py",
-      "sha256": "17b320bf2bb56aa97eecd7d99e00fc76bdff1e557f0c766c85099d9b7602d82d"
+      "sha256": "055aab7ee60db1a670abf65fb1b7185e7d16ef6b2674af73048b197984dc6fd2"
     },
     {
       "bytes": 9009,
@@ -461,7 +461,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 and -17 were verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 836659,
+  "runtime_source_bytes": 836474,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",

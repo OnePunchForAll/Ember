@@ -268,20 +268,18 @@ def type1_triples(a, m, bound):
     """Type I parameters (u, v, w), u <= v, with a*u*v*w | (u+v)*m. With bound 0 the set is complete: writing
     u = d*u', v = d*v' with gcd(u', v') = 1 forces u'*v' | m and d*w | (u'+v')*m/(a*u'*v'), a finite set."""
     if bound:
-        out = []
         for u in range(1, bound + 1):
             for v in range(u, bound + 1):
                 if ((u + v) * m) % (a * u * v): continue
-                out += [(u, v, w) for w in range(1, bound + 1) if ((u + v) * m) % (a * u * v * w) == 0]
-        return out
-    out = []; ds = L.divisors(m)
+                yield from ((u, v, w) for w in range(1, bound + 1) if ((u + v) * m) % (a * u * v * w) == 0)
+        return
+    ds = L.divisors(m)
     for up in ds:
         for vp in ds:
             if vp < up or gcd(up, vp) != 1 or m % (up * vp): continue
             X = (up + vp) * (m // (up * vp))
             if X % a: continue
-            out += [(d * up, d * vp, t // d) for t in L.divisors(X // a) for d in L.divisors(t)]
-    return out
+            for t in L.divisors(X // a): yield from ((d * up, d * vp, t // d) for d in L.divisors(t))
 
 
 def classical_tables(a, m, bound):
@@ -304,7 +302,7 @@ def classical_tables(a, m, bound):
             if w % g: continue
             mod = q // g; r0 = (-(w // g) * pow(s // g, -1, mod)) % mod if mod > 1 else 0
             type1.setdefault(mod, {}).setdefault(r0, ('I', u, v, w, None))
-        if len(_CLASSICAL) > 64: _CLASSICAL.clear()
+        if len(_CLASSICAL) >= 16: _CLASSICAL.clear()
         _CLASSICAL[key] = (type2, type1)
     return _CLASSICAL[key]
 
