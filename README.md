@@ -9,7 +9,7 @@ API key, downloaded weights, third-party package or source archive. Python itsel
 is an external prerequisite and is **not** included. Generations through
 `ember-pyramid-15` were tested on Windows with Python 3.14.6. Generation
 `ember-pyramid-16` added the apex layer; this generation, `ember-pyramid-17`,
-adds a typed operator language with 163 executed operators, a move bench and an
+adds a typed operator language with 165 executed operators, a move bench and an
 autonomous research agent. Both were verified on Linux x86_64 with Python 3.11.15
 only; they have not been rerun on the Windows host. Other Python versions,
 operating systems and devices remain unverified. CPU, memory and storage are still
@@ -626,10 +626,10 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 320 implemented moves across
+`--pyramid` prints the map. Its base is a catalog of 322 implemented moves across
 29 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 163 operators of the typed language described below. The
-base holds 118 moves with an N component, 114 with W, 261 with S and 104 with E.
+or replay work) and the 165 operators of the typed language described below. The
+base holds 120 moves with an N component, 116 with W, 263 with S and 104 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
 fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
@@ -869,7 +869,7 @@ absence, a descent certificate, a cycle). `lexicon_check.py` is the only way a
 claim becomes checked. It imports no operator code, has its own exact arithmetic,
 and binds every claim to the question stated in its own data.
 
-163 operators in eight modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+165 operators in eight modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
 `ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`) consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
 
@@ -893,8 +893,8 @@ The move bench runs every operator on its fixtures in a fresh runtime. It counts
 only the events that produced the objects the operator returned. An operator
 passes when its declared directions equal the union observed over its fixtures,
 every returned checked object is admitted again by a fresh checker call, and its
-argument and output kinds match its signature. All 163 pass: 63 have an N
-component, 49 W, 155 S and 78 E. Together with the subreasoner moves, every
+argument and output kinds match its signature. All 165 pass: 65 have an N
+component, 51 W, 157 S and 78 E. Together with the subreasoner moves, every
 direction of the pyramid now has more than one hundred moves. A package check
 changes one operator's declared directions and requires the bench to fail.
 Directions are observed on fixtures, not proved for every input.
@@ -926,14 +926,18 @@ it, and ranks them by the doctrine score p=(1+S)/(2+S+F) over the smoothed mean
 cost (0.01 + sum w t)/(1+S+F). A success is a checked result that changes the
 goal's progress. Samples are kept per context, strategy and task, at most 128.
 Reported samples from another run weigh min(0.25, 1/R), and every fifth unseen
-task reverses the order. Each strategy is tried once per target, and a target
-gets at most 24 moves. A move that fails only because its work allocation ran
+task reverses the order. Each strategy is tried once per target (the level steps
+described below once per workspace state), and a target gets at most 24 moves. A move that fails only because its work allocation ran
 out is retried once with four times the allocation. A class is refined toward
 the next modulus only after all three family generators have missed it. With
-`extra_lifts`, she may add up to two refinement primes of her own choosing: she
-lifts a sample of the open classes by each candidate prime, counts the lifts a
-classical family reaches, and refines every open class by the prime with the
-best yield. These are scheduling policies, not evidence.
+`extra_lifts`, she may add up to four refinement primes of her own choosing: for
+each candidate prime she counts exactly how many coprime lifts of her open
+classes a classical family reaches, and refines every open class by the prime
+that leaves the smallest fraction of residues open. A family class q that
+divides M·p but not M reaches the lifts of x whose residue modulo
+p^(v_p(M)+1) equals its own, for the entries congruent to x mod q/p, so the
+count needs one lookup per table modulus for each open class, not one per lift.
+These are scheduling policies, not evidence.
 
 For unit fractions she has three family generators. Two are divisor grammars:
 x = (s n + c)/a with every divisor shape of N², base and extended. The third
@@ -942,7 +946,8 @@ gives the two classical fixed-parameter solution types, for any numerator a:
   e w = u + v. It is complete over every modulus a u v that divides the class
   modulus.
 - Type I: x = u v d n, y = u w d, z = v w d, with (u+v) n + w = a u v w d. It
-  is searched with u <= v <= 120 and w <= 120.
+  is enumerated completely: with u = d' u', v = d' v' and u', v' coprime, u' v'
+  divides the modulus and d' w divides (u'+v') m / (a u' v'), a finite set.
 
 Each family is stated on the coarsest class its parameters need. Where the
 classical generator misses at the finest level, she can claim a wall
@@ -979,6 +984,26 @@ rebuild the polynomials. Strategies that fail 64 times without a success in
 one context (class kind and local squareness) and one refinement level are
 retired there for the rest of the run. The classical generator and the
 wall certificates are never retired.
+
+She prepares her finest level before its classes: her obstruction lemma first,
+then a classical sweep that runs the generator over every class still without a
+classical outcome in one move, then one batch wall claim for the classes it
+missed (square classes a checked lemma settles are left out). Each level step is
+tried once per workspace state, and a step already tried in the current state no
+longer holds the level's other questions back. A class target with no fresh move
+is looked at again only when something that can give it one changes: its own
+derived objects, a new level, a lemma, the kinds available as companions, or,
+above the finest level, a retirement in its own context and level. Her library
+also shortens retirement: a strategy it has seen fail at least 64 times, with no
+success, in a context gets 8 tries per level there before it retires. That is a
+scheduling prior, not evidence. Contexts saved before the numerator was part of
+their name are read as the current numerator only when every saved record has
+it. Walls carried over from a related problem wait until her lemma at their
+level is settled. The walls it implies are not checked again, and a saved state
+keeps the lemma instead of them. When the state reaches its bound, the
+scheduling memory of other records is trimmed first, then the evidence of
+records whose claims she carried over and checked again, and her own new
+evidence last.
 
 Every report mines its own failures. It lists the open targets, the moves each
 received and the residuals they left, and a profile of what stayed open (for

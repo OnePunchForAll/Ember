@@ -515,6 +515,7 @@ def cycle_verdict(d):
 # ------------------------------------------------------------- self-test and dispatch
 
 def verdict(kind, data):
+    if type(data) is dict and set(data) == {'unresolvable'}: return 'UNRESOLVED', data['unresolvable']
     try:
         if kind == 'ufam': return family_verdict(data)
         if kind == 'cover': return cover_verdict(data)
@@ -604,7 +605,7 @@ def claims_of(state):
             if kind in ('template', 'cover_tree', 'descent_tree'): continue  # bookkeeping, not claims
             if type(data) is dict and 'cover_ref' in data:
                 if data['cover_ref'] not in covers:
-                    yield record['task_id'], kind, dict(unresolvable='cover reference not saved'); continue
+                    yield record['task_id'], kind, dict(unresolvable='no saved cover has the referenced digest'); continue
                 data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=covers[data['cover_ref']])
             if type(data) is dict and 'finite_ref' in data:
                 ranges = {}
@@ -615,7 +616,7 @@ def claims_of(state):
                         body = dict({k: v for k, v in body.items() if k != 'cover_ref'}, cover=covers[body['cover_ref']])
                     ranges[digest(body)] = body
                 if data['finite_ref'] not in ranges:
-                    yield record['task_id'], kind, dict(unresolvable='range reference not saved'); continue
+                    yield record['task_id'], kind, dict(unresolvable='no saved range has the referenced digest'); continue
                 data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=ranges[data['finite_ref']])
             if kind == 'nofamily' and type(data) is dict and 'rs' in data:
                 for r in data['rs']:

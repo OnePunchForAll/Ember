@@ -1118,13 +1118,9 @@ def classical_parameters(a, m, r, bound, budget):
     the class needs a*u*v*w | (u+v)*m and a*u*v*w | (u+v)*r + w. Type II is complete over its moduli;
     Type I is searched for u <= v <= bound and w <= bound."""
     found = []
-    for D in _divisors(m):
-        if D % a: continue
-        uv = D // a; e = (-r) % D or D
-        for u in _divisors(uv):
-            v = uv // u
-            budget.use()
-            if u <= v and (u + v) % e == 0: found.append(('II', u, v, (u + v) // e))
+    for D, row in _type2_index(a, m, budget).items():
+        # The class fixes e = (-r mod D) or D, since e <= u+v <= a*u*v = D; the row keeps the sets in (u, v) order.
+        found += [('II',) + params for params in row.get(r % D, ())]
     if bound == 0:
         for mod, row in _type1_index(a, m, budget).items():
             hit = row.get(r % mod)
@@ -1140,11 +1136,43 @@ def classical_parameters(a, m, r, bound, budget):
     return found
 
 
+_DIVISORS = {}
+
+
 def _divisors(n):
-    """All divisors of n in increasing order, generated from its factorization."""
-    out = [1]
-    for p, e in _prime_powers(n).items(): out = [d * p ** k for d in out for k in range(e + 1)]
-    return sorted(out)
+    """All divisors of n in increasing order, generated from its factorization (kept for reuse; callers only read)."""
+    if n not in _DIVISORS:
+        out = [1]
+        for p, e in _prime_powers(n).items(): out = [d * p ** k for d in out for k in range(e + 1)]
+        if len(_DIVISORS) >= 100_000: _DIVISORS.clear()
+        _DIVISORS[n] = sorted(out)
+    return _DIVISORS[n]
+
+
+_TYPE2_INDEX = {}
+
+
+def _type2_index(a, m, budget):
+    """The classes the Type II families for modulus m reach: for every D = a*u*v dividing m, u <= v, and e | u+v, the
+    class -e modulo D with parameters (u, v, w = (u+v)/e). Kept as {D: {residue: [(u, v, w), ...]}}, each list in
+    increasing u, for a few moduli. The enumeration is charged when it is computed, and each use its lookups."""
+    if (a, m) not in _TYPE2_INDEX:
+        index = {}; count = 0
+        for D in _divisors(m):
+            if D % a: continue
+            uv = D // a; row = {}
+            for u in _divisors(uv):
+                v = uv // u
+                if u > v: continue
+                for e in _divisors(u + v):
+                    count += 1; row.setdefault((-e) % D, []).append((u, v, (u + v) // e))
+            index[D] = row
+        budget.use(count)
+        if len(_TYPE2_INDEX) >= 4: _TYPE2_INDEX.clear()
+        _TYPE2_INDEX[(a, m)] = (count, index)
+    count, index = _TYPE2_INDEX[(a, m)]
+    budget.use(len(index))
+    return index
 
 
 _TYPE1_INDEX = {}

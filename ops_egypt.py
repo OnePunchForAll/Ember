@@ -36,6 +36,7 @@ CLASSICAL_BOUND = 0  # 0: every classical parameter set (Type I is finite at a f
 LIFT_CAP = 10 ** 7
 LIFT_CLASSES = 60_000
 WALL_CAP = 10 ** 12
+SWEEP_CLASSES = 4000
 
 
 def op(name, dirs, consumes, produces, summary):
@@ -605,6 +606,78 @@ def egypt_classical_obstruction(rt, esq):
     return [claim]
 
 
+def level_classes(rt, a, terms, M):
+    """The class targets of one level: eclass objects of this question with modulus M, by residue."""
+    return sorted((o for o in rt.objects.values() if o['kind'] == 'eclass' and o['data']['m'] == M
+                   and o['data']['a'] == a and o['data']['terms'] == terms), key=lambda o: o['data']['r'])
+
+
+def family_index(rt, a, terms):
+    index = {}
+    for f in checked_families(rt, a, terms): index.setdefault(f['data']['m'], set()).add(f['data']['r'])
+    return index
+
+
+def reached(index, M, r):
+    return any(M % m == 0 and r % m in rs for m, rs in index.items())
+
+
+def notes_of(rt, cls):
+    return {o['data']['note'] for o in rt.objects.values() if o['kind'] == 'residual' and o['data'].get('of') == cls['id']}
+
+
+def lemma_holds(rt, a, M):
+    """A checked obstruction lemma at a multiple of M: no classical family reaches a coprime square class mod M."""
+    return any(o['kind'] == 'obstruction' and o['status'] == 'checked' and o['data']['a'] == a and o['data']['m'] % M == 0
+               for o in rt.objects.values())
+
+
+@op('egypt_classical_sweep', 'NWS', ('esq',), ('ufam', 'residual'),
+    'Run the classical generator over the classes of the question modulus that no checked family reaches, many in '
+    'one move: a family for each class it reaches, stated on the coarsest class, and a classical miss for each other.')
+def egypt_classical_sweep(rt, esq):
+    d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
+    if terms != 3 or M > WALL_CAP: return []
+    index = family_index(rt, a, terms); squares_known = lemma_holds(rt, a, M); powers = L.factor(M); out = []; done = 0
+    missed = {o['data']['of'] for o in rt.objects.values() if o['kind'] == 'residual' and o['data'].get('note') == 'classical miss'}
+    for cls in level_classes(rt, a, terms, M):
+        r = cls['data']['r']; rt.budget.use()
+        if cls['id'] in missed or reached(index, M, r): continue
+        if squares_known and gcd(r, M) == 1 and not local_nonresidues(r, powers): continue  # her lemma settles these
+        if done >= SWEEP_CLASSES: break
+        done += 1; found = classical_search(a, M, r, CLASSICAL_BOUND, rt.budget)
+        if not found:
+            out.append(rt.residual(cls, ['classical fixed-parameter families exhausted'], 'classical miss')); continue
+        fam = rt.propose('ufam', classical_family(a, M, r, found[0]), (cls,))
+        if rt.check(fam):
+            out.append(fam); index.setdefault(fam['data']['m'], set()).add(fam['data']['r'])
+    return out
+
+
+@op('egypt_wall_sweep', 'NWS', ('esq',), ('nofamily',),
+    'Certify in one batch claim the classes of the question modulus that the classical generator missed and no family '
+    'reaches: the checker enumerates every classical parameter set for each; square classes her lemma settles are left out.')
+def egypt_wall_sweep(rt, esq):
+    d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
+    if terms != 3 or M > WALL_CAP: return []
+    index = family_index(rt, a, terms); squares_known = lemma_holds(rt, a, M); powers = L.factor(M)
+    missed = {o['data']['of'] for o in rt.objects.values() if o['kind'] == 'residual' and o['data'].get('note') == 'classical miss'}
+    walled = set()
+    for o in rt.objects.values():
+        if o['kind'] == 'nofamily' and o['status'] == 'checked' and o['data']['m'] == M and o['data']['a'] == a:
+            walled.update(o['data']['rs'] if 'rs' in o['data'] else [o['data']['r']])
+    rs = []
+    for cls in level_classes(rt, a, terms, M):
+        r = cls['data']['r']; rt.budget.use()
+        if cls['id'] not in missed or r in walled or reached(index, M, r): continue
+        if squares_known and gcd(r, M) == 1 and not local_nonresidues(r, powers): continue
+        rs.append(r)
+        if len(rs) >= SWEEP_CLASSES: break
+    if not rs: return []
+    claim = rt.propose('nofamily', dict(a=a, terms=terms, m=M, rs=sorted(rs), bound=CLASSICAL_BOUND), (esq,))
+    return [claim] if rt.check(claim) else []
+
+
 @op('egypt_class_split', 'N', ('eclass',), ('eclass',),
     'Refine a class mod m into t subclasses mod t*m, for the least prime t not dividing m.')
 def egypt_class_split(rt, cls):
@@ -722,23 +795,59 @@ def egypt_local_pattern(rt, cover):
     return [claim] if rt.check(claim) else []
 
 
+def lift_reach(a, M, p, classes, budget):
+    """How many coprime lifts to M*p of the coprime classes x (mod M) a classical family reaches, counted exactly.
+
+    Every table class has a modulus q dividing M*p. When q does not divide M, write P = p**(v_p(M) + 1): then q/p
+    divides M, and n = x + M*j lies in the table class r0 (mod q) exactly when x = r0 (mod q/p) and n = r0 (mod P).
+    As j runs over 0..p-1, n mod P runs once over the residues = x (mod P/p), so the reached lifts of x are the
+    distinct values r0 mod P over the entries with r0 = x (mod q/p). When p does not divide M, the lift n = 0 (mod p)
+    is not coprime and is not counted. Classes a family with modulus dividing M reaches must be left out of classes."""
+    type2, type1 = classical_tables(a, M * p, CLASSICAL_BOUND)
+    P = p
+    while M % P == 0: P *= p
+    split = {}
+    for table in (type2, type1):
+        for q, row in table.items():
+            if M % q == 0: continue
+            index = split.setdefault(q // p, {})
+            for r0 in row: index.setdefault(r0 % (q // p), set()).add(r0 % P)
+    reached = 0
+    for x in classes:
+        budget.use(len(split)); hit = set()
+        for h, index in split.items():
+            found = index.get(x % h)
+            if found: hit |= found
+        if M % p: hit.discard(0)
+        reached += len(hit)
+    return reached
+
+
 @op('egypt_choose_lift', 'N', ('esq',), ('esq', 'eclass'),
-    'Choose the next refinement prime by measured yield: lift a sample of uncovered classes by each candidate prime, '
-    'count the lifts a classical family reaches, then refine every uncovered class by the best prime.')
+    'Choose the next refinement prime by exact yield: for each candidate prime, count every lift of the uncovered '
+    'classes a classical family reaches, then refine every uncovered class by the prime that leaves the smallest '
+    'fraction of residues open among the coprime lifts.')
 def egypt_choose_lift(rt, esq):
     d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
     cover = best_cover(rt, a, terms, M)
     if cover is None or terms != 3: return []
     left = open_residues(cover['data'], rt.budget); stuck = [x for x in left if gcd(x, M) == 1]
     if not stuck: return []
-    sample = stuck[::max(1, len(stuck) // 6)][:6]; best = None
+    # A class some classical family with modulus dividing M already reaches lifts to reached classes by every prime; it
+    # needs that family, not a refinement, so it is left out of the count.
+    here = [row for table in classical_tables(a, M, CLASSICAL_BOUND) for row in table.items()]
+    unreached = []
+    for x in stuck:
+        rt.budget.use(len(here))
+        if not any(x % q in row for q, row in here): unreached.append(x)
+    best = None
     for p in PRIMES:
         # The lifts to examine, not the size of the modulus, bound a refinement: covers are sieved along the levels.
         if len(left) * p > LIFT_CLASSES or M * p > WALL_CAP: continue
-        lifts = [x + M * j for x in sample for j in range(p) if gcd(x + M * j, M * p) == 1]
-        lifts = lifts[::max(1, len(lifts) // 24)][:24]
-        hits = sum(1 for y in lifts if classical_search(a, M * p, y, CLASSICAL_BOUND, rt.budget))
-        if hits and (best is None or Q(hits, len(lifts)) > best[0]): best = (Q(hits, len(lifts)), p)
+        reached = lift_reach(a, M, p, unreached, rt.budget)
+        if not reached: continue
+        share = Q(len(unreached) * (p if M % p == 0 else p - 1) - reached, M * p)
+        if best is None or share < best[0]: best = (share, p)
     if best is None: return []
     p = best[1]
     out = [rt.propose('esq', dict(d, modulus=M * p), (esq,))]
@@ -873,6 +982,19 @@ def _sieved_assembly(rt):
     return [_esq(rt, 120)]
 
 
+def _sweep_level(rt):
+    """Classes mod 120 as class targets, before any family is known."""
+    for r in range(1, 120, 2):
+        if gcd(r, 120) == 1: _cls(rt, 120, r)
+    return [_esq(rt, 120)]
+
+
+def _walled_level(rt):
+    """The same level after a sweep: the classical misses are ready to be certified as walls in one claim."""
+    esq = _sweep_level(rt)[0]; egypt_classical_sweep(rt, esq)
+    return [esq]
+
+
 def _sieved_range(rt):
     _sieved_cover(rt); return egypt_finite_verify(rt, _esq(rt, 120, verify_to=400))
 
@@ -910,6 +1032,8 @@ FIXTURES = {
     'egypt_classical_family': [lambda rt: [_cls(rt, 840, 11)], lambda rt: [_cls(rt, 840, 1)]],
     'egypt_classical_exclusion': [lambda rt: [_cls(rt, 840, 1)]],
     'egypt_classical_obstruction': [lambda rt: [_esq(rt, 840)], lambda rt: [_esq(rt, 840, a=5)]],
+    'egypt_classical_sweep': [_sweep_level],
+    'egypt_wall_sweep': [_walled_level],
     'egypt_signature_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_local_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_reduction_theorem': [lambda rt: egypt_finite_verify(rt, _esq(rt, 24, verify_to=400))

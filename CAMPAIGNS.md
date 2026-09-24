@@ -584,3 +584,95 @@ The run started fresh, with only her strategy library.
 - **A readable verdict.** The verdict lists every claim other than a
   verified wall, and summarizes the walls. Before this, it listed only the
   first 512 claims.
+
+## Instruments built from her round-5 profile (the upgrade for faster, smarter rounds)
+
+Her round 5 on the committed code took 4,851 s. Only 873 s of it went to her
+moves; the rest was scheduling and bookkeeping. Of the move time, 422 s went to
+per-class classical searches (17,328 misses) and walls (17,202) on square
+classes that her checked lemma already settles. Each instrument below answers
+one line of that profile, or a defect that her runs exposed.
+
+- **Her lemma first, then whole-level moves.** Her finest level is prepared
+  before its classes: the obstruction lemma, then `egypt_classical_sweep`,
+  which runs the classical generator over every class still without a
+  classical outcome in one move, then `egypt_wall_sweep`, one batch wall claim
+  for the classes it missed. Square classes a checked lemma settles are left
+  out of both. The checker admits the batch only after checking every listed
+  class as its own wall. Both new operators pass the move bench with declared
+  directions NWS equal to those observed.
+- **Level steps tried once per workspace state.** The first fresh run of the
+  new flow stopped early, without choosing her refinement prime. Each target
+  could try each operator once, so the sweeps could not run again as classes
+  reached the finest level. The level then waited for preparation that could
+  never finish, and her other finest-level moves were blocked. Now each level
+  step runs once per workspace state, and a step already tried in the current
+  state no longer holds the level back.
+- **Rescans only on change.** A class with no fresh move is looked at again
+  only when something that can give it one changes: its own derived objects, a
+  new level, a lemma, the kinds available as companions, or (above the finest
+  level) a retirement in its own context and level. Such a class is skipped
+  with one set lookup until then. Companion kinds, lemma lookups, level counts,
+  the checked-family index and the open-class lists are all kept
+  incrementally. Checking for a companion walked every class object backwards
+  on every step; that walk alone had taken about a quarter of a profile.
+- **Experience priors.** A strategy her library has seen fail at least 64 times
+  with no success in a context gets 8 tries per level there before it retires
+  (it had 64). That is a scheduling prior, not evidence, and one success at a
+  level keeps it there. Contexts saved before the numerator was part of their
+  name are read as the current numerator only when every saved record has it:
+  4/n and 5/n classes answer the same strategies differently, and contexts now
+  carry the numerator.
+- **Her prime chosen on exact counts.** She chose each refinement prime from 6
+  open classes and at most 24 of their lifts. On round 4's cover that sample
+  scores 13 and 17 alike (5 of 24). Exact counts separate them: lifting by 13
+  leaves 16,868 classes open mod 20,540,520, lifting by 17 leaves 23,759 mod
+  26,860,680, and primes already dividing the modulus reach almost nothing.
+  She now counts every coprime lift a classical family reaches and takes the
+  prime that leaves the smallest fraction of residues open. A family class q
+  that divides M·p but not M reaches exactly the lifts of x whose residue mod
+  p^(v_p(M)+1) is its own, for its entries congruent to x mod q/p, so the
+  count needs one lookup per table modulus for each open class, not one per
+  lift. On 2,619 classes and eight primes it equals a direct search over every
+  lift, at 3 to 19 times less work. A package check compares the two.
+- **Carried walls wait for her lemma.** Walls carried from a related problem
+  are admitted once her lemma at their level is settled. A wall on a class
+  that is a coprime square modulo every prime-power factor of m follows from a
+  checked lemma at a multiple of m: a family reaching it would have a modulus
+  dividing m and would reach a coprime square class at the lemma's level.
+  Those walls are not checked again, and a saved state keeps the lemma instead
+  of them. Re-admitting round 4's 2,904 walls had taken 78% of the first
+  profile of the new flow.
+- **A Type II index in the checker.** For a fixed numerator and modulus, the
+  classes the Type II families reach are enumerated once into an index,
+  charged when it is built. Each wall then costs one lookup per divisor. On
+  9,720 residues across five numerators and eight moduli, the indexed and
+  unindexed enumerations agree exactly. Divisor lists are kept for reuse.
+- **The state bound keeps her results.** Her round-5 record lost all 175 of
+  its objects to the 1 MiB bound, while the round-4 record, in an older and
+  longer format, kept 866 kB. The bound now trims this record's scheduling
+  memory first, then other records' scheduling memory, then the evidence of
+  records whose claims this run carried over and checked again, and this
+  record's own evidence last. Within a record her theorem's chain comes first,
+  then her lemmas, templates and walls, then the refinement tree, and last the
+  families outside her cover, which her generators find again. The tree stores
+  residues grouped by modulus as gaps between sorted values.
+- **Reports.** Each failure example names the checked claim that settles it
+  (`settled_by`: the obstruction lemma or a wall). The verdict reports a claim
+  whose cover or range reference matches nothing saved as UNRESOLVED, with
+  that reason.
+
+Matched comparisons: each started from a fresh state, on the same machine, while
+the other code tree ran at the same time.
+
+| Task | Committed code | Upgraded code |
+|---|---|---|
+| Round-4 statement (4/n, one prime of her own) | 11,481 moves, 299 s; prime 19; theorem at 1,580,040 with 2,593 classes open (1.64 × 10^-3 of residues) | 3,437 moves, 74 s; prime 13; theorem at 1,081,080 with 1,674 open (1.55 × 10^-3) |
+| Campaign 2 round-4 statement (5/n, three primes of her own) | 19,634 moves, 585 s; primes 13, 19, 29; theorem at 595,675,080 with 1,215 open (2.04 × 10^-6). A second run: 19,168 moves, 565 s, and no theorem, because its last range check failed | 10,586 moves, 251 s; primes 13, 19, 23; theorem at 472,431,960 with 492 open (1.04 × 10^-6) |
+| Campaign 3 round-2 statement (Collatz to 2^18, closed) | 25,980 moves, 156 s | 25,939 moves, 113 s; in both, all 18 levels equal the independent counts |
+
+Before her prime choice changed, the upgraded code reached the same open
+classes as the committed code at every level of both 4/n and 5/n. It took
+107 s against 299 s on 4/n, and 392 s against 565 s on 5/n. The new choice
+then gave her smaller open fractions as well. Her move order still depends on
+measured seconds, so two runs of the same code can differ.

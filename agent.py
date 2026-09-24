@@ -39,7 +39,8 @@ MAX_PER_TARGET = 1
 MAX_TARGET_MOVES = 24
 COMPANIONS = 4
 # Operators that read the workspace: an attempt is new whenever the goal's progress has changed since.
-READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift'))
+READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift',
+                             'egypt_classical_sweep', 'egypt_wall_sweep'))
 MACRO_STEPS = 4
 PROPOSE_EVERY = 25
 # A move that fails only for lack of work is retried once with this many times the allocation.
@@ -54,6 +55,9 @@ FAMILY_MISSES = frozenset(('ansatz miss', 'extended ansatz miss', 'classical mis
 MISS_SOURCES = {'ansatz miss': 'egypt_divisor_ansatz', 'extended ansatz miss': 'egypt_ansatz_extend',
                 'classical miss': 'egypt_classical_family'}
 RETIRE_AFTER = 64
+PRIOR_PROBES = 8  # a strategy her library has seen fail in a context gets this many tries per level before retiring
+# Moves that prepare a whole level: tried once per workspace state rather than once per target.
+LEVEL_STEPS = ('egypt_classical_obstruction', 'egypt_classical_sweep', 'egypt_wall_sweep')
 
 
 def digest(value):
@@ -97,6 +101,18 @@ def compact_range(L, obj, best):
     d = obj['data']
     if best is None or d.get('cover') != best['data']: return obj
     return dict(kind=obj['kind'], data=dict({k: v for k, v in d.items() if k != 'cover'}, cover_ref=L.digest(best['data'])))
+
+
+def gaps(values):
+    """Sorted integers as their first value and the gaps between neighbours."""
+    values = sorted(values)
+    return values[:1] + [b - a for a, b in zip(values, values[1:])]
+
+
+def ungaps(encoded):
+    out = []
+    for step in encoded: out.append(step if not out else out[-1] + step)
+    return out
 
 
 def lean_family(L, d):
@@ -160,11 +176,29 @@ class Goal:
         """The population a retirement applies to within a context; a new population gets a fresh chance."""
         return None
 
+    def capped_key(self, rt, target, retired_in):
+        """Goal state that can give a capped target a new move, or None to fall back on global progress. retired_in
+        counts retirements per (context, scope)."""
+        return None
+
+    def capped_global(self, rt):
+        """The part of capped_key shared by every target (retirements aside, which the agent counts itself)."""
+        return ()
+
+    def library_context(self, context, problems):
+        """A saved library context in the goal's current naming; problems are the saved problem statements of this
+        goal type in the state, or empty when some record has none."""
+        return context
+
     def transfer(self, rt, rows):
         """Checked objects from records of related problems, admitted again by the checker; returns (admitted, refused)."""
         return 0, 0
 
     def done(self, rt): return False
+
+    def settled(self, rt, target):
+        """The checked claim that rules out the goal's remaining strategies on an open target, or None."""
+        return None
 
     def failure_profile(self, rt): return {}
 
@@ -173,6 +207,17 @@ class Goal:
     def schedule_key(self, rt):
         """Goal state beyond progress that can make a move newly allowed; part of a target's exhaustion signature."""
         return ()
+
+    def attempting(self, strategy, target, rt):
+        """Told before each move is executed; a goal may keep what it needs to schedule its own steps."""
+
+    def carry_report(self):
+        """Saved claims whose admission the goal deferred until its own claims could settle them."""
+        return {}
+
+    def carries(self, record):
+        """Whether transfer carries the checked claims of this saved record into the goal's own work."""
+        return False
 
 
 class CoverGoal(Goal):
@@ -192,6 +237,12 @@ class CoverGoal(Goal):
         # Incremental indexes: the step loop reads these instead of rescanning the workspace.
         self.results = []; self.covers_at = {}; self._open = {}; self.fam_count = 0
         self.fam = {}; self.fam_log = []; self._fam_known = set(); self.lemmas = []
+        # Walls by modulus, lemma attempts and refutations: what a level already knows about its classes.
+        self.walled = {}; self._wall_pending = []; self.lemma_tried = set(); self.lemma_refuted = set(); self._prep = None
+        # The workspace state at which each level step was last tried: a tried step no longer holds the level back.
+        self.swept = {}; self._sweeps = 0
+        # Carried walls by modulus, admitted once her lemma at their level is settled (the lemma implies the square ones).
+        self.deferred = {}; self.carried_later = dict(admitted=0, refused=0, implied_by_lemma=0); self._lemma_at = {}
 
     def init(self, rt):
         p = self.p; a, terms = p['a'], p['terms']
@@ -228,10 +279,18 @@ class CoverGoal(Goal):
                 for parent in o['parents']: self.refined.add(parent)
             if o['kind'] == 'template' or o['kind'] in ('finite', 'cover', 'pattern', 'density', 'theorem', 'obstruction'):
                 self.results.append(o)
-                if o['kind'] == 'obstruction': self.lemmas.append(o)
+                if o['kind'] == 'obstruction': self.lemmas.append(o); self.lemma_tried.add(o['data']['m'])
+            if o['kind'] == 'nofamily' and o['data'].get('a') == self.p['a']: self._wall_pending.append(o)
+            if o['kind'] == 'refutation' and o['data']['claim']['kind'] == 'obstruction': self._wall_pending.append(o)
         self.seen = len(rt.order)
+        waiting = []
+        for o in self._wall_pending:
+            if o['status'] != 'checked': waiting.append(o); continue
+            if o['kind'] == 'refutation': self.lemma_refuted.add(o['data']['claim']['data']['m']); continue
+            d = o['data']; self.walled.setdefault(d['m'], set()).update(d['rs'] if 'rs' in d else [d['r']])
+        self._wall_pending = waiting
         # Family classes only accumulate; the log keeps their order of discovery for incremental updates.
-        for identity in self.family_ids(rt):
+        for identity in self.fresh_family_ids(rt):
             if identity in self._fam_known: continue
             self._fam_known.add(identity); d = rt.objects[identity]['data']; rs = self.fam.setdefault(d['m'], set())
             if d['r'] not in rs: rs.add(d['r']); self.fam_log.append((d['m'], d['r']))
@@ -239,14 +298,28 @@ class CoverGoal(Goal):
         for o in self.results:
             if o['kind'] == 'cover' and o['status'] == 'checked': self.covers_at[o['data']['modulus']] = o
 
-    def family_ids(self, rt):
-        if not hasattr(self, '_families'): self._families = []; self._scanned = 0
-        for identity in rt.order[self._scanned:]:
+    def fresh_family_ids(self, rt):
+        """Checked family objects of this equation not returned before, in creation order. A family seen before it was
+        checked waits until it is checked, refuted or refused (the checker never admits a refused claim later)."""
+        if not hasattr(self, '_checked'): self._checked = []; self._waiting = []; self._scanned = 0
+        fresh = []
+        for position in range(self._scanned, len(rt.order)):
+            identity = rt.order[position]; o = rt.objects.get(identity)
+            if o is None or o['kind'] != 'ufam' or o['data']['a'] != self.p['a'] or len(o['data']['x']) != self.p['terms']:
+                continue
+            (fresh if o['status'] == 'checked' else self._waiting).append((position, identity))
+        self._scanned = len(rt.order); waiting = []
+        for position, identity in self._waiting:
             o = rt.objects.get(identity)
-            if o is not None and o['kind'] == 'ufam' and o['data']['a'] == self.p['a'] and len(o['data']['x']) == self.p['terms']:
-                self._families.append(identity)
-        self._scanned = len(rt.order)
-        return [i for i in self._families if rt.objects[i]['status'] == 'checked']
+            if o is None or o['status'] == 'refuted' or o.get('rejections'): continue
+            (fresh if o['status'] == 'checked' else waiting).append((position, identity))
+        self._waiting = waiting
+        fresh.sort(); self._checked += fresh
+        return [identity for _, identity in fresh]
+
+    def family_ids(self, rt):
+        """Every checked family object of this equation, in the order they were found checked."""
+        self.update(rt); return [identity for _, identity in self._checked]
 
     def families(self, rt):
         self.update(rt); return self.fam
@@ -258,6 +331,7 @@ class CoverGoal(Goal):
         """Every family generator has missed the class, or was retired in its context and is taken to miss."""
         if target['id'] in self.base_miss: return True
         found = self.misses.get(target['id'], set()); context = self.context(target)
+        if self.obstructed(rt, target): found = found | {'classical miss'}
         scope = self.retire_scope(target)
         return all(note in found or (context, MISS_SOURCES[note], scope) in self.retired for note in FAMILY_MISSES)
 
@@ -265,13 +339,35 @@ class CoverGoal(Goal):
         # The classes of one refinement level: lifts to a new level are a new population.
         return target['data'].get('m') if target['kind'] == 'eclass' else None
 
+    def capped_global(self, rt):
+        return len(self.levels), len(self.lemmas), len(self.lemma_refuted)
+
+    def capped_key(self, rt, target, retired_in):
+        # A class gains a move only through its own derived objects, a new level, a lemma, or, above the finest level
+        # where it can release a refinement, a retirement in its own context and level; a family found elsewhere does
+        # not change what the class can try.
+        coarse = target['kind'] != 'eclass' or target['data']['m'] != self.levels[-1]
+        return (len(self.levels), len(self.lemmas), len(self.lemma_refuted),
+                retired_in.get((self.context(target), self.retire_scope(target)), 0) if coarse else 0)
+
+    def library_context(self, context, problems):
+        # Contexts saved before the numerator was part of their name are read as this numerator only when every saved
+        # record of this goal type has it: 4/n and 5/n classes answer the same strategies differently.
+        legacy = self.kind + ':eclass:'
+        if context.startswith(legacy) and problems and all(p.get('a') == self.p['a'] for p in problems):
+            return self.kind + ':a' + str(self.p['a']) + ':eclass:' + context[len(legacy):]
+        return context
+
     def retirable(self, context, strategy):
         # The classical generator and wall certificates decide every class's status; they are never retired.
-        return context.startswith(self.kind + ':eclass') and strategy not in ('egypt_classical_family',
-                                                                              'egypt_classical_exclusion')
+        return ':eclass' in context and context.startswith(self.kind) and strategy not in (
+            'egypt_classical_family', 'egypt_classical_exclusion', 'egypt_classical_sweep', 'egypt_wall_sweep')
 
     def targets(self, rt):
         self.update(rt); out = []
+        if self.deferred: self.settle_deferred(rt)
+        # The finest level is prepared before its classes: her lemma, then the classical sweep, then the walls.
+        if self.preparing(rt): out.append(self.esq[-1])
         for q in self.primes:
             if not self.covered(self.fam, q, 0): out.append(self.en[q])
         for level, M in enumerate(self.levels):
@@ -280,27 +376,123 @@ class CoverGoal(Goal):
             if M in self.covers_at: out.append(self.covers_at[M])
         return out
 
+    def lemma_at(self, m):
+        """Her checked lemma at a multiple of m, if any: it speaks for every coprime square class modulo m."""
+        key = (m, len(self.lemmas))
+        if key not in self._lemma_at:
+            if len(self._lemma_at) > 4096: self._lemma_at.clear()
+            self._lemma_at[key] = any(o['status'] == 'checked' and o['data']['m'] % m == 0 and o['data']['a'] == self.p['a']
+                                      for o in self.lemmas)
+        return self._lemma_at[key]
+
+    def implied_wall(self, d):
+        """A wall that her checked lemma implies: a coprime class that is a square modulo every prime-power factor of m,
+        with the lemma checked at a multiple of m. A classical family reaching it would have a modulus dividing m and
+        would reach a coprime square class at the lemma's level, which the lemma excludes."""
+        m, r = d['m'], d['r']
+        if d.get('a') != self.p['a'] or d.get('terms') != self.p['terms'] or gcd(r, m) != 1 or not self.lemma_at(m):
+            return False
+        if m not in self._powers: self._powers[m] = self.L.factor(m)
+        return not nonresidue_primes(r, self._powers[m])
+
+    def settle_deferred(self, rt):
+        """Admit carried walls once her lemma at their level is settled: the walls it implies are not checked again,
+        the others are proposed and checked. Walls at a level she has not reached keep waiting."""
+        for m in list(self.deferred):
+            if not (self.p['terms'] != 3 or self.lemma_at(m) or self.lemma_settled(m)
+                    or ('egypt_classical_obstruction', m) in self.swept):
+                continue
+            for d in self.deferred.pop(m):
+                if self.implied_wall(d): self.carried_later['implied_by_lemma'] += 1; continue
+                self.carried_later['admitted' if rt.check(rt.propose('nofamily', d)) else 'refused'] += 1
+
+    def carry_report(self):
+        return dict(self.carried_later, waiting=sum(len(v) for v in self.deferred.values()))
+
+    def carries(self, record):
+        p = record.get('problem')
+        return (type(p) is dict and p.get('type') == self.kind and p.get('a') == self.p['a']
+                and p.get('terms') == self.p['terms'])
+
+    def lemma_settled(self, M):
+        """Her lemma was stated at this level, or refuted at a divisor (a refutation there holds here too)."""
+        return M in self.lemma_tried or any(M % m == 0 for m in self.lemma_refuted)
+
+    def level_needs(self, rt, M):
+        """(classes still without a classical outcome, missed classes still without a wall) at level M."""
+        # A new family only closes work, so it does not refresh the count; every sweep attempt does, so a count a
+        # family made stale costs at most one sweep that finds nothing to do.
+        key = (M, len(self.classical_miss), len(self.classes), len(self.refined), len(self.lemmas),
+               sum(len(v) for v in self.walled.values()), self._sweeps)
+        if self._prep is None or self._prep[0] != key:
+            opened = self.open_classes(M); walled = self.walled.get(M, set())
+            sweep = sum(1 for c in opened if c['id'] not in self.classical_miss and not self.obstructed(rt, c))
+            walls = sum(1 for c in opened if c['id'] in self.classical_miss and c['data']['r'] not in walled
+                        and not self.obstructed(rt, c))
+            self._prep = (key, (sweep, walls))
+        return self._prep[1]
+
+    def level_step_wanted(self, rt, strategy, M):
+        """Whether a level step has work left at level M: the lemma until stated or tried, then the classical sweep while
+        classes lack a classical outcome, then the wall batch for the classes the generator missed."""
+        if strategy == 'egypt_classical_obstruction': return not self.lemma_settled(M)
+        if not (self.lemma_settled(M) or ('egypt_classical_obstruction', M) in self.swept): return False
+        sweep, walls = self.level_needs(rt, M)
+        return bool(sweep) if strategy == 'egypt_classical_sweep' else (not sweep and bool(walls))
+
+    def step_state(self, rt, strategy, target):
+        return True if strategy == 'egypt_classical_obstruction' else self.version(rt, strategy, target)
+
+    def attempting(self, strategy, target, rt):
+        if strategy in LEVEL_STEPS and target['kind'] == 'esq':
+            self.swept[(strategy, target['data']['modulus'])] = self.step_state(rt, strategy, target); self._sweeps += 1
+
+    def preparing(self, rt):
+        """The finest level is prepared before its other questions, while a level step has work it has not yet tried
+        in the current workspace state."""
+        if self.p['terms'] != 3: return False
+        M = self.levels[-1]; esq = self.esq[-1]
+        return any(self.level_step_wanted(rt, name, M) and self.swept.get((name, M)) != self.step_state(rt, name, esq)
+                   for name in LEVEL_STEPS)
+
     def open_classes(self, M):
-        """Open class targets of one level, sorted by residue, kept incrementally: a class that is open stays open until
-        a family found since the last call reaches it or it is refined, and new classes are tested against every family."""
+        """Open class targets of one level, sorted by residue, kept incrementally with a map from residue to class: a
+        class that is open stays open until a family found since the last call reaches it or it is refined, and new
+        classes are tested against every family."""
         cached = self._open.get(M)
         if cached is None:
             opened = [o for o in sorted((c for c in self.classes if c['data']['m'] == M), key=lambda c: c['data']['r'])
                       if o['id'] not in self.refined and not self.covered(self.fam, M, o['data']['r'])]
-            self._open[M] = (len(self.fam_log), len(self.classes), len(self.refined), opened)
+            self._open[M] = (len(self.fam_log), len(self.classes), len(self.refined), opened,
+                             {o['data']['r']: o for o in opened})
             return opened
-        fams, classes, refined, opened = cached
+        fams, classes, refined, opened, at = cached
         if (fams, classes, refined) == (len(self.fam_log), len(self.classes), len(self.refined)): return opened
         fresh = {}
         for m, r in self.fam_log[fams:]:
             if M % m == 0: fresh.setdefault(m, set()).add(r)
-        if fresh: opened = [o for o in opened if not any(o['data']['r'] % m in rs for m, rs in fresh.items())]
-        if refined != len(self.refined): opened = [o for o in opened if o['id'] not in self.refined]
+        gone = set()
+        for m, rs in fresh.items():
+            # A new family class reaches its lifts r + m*j modulo M: look those up when they are fewer than the list.
+            if (M // m) * len(rs) < len(at):
+                for r in rs:
+                    for x in range(r, M, m):
+                        o = at.pop(x, None)
+                        if o is not None: gone.add(o['id'])
+            else:
+                for o in opened:
+                    if o['data']['r'] % m in rs and at.pop(o['data']['r'], None) is not None: gone.add(o['id'])
+        if refined != len(self.refined):
+            for o in opened:
+                if o['id'] in self.refined and at.pop(o['data']['r'], None) is not None: gone.add(o['id'])
+        if gone: opened = [o for o in opened if o['id'] not in gone]
         if classes != len(self.classes):
             added = [c for c in self.classes[classes:] if c['data']['m'] == M and c['id'] not in self.refined
-                     and not self.covered(self.fam, M, c['data']['r'])]
-            if added: opened = sorted(opened + added, key=lambda c: c['data']['r'])
-        self._open[M] = (len(self.fam_log), len(self.classes), len(self.refined), opened)
+                     and not self.covered(self.fam, M, c['data']['r']) and c['data']['r'] not in at]
+            if added:
+                opened = sorted(opened + added, key=lambda c: c['data']['r'])
+                for c in added: at[c['data']['r']] = c
+        self._open[M] = (len(self.fam_log), len(self.classes), len(self.refined), opened, at)
         return opened
 
     def version(self, rt, strategy, target):
@@ -309,6 +501,9 @@ class CoverGoal(Goal):
         if strategy == 'egypt_cover_assemble':
             M = target['data']['modulus']
             return sum(len(rs) for m, rs in self.fam.items() if M % m == 0)
+        if strategy in ('egypt_classical_sweep', 'egypt_wall_sweep'):
+            return (self.fam_count, len(self.classical_miss), len(self.classes), len(self.lemmas),
+                    sum(len(v) for v in self.walled.values()))
         return sum(len(rs) for rs in self.fam.values())
 
     def allowed(self, strategy, target, rt):
@@ -320,30 +515,39 @@ class CoverGoal(Goal):
             nxt = self.levels[self.levels.index(m) + 1] // m
             least = next(q for q in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31) if m % q)
             return (strategy == 'egypt_class_split') == (nxt == least)
+        if strategy in LEVEL_STEPS:
+            if target['kind'] != 'esq' or target['data']['modulus'] != self.levels[-1]: return False
+            return self.level_step_wanted(rt, strategy, self.levels[-1])
+        if target['kind'] == 'esq' and target['data']['modulus'] == self.levels[-1] and self.preparing(rt):
+            return False  # the level's other questions wait until it is prepared
+        if strategy == 'egypt_classical_family' and target['kind'] == 'eclass':
+            # Known already: the sweep missed it, or her lemma rules out every classical family for it.
+            if target['id'] in self.classical_miss or self.obstructed(rt, target): return False
         if strategy == 'egypt_finite_verify': return target['data']['modulus'] == self.levels[-1]
         if strategy in ('egypt_cover_lift', 'egypt_cover_merge'): return False
         if strategy == 'egypt_classical_exclusion':
             # Certify a wall only where the classical generator already missed, at the finest level, and not for a
             # square class once her obstruction lemma covers the level: the lemma already excludes it.
             return (target['kind'] == 'eclass' and target['data']['m'] == self.levels[-1]
-                    and target['id'] in self.classical_miss and not self.obstructed(rt, target))
-        if strategy == 'egypt_classical_obstruction':
-            return target['kind'] == 'esq' and target['data']['modulus'] == self.levels[-1]
+                    and target['id'] in self.classical_miss and not self.obstructed(rt, target)
+                    and target['data']['r'] not in self.walled.get(target['data']['m'], ()))
         if strategy == 'egypt_choose_lift':
             return (target['kind'] == 'esq' and target['data']['modulus'] == self.levels[-1]
                     and len(self.levels) < self.limit and self.top_ready(rt))
         return True
 
     def schedule_key(self, rt):
-        self.update(rt); return (len(self.classical_miss), len(self.levels), len(self.retired))
+        self.update(rt)
+        return (len(self.classical_miss), len(self.levels), len(self.retired), sum(len(v) for v in self.walled.values()),
+                len(self.lemma_tried), len(self.lemma_refuted), len(self.swept))
 
     def top_ready(self, rt):
         """Every open class at the finest level has been tried by the classical generator, and a cover exists there."""
         self.update(rt); M = self.levels[-1]
         if M not in self.covers_at: return False
-        key = (M, len(self.classical_miss), sum(len(v) for v in self.fam.values()), len(self.classes))
+        key = (M, len(self.classical_miss), sum(len(v) for v in self.fam.values()), len(self.classes), len(self.lemmas))
         if self._ready is None or self._ready[0] != key:
-            self._ready = (key, all(c['id'] in self.classical_miss or self.covered(self.fam, M, c['data']['r'])
+            self._ready = (key, all(c['id'] in self.classical_miss or self.obstructed(rt, c) or self.covered(self.fam, M, c['data']['r'])
                                     for c in self.classes if c['data']['m'] == M and c['id'] not in self.refined))
         return self._ready[1]
 
@@ -355,8 +559,8 @@ class CoverGoal(Goal):
         if known is None:
             m, r = target['data']['m'], target['data']['r']
             if m not in self._powers: self._powers[m] = self.L.factor(m)
-            known = self.kind + ':eclass:' + ('shared' if gcd(r, m) != 1 else
-                                               'coprime:nonsquare' if nonresidue_primes(r, self._powers[m]) else 'coprime:square')
+            known = self.kind + ':a' + str(self.p['a']) + ':eclass:' + (
+                'shared' if gcd(r, m) != 1 else 'coprime:nonsquare' if nonresidue_primes(r, self._powers[m]) else 'coprime:square')
             self._contexts[target['id']] = known
         return known
 
@@ -392,27 +596,40 @@ class CoverGoal(Goal):
         lemmas = [o for o in rt.objects.values() if (o['kind'] == 'obstruction' and o['status'] == 'checked') or
                   (o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'obstruction')]
         batches = {}
+        self.update(rt)
         for o in rt.objects.values():
-            if o['kind'] == 'nofamily' and o['status'] == 'checked' and 'r' in o['data']:
-                d = o['data']; batches.setdefault((d['a'], d['terms'], d['m'], d['bound']), []).append(d['r'])
+            if o['kind'] == 'nofamily' and o['status'] == 'checked':
+                d = o['data']; rows = batches.setdefault((d['a'], d['terms'], d['m'], d['bound']), [])
+                rows.extend(r for r in (d['rs'] if 'rs' in d else [d['r']])
+                            if not self.implied_wall(dict(a=d['a'], terms=d['terms'], m=d['m'], r=r)))
+        # Carried walls still waiting for a lemma are saved as they were carried; the next call admits them again.
+        for m, waiting in self.deferred.items():
+            for d in waiting: batches.setdefault((d['a'], d['terms'], d['m'], d['bound']), []).append(d['r'])
         # Walls are saved one batch per modulus, and classical families by their parameters: shorter certificates for
         # the same claims, expanded again when she resumes.
-        walls = [dict(kind='nofamily', data=dict(a=a, terms=terms, m=m, bound=bound, rs=sorted(rs)))
+        walls = [dict(kind='nofamily', data=dict(a=a, terms=terms, m=m, bound=bound, rs=sorted(set(rs))))
                  for (a, terms, m, bound), rs in sorted(batches.items())]
         families = [dict(kind='ufam', data=lean_family(self.L, o['data'])) for o in families]
-        return ([self.tree(rt)] + [o for o in rt.objects.values() if o['kind'] == 'template'] + ([best] if best else [])
-                + families + [compact_range(self.L, o, best) for o in finite[-1:]] + claims + lemmas + walls)
+        # Most valuable first, since the state bound trims from the end: her theorem's chain (the cover, the range and
+        # the claims that name them), her lemmas, templates and walls, then the refinement tree (bookkeeping for a
+        # resume), and last the families outside the cover, which her generators find again.
+        return (([best] if best else []) + [compact_range(self.L, o, best) for o in finite[-1:]] + claims + lemmas
+                + [o for o in rt.objects.values() if o['kind'] == 'template'] + walls + [self.tree(rt)] + families)
 
     def tree(self, rt):
         """The refinement tree as bookkeeping, not a claim: every level (the agent's own included), the classes that
-        were refined, and the family grammars each class has already missed."""
-        self.update(rt); notes = sorted(FAMILY_MISSES)
-        refined = sorted([rt.objects[i]['data']['m'], rt.objects[i]['data']['r']] for i in self.refined
-                         if rt.objects[i]['kind'] == 'eclass')
-        misses = sorted([rt.objects[i]['data']['m'], rt.objects[i]['data']['r'],
-                         sum(1 << notes.index(n) for n in found)] for i, found in self.misses.items())
-        return dict(kind='cover_tree', data=dict(a=self.p['a'], terms=self.p['terms'], levels=self.levels,
-                                                 refined=refined, misses=misses))
+        were refined, and the family grammars each class has already missed. Residues are grouped by modulus (and by
+        the set of missed grammars) and stored as gaps between sorted residues: [m, [r0, r1 - r0, ...]]."""
+        self.update(rt); notes = sorted(FAMILY_MISSES); refined = {}; misses = {}
+        for i in self.refined:
+            d = rt.objects[i]['data']
+            if rt.objects[i]['kind'] == 'eclass': refined.setdefault(d['m'], []).append(d['r'])
+        for i, found in self.misses.items():
+            d = rt.objects[i]['data']
+            misses.setdefault((d['m'], sum(1 << notes.index(n) for n in found)), []).append(d['r'])
+        return dict(kind='cover_tree', data=dict(a=self.p['a'], terms=self.p['terms'], levels=self.levels, form='gaps',
+                                                 refined=[[m, gaps(rs)] for m, rs in sorted(refined.items())],
+                                                 misses=[[m, mask, gaps(rs)] for (m, mask), rs in sorted(misses.items())]))
 
     def rebuild(self, rt, tree):
         """Recreate the saved refinement tree so that remembered moves stay consistent with the workspace."""
@@ -422,13 +639,17 @@ class CoverGoal(Goal):
         for M in tree['levels'][len(self.levels):]:
             rt.given('esq', dict(a=p['a'], terms=p['terms'], min=p['min'], modulus=M, verify_to=p['verify_to']))
             self.update(rt)
-        for m, r in tree.get('refined', []):
+        refined, misses = tree.get('refined', []), tree.get('misses', [])
+        if tree.get('form') == 'gaps':
+            refined = [(m, r) for m, rs in refined for r in ungaps(rs)]
+            misses = [(m, r, mask) for m, mask, rs in misses for r in ungaps(rs)]
+        for m, r in refined:
             if m not in self.levels or m == self.levels[-1]: continue
             nxt = self.levels[self.levels.index(m) + 1]
             parent = rt.given('eclass', dict(a=p['a'], terms=p['terms'], m=m, r=r))
             for j in range(nxt // m):
                 rt.propose('eclass', dict(a=p['a'], terms=p['terms'], m=nxt, r=r + m * j), (parent,))
-        for m, r, mask in tree.get('misses', []):
+        for m, r, mask in misses:
             cls = rt.given('eclass', dict(a=p['a'], terms=p['terms'], m=m, r=r))
             for k, note in enumerate(notes):
                 if mask >> k & 1: rt.residual(cls, ['restored from the saved refinement tree'], note)
@@ -474,7 +695,14 @@ class CoverGoal(Goal):
                 data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=ranges[data['finite_ref']])
             expanded.append(dict(kind=row['kind'], data=data))
         saved = expanded
-        admitted, refused = Goal.restore(self, rt, saved)
+        walls = [row for row in saved if row['kind'] == 'nofamily']
+        admitted, refused = Goal.restore(self, rt, [row for row in saved if row['kind'] != 'nofamily'])
+        # Walls come after her lemmas: a wall a restored lemma implies is not checked again.
+        self.update(rt); kept = []
+        for row in walls:
+            if self.implied_wall(row['data']): self.carried_later['implied_by_lemma'] += 1
+            else: kept.append(row)
+        more, less = Goal.restore(self, rt, kept); admitted += more; refused += less
         for row in saved:
             if row['kind'] != 'cover': continue
             cover = rt.propose('cover', row['data'])
@@ -498,6 +726,9 @@ class CoverGoal(Goal):
         admitted = refused = 0
         for row in self.expand([r for r in rows if r['kind'] in ('ufam', 'cover', 'nofamily', 'obstruction', 'template')]):
             if not same(row): continue
+            if row['kind'] == 'nofamily':
+                # Walls wait for her lemma at their level, which implies the square ones (see settle_deferred).
+                self.deferred.setdefault(row['data']['m'], []).append(row['data']); continue
             obj = rt.propose(row['kind'], row['data'])
             if obj['kind'] == 'template' or rt.check(obj): admitted += 1
             else: refused += 1
@@ -545,7 +776,7 @@ class CoverGoal(Goal):
         if not self.lemmas: return False
         m, r = target['data']['m'], target['data']['r']
         if gcd(r, m) != 1 or 'coprime:square' not in self.context(target): return False
-        return any(o['status'] == 'checked' and o['data']['m'] % m == 0 and o['data']['a'] == self.p['a'] for o in self.lemmas)
+        return self.lemma_at(m)
 
     def obstruction(self, rt, M):
         for o in self.results:
@@ -559,8 +790,13 @@ class CoverGoal(Goal):
         return dict(status='not attempted')
 
     def walls(self, rt, M):
-        return sum(1 for o in rt.objects.values() if o['kind'] == 'nofamily' and o['status'] == 'checked'
-                   and o['data']['m'] == M)
+        self.update(rt); return len(self.walled.get(M, ()))
+
+    def settled(self, rt, target):
+        if target['kind'] != 'eclass': return None
+        if self.obstructed(rt, target): return 'obstruction lemma'
+        if target['data']['r'] in self.walled.get(target['data']['m'], ()): return 'wall'
+        return None
 
     def summary(self, rt):
         self.update(rt); index = self.fam; levels = []; uncovered_at = self.level_uncovered()
@@ -663,6 +899,9 @@ class DescentGoal(Goal):
         if strategy == 'collatz_split':
             return target['kind'] == 'cclass' and target['data']['modulus'] < self.top and target['id'] in self.residual
         return True
+
+    def capped_key(self, rt, target, retired_in):
+        return (len(self.retired),)
 
     def progress(self, rt):
         self.descents(rt)
@@ -831,7 +1070,8 @@ class Agent:
         self.target_moves = {}; self.exhausted = {}; self.outcomes = {}; self.escalated = {}; self.memo = {}
         self.checkable = set(checker.CHECKS) | {'invariant', 'semi'}
         # Strategies retired per context and level after RETIRE_AFTER failures without a success in this run.
-        self.retired = {}; goal.retired = self.retired; self.retire_tally = {}
+        self.retired = {}; goal.retired = self.retired; self.retire_tally = {}; self.priors = set(); self.retired_in = {}
+        self.pooled = set(); self.quiet = set(); self.quiet_key = None
 
     def index(self):
         """Incrementally index new workspace objects by kind and by parent."""
@@ -839,7 +1079,8 @@ class Agent:
             o = self.rt.objects.get(identity)
             if o is None: continue
             self.by_kind.setdefault(o['kind'], []).append(identity)
-            for parent in o['parents']: self.children.setdefault(parent, []).append(identity)
+            for parent in o['parents']:
+                self.children.setdefault(parent, []).append(identity); self.quiet.discard(parent)
         self.indexed = len(self.rt.order)
 
     # -- move table: operators, the verify move, and invented or proposed macros
@@ -864,6 +1105,14 @@ class Agent:
                     out.append(o); queue.append(child)
                     if len(out) >= limit: break
         return out
+
+    def companion_kinds(self, table):
+        """Kinds a multi-argument move takes as a companion that have had a usable object. Only a kind joining this set
+        can give a capped target a new move, so the set only grows; each kind is looked for from its oldest object."""
+        kinds = {k for spec in table.values() if len(spec['consumes']) > 1 for k in spec['consumes']}
+        for k in kinds - self.pooled:
+            if any(self.rt.objects[i]['status'] in ('checked', 'given') for i in self.by_kind.get(k, ())): self.pooled.add(k)
+        return tuple(sorted(kinds & self.pooled))
 
     def companions(self, kind, exclude):
         out = []
@@ -894,7 +1143,7 @@ class Agent:
                 out.append(('verify', [f]))
             for name, slot in by_kind.get(f['kind'], []):
                 if name == 'verify' or not allowed(name): continue
-                if self.attempts.get((target['id'], name), 0) >= MAX_PER_TARGET: continue
+                if name not in LEVEL_STEPS and self.attempts.get((target['id'], name), 0) >= MAX_PER_TARGET: continue
                 kinds = table[name]['consumes']; args = [None] * len(kinds); args[slot] = f; ok = True
                 for j, other in enumerate(kinds):
                     if j == slot: continue
@@ -995,15 +1244,30 @@ class Agent:
 
     def step(self, allocation, remaining=None):
         self.index(); table, by_kind = self.strategies(); progress = repr(self.goal.progress(self.rt))
-        key_extra = self.goal.schedule_key(self.rt)
+        key_extra = self.goal.schedule_key(self.rt); pools = None
+        # Quiet targets are capped targets found exhausted since the goal-wide part of their signature last changed and
+        # with no new derived object since: their signature is unchanged, so they are skipped without recomputing it.
+        quiet_key = (len(table), self.goal.capped_global(self.rt), self.companion_kinds(table), len(self.retired))
+        if quiet_key != self.quiet_key: self.quiet.clear(); self.quiet_key = quiet_key
         for target in self.goal.targets(self.rt):
+            if target['id'] in self.quiet: continue
             if target['kind'] in self.goal.capped and self.target_moves.get(target['id'], 0) >= MAX_TARGET_MOVES: continue
-            # A target with no fresh move stays exhausted until the move table or its derived objects change.
-            signature = (len(table), len(self.children.get(target['id'], [])), progress, key_extra)
-            if self.exhausted.get(target['id']) == signature: continue
+            # A target with no fresh move stays exhausted until the move table or its derived objects change. A class
+            # target is not reopened by progress elsewhere, only by what can change its own moves.
+            capped_key = self.goal.capped_key(self.rt, target, self.retired_in) if target['kind'] in self.goal.capped else None
+            if capped_key is not None:
+                if pools is None: pools = self.companion_kinds(table)
+                signature = (len(table), len(self.children.get(target['id'], [])), capped_key, pools)
+            else:
+                signature = (len(table), len(self.children.get(target['id'], [])), progress, key_extra)
+            if self.exhausted.get(target['id']) == signature:
+                if capped_key is not None: self.quiet.add(target['id'])
+                continue
             fresh = self.candidates(target, table, by_kind)
             if not fresh:
-                self.exhausted[target['id']] = signature; continue
+                self.exhausted[target['id']] = signature
+                if capped_key is not None: self.quiet.add(target['id'])
+                continue
             context = self.goal.context(target)
             fresh.sort(key=lambda c: -doctrine_score(self.samples, context, c[0]))
             if (context, target['id']) not in self.seen_contexts:
@@ -1019,6 +1283,7 @@ class Agent:
         host = self.host; budget = host.Budget(allocation); parent = self.rt.budget
         before = self.goal.progress(self.rt); began = time.perf_counter_ns(); reason = None; out = []
         existing = set(self.rt.objects) if self.goal.limit_kinds else None
+        self.goal.attempting(name, target, self.rt)
         try: out = self.run_op(name, args, budget)
         except (host.Exhausted, RuntimeError, self.checker.Limit) as exc: reason = 'limit: ' + str(exc)[:120]
         except (ValueError, KeyError, TypeError, IndexError, ZeroDivisionError) as exc:
@@ -1043,11 +1308,15 @@ class Agent:
                                                         seconds=round(seconds, 6), weight=1, source='local'))
         tally = self.outcomes.setdefault((context, name), [0, 0, 0.0])
         tally[0 if success else 1] += 1; tally[2] += seconds
-        scope = self.goal.retire_scope(target); count = self.retire_tally.setdefault((context, name, scope), [0, 0])
+        scope = self.goal.retire_scope(target); count = self.retire_tally.get((context, name, scope))
+        if count is None:
+            # Experience: a strategy her library has only seen fail in this context starts close to retirement.
+            count = self.retire_tally[(context, name, scope)] = [0, RETIRE_AFTER - PRIOR_PROBES if (context, name) in self.priors else 0]
         count[0 if success else 1] += 1
         if not count[0] and count[1] >= RETIRE_AFTER and self.goal.retirable(context, name) \
                 and (context, name, scope) not in self.retired:
-            self.retired[(context, name, scope)] = dict(failures=count[1], at_move=self.moves)
+            self.retired[(context, name, scope)] = dict(failures=count[1], at_move=self.moves, prior=(context, name) in self.priors)
+            self.retired_in[(context, scope)] = self.retired_in.get((context, scope), 0) + 1
         for m in self.macros:
             if m['name'] == name:
                 m['uses'] += 1; m['successes'] += int(success)
@@ -1084,6 +1353,19 @@ def load_library(state):
     return entries, weighted_reports(reports)
 
 
+def experience_priors(goal, library, state, problem):
+    """(context, strategy) pairs her library has seen only fail, at least RETIRE_AFTER times, in the current context
+    naming: a scheduling prior that shortens the probes before retirement, not a claim that the strategy cannot work."""
+    records = [rec for rec in state['observations'] if rec.get('kind') == 'autonomous_research']
+    problems = [] if any(type(rec.get('problem')) is not dict for rec in records) else \
+        [rec['problem'] for rec in records if rec['problem'].get('type') == problem['type']]
+    tally = {}
+    for e in library:
+        row = tally.setdefault((goal.library_context(e['context'], problems), e['strategy']), [0, 0])
+        row[0] += e['successes']; row[1] += e['failures']
+    return {key for key, (wins, misses) in tally.items() if wins == 0 and misses >= RETIRE_AFTER}
+
+
 def merge_library(entries, outcomes):
     table = {(e['context'], e['strategy']): dict(e) for e in entries}
     for (context, strategy), (wins, misses, seconds) in outcomes.items():
@@ -1115,7 +1397,7 @@ def mine_failures(agent, goal, rt):
         groups[key] = groups.get(key, 0) + 1
         if len(examples) < 8 and t['kind'] in goal.capped:
             examples.append(dict(target_brief(t), moves=sorted(tried.get(t['id'], ())), residuals=sorted(notes.get(t['id'], ())),
-                                 exhausted=t['id'] in agent.exhausted,
+                                 settled_by=goal.settled(rt, t), exhausted=t['id'] in agent.exhausted,
                                  capped=agent.target_moves.get(t['id'], 0) >= MAX_TARGET_MOVES))
     return dict(open_targets=len(open_targets), by_outcome=groups, examples=examples, profile=goal.failure_profile(rt))
 
@@ -1126,9 +1408,12 @@ def compact(obj):
     return obj if set(obj) == {'kind', 'data'} else dict(kind=obj['kind'], data=obj['data'])
 
 
-def save(host, state, state_path, record, library=None):
-    """Write the record within the state bound. Scheduling memory is trimmed before any evidence; evidence is
-    dropped from the least valuable end only as a last resort, and the number dropped is recorded and returned."""
+def save(host, state, state_path, record, library=None, carried=()):
+    """Write the record within the state bound, trimming what is worth least first: this record's scheduling memory,
+    then the scheduling memory of other records (it serves only a resume of their problem), then the evidence of
+    records whose claims this run carried over and checked again (carried: their task ids; a record left with no
+    evidence is removed), and this record's own evidence only as a last resort. Evidence is dropped from the least
+    valuable end; the number this record dropped is recorded and returned."""
     if state_path is None: return 0
     ids = {record['task_id']} | ({library['task_id']} if library else set())
     others = [o for o in state['observations'] if o['task_id'] not in ids]
@@ -1138,12 +1423,24 @@ def save(host, state, state_path, record, library=None):
     if size() > host.STATE_LIMIT:
         record['tried'] = record['tried'][-500:]; record['rederivable'] = record['rederivable'][-500:]
         record['log'] = record['log'][-8:]; record['samples'] = record['samples'][-200:]
-    dropped = 0
-    while size() > host.STATE_LIMIT and record['objects']:
-        excess = size() - host.STATE_LIMIT
-        while excess > 0 and record['objects']:
-            excess -= len(host.canonical(record['objects'].pop()).encode()) + 1; dropped += 1
-        record['dropped_objects'] = dropped
+    older = [o for o in state['observations'] if o is not record and o.get('kind') == 'autonomous_research']
+    for o in older:
+        if size() <= host.STATE_LIMIT: break
+        for key in ('tried', 'rederivable', 'log', 'samples'):
+            if key in o: o[key] = []
+    def trim(row):
+        dropped = 0
+        while size() > host.STATE_LIMIT and row['objects']:
+            excess = size() - host.STATE_LIMIT
+            while excess > 0 and row['objects']:
+                excess -= len(host.canonical(row['objects'].pop()).encode()) + 1; dropped += 1
+        return dropped
+    for o in older:
+        if size() <= host.STATE_LIMIT: break
+        if o['task_id'] not in carried: continue
+        o['dropped_objects'] = o.get('dropped_objects', 0) + trim(o)
+        if not o['objects']: state['observations'].remove(o)
+    dropped = trim(record); record['dropped_objects'] = dropped
     target = Path(state_path); target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix(target.suffix + '.tmp')
     temp.write_text(host.canonical(state) + '\n', encoding='utf-8', newline='\n'); temp.replace(target)
@@ -1184,6 +1481,7 @@ def run(task, state_path, limit, host):
                     for o in rec.get('objects', []) if type(o) is dict and type(o.get('data')) is dict]
             carried = goal.transfer(rt, rows)
         agent = Agent(host, L, checker, registry, goal, rt, per, samples[-MAX_SAMPLES:], macros, tried, unseen)
+        agent.priors = experience_priors(goal, library, state, problem)
         status = 'UNKNOWN'; reason = 'move allowance used'
         for _ in range(moves):
             if goal.done(rt): break
@@ -1201,7 +1499,10 @@ def run(task, state_path, limit, host):
                   rederivable=sorted(agent.rederivable)[-MAX_TRIED:] if agent else [],
                   log=agent.log if agent else [])
     entries = merge_library(library, agent.outcomes if agent else {})
-    dropped = save(host, state, state_path, record, dict(task_id=LIBRARY_ID, kind='strategy_library', entries=entries))
+    carried_ids = {rec['task_id'] for rec in state['observations']
+                   if rec.get('kind') == 'autonomous_research' and rec is not old and goal.carries(rec)}
+    dropped = save(host, state, state_path, record, dict(task_id=LIBRARY_ID, kind='strategy_library', entries=entries),
+                   carried_ids)
     checked = [o for o in rt.objects.values() if o['status'] == 'checked']
     by_kind = {}
     for o in checked: by_kind[o['kind']] = by_kind.get(o['kind'], 0) + 1
@@ -1217,6 +1518,7 @@ def run(task, state_path, limit, host):
                 moves_executed=agent.moves if agent else 0, work=budget.work,
                 elapsed_ns=time.perf_counter_ns() - started, replayed_objects=replayed, invalidated_objects=invalid,
                 dropped_objects=dropped, carried_objects=dict(admitted=carried[0], refused=carried[1]),
+                carried_later=goal.carry_report(),
                 goal=goal.summary(rt), checked_objects=by_kind,
                 results=[result_row(o) for o in checked if o['kind'] in ('cover', 'finite', 'pattern', 'density', 'theorem',
                                                                            'dcover', 'cfinite', 'cycle', 'exclusion')][-12:],

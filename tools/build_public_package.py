@@ -1438,7 +1438,9 @@ print(json.dumps(answers))
         forged_agent = json.loads((root / 'agent-small.json').read_bytes())
         agent_record = next(row for row in forged_agent['observations'] if row.get('kind') == 'autonomous_research')
         saved_cover = next(row for row in agent_record['objects'] if row['kind'] == 'cover')
-        saved_cover['data']['entries'][0]['family']['x'][0] = ['num', 1, 1]
+        saved_family = saved_cover['data']['entries'][0]['family']
+        if 'x' in saved_family: saved_family['x'][0] = ['num', 1, 1]
+        else: saved_family['p'][1] += 1
         (root / 'agent-forged.json').write_bytes(encoded(forged_agent))
         forged_run = cli('agent_forged_cover', 'examples/agent_unit_fraction_small.json',
                          ['--state', 'agent-forged.json', '--work', '400000000'], expected_code=3)
@@ -1489,7 +1491,8 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
                                    'elapsed_ns': time.perf_counter_ns() - began, 'stderr': lexicon_run.stderr})
         replayed_kinds = json.loads(lexicon_run.stdout) if lexicon_run.returncode == 0 else []
         check('agent_saved_evidence_replays_with_checker_only', lexicon_run.returncode == 0 and not lexicon_run.stderr
-              and {'cover', 'finite', 'pattern', 'nofamily', 'theorem'} <= set(replayed_kinds))
+              and {'cover', 'finite', 'pattern', 'theorem'} <= set(replayed_kinds)
+              and bool({'nofamily', 'obstruction'} & set(replayed_kinds)))
         collatz = cli('agent_collatz', 'examples/agent_collatz.json', ['--work', '2000000000'], expected_code=3)
 
         def open_classes(k):
@@ -1520,7 +1523,7 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
         squares_120 = sorted({x * x % 120 for x in range(120) if gcd(x, 120) == 1})
         check('agent_chooses_refinement_prime_and_certifies_walls', sorted(lift_levels) == [24, 120]
               and lift_levels[120]['chosen_by'] == 'agent' and lift_levels[120]['uncovered_coprime'] == squares_120 == [1, 49]
-              and lift_levels[120]['certified_walls'] == 2
+              and (lift_levels[120]['certified_walls'] == 2 or lift_levels[120]['obstruction']['status'] == 'checked')
               and lift_levels[120]['signature_pattern'] == {'status': 'checked', 'primes': []}
               and lift_levels[120]['local_images'] == {'3': [1], '5': [1, 4], '8': [1]})
         theorem = next((row for row in lifted['results'] if row['kind'] == 'theorem' and row['modulus'] == 120), {})
@@ -1528,7 +1531,8 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
               and theorem.get('open_coprime') == 2 and theorem.get('lo') == 2 and theorem.get('range_hi') == 2000)
         example = lifted['failures']['examples'][0]
         check('agent_reports_mined_failures', lifted['failures']['profile']['nonresidue_signatures'] == {'square': 2}
-              and 'egypt_classical_family' in example['moves'] and 'classical miss' in example['residuals'])
+              and ('egypt_classical_family' in example['moves'] and 'classical miss' in example['residuals']
+                   or example['settled_by'] == 'obstruction lemma'))
         verdict_path = str(root / 'tools' / 'verdict.py')
 
         def verdict_run(label, state):
@@ -1541,20 +1545,26 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
         code, verdict = verdict_run('verdict_agent_state', 'lift-state.json')
         check('verdict_verifies_every_saved_claim', code == 0 and verdict['bit'] == 'verified' and verdict['self_test']['ok']
               and verdict['counts']['VERIFIED'] >= 9 and not verdict['counts']['REFUTED'] and not verdict['counts']['UNRESOLVED']
-              and verdict['walls']['total'] == verdict['walls']['verified'] > 0
+              and verdict['walls']['total'] == verdict['walls']['verified']
+              and (verdict['walls']['total'] > 0 or any(row['kind'] == 'obstruction' and row['verdict'] == 'VERIFIED'
+                                                        for row in verdict['claims']))
               and {row['kind'] for row in verdict['claims']} >= {'cover', 'finite', 'pattern', 'density', 'theorem'})
         forged_lift = json.loads((root / 'lift-state.json').read_bytes())
         lift_record = next(row for row in forged_lift['observations'] if row.get('kind') == 'autonomous_research')
         forged_family = next(row for row in lift_record['objects'] if row['kind'] == 'cover')['data']['entries'][0]['family']
         if 'x' in forged_family: forged_family['x'][1] = ['num', 7, 1]
         else: forged_family['p'][1] += 1
-        forged_walls = next(row for row in lift_record['objects'] if row['kind'] == 'nofamily')['data']
-        forged_walls['rs'] = sorted(set(forged_walls['rs']) | {11})
+        # A forged wall, or the lemma claimed for 5/n, where Type II (1,1,1) reaches the square class 4 mod 5.
+        forged_walls = next((row for row in lift_record['objects'] if row['kind'] == 'nofamily'), None)
+        if forged_walls: forged_walls['data']['rs'] = sorted(set(forged_walls['data']['rs']) | {11})
+        else: next(row for row in lift_record['objects'] if row['kind'] == 'obstruction' and row['data']['m'] % 5 == 0
+                   )['data']['a'] = 5
         (root / 'lift-forged.json').write_bytes(encoded(forged_lift))
         code, forged_verdict = verdict_run('verdict_forged_state', 'lift-forged.json')
         check('verdict_refutes_forged_claims', code == 3 and forged_verdict['bit'] == 'no, keep thinking'
               and forged_verdict['counts']['REFUTED'] >= 2
-              and any(row['kind'] == 'nofamily' and row['verdict'] == 'REFUTED' for row in forged_verdict['claims']))
+              and any(row['kind'] in ('nofamily', 'obstruction') and row['verdict'] == 'REFUTED'
+                      for row in forged_verdict['claims']))
         resumed = cli('agent_choose_lift_resume', 'examples/agent_choose_lift.json', ['--state', 'lift-state.json'],
                       expected_code=3)
         resumed_levels = {row['modulus']: row for row in resumed['goal']['levels']}
@@ -1628,8 +1638,54 @@ obstruction = (C.check_obstruction(lemma, B())['ok'] and V.verdict('obstruction'
                and admits_kind('obstruction', counter) is False and V.verdict('obstruction', counter)[0] == 'REFUTED'
                and refutes(counter, dict(modulus=5, residue=4, params=['II', 1, 1, 1]))
                and not refutes(counter, dict(modulus=5, residue=3, params=['II', 1, 1, 2])))
+# The state bound trims records whose claims a run carried over before the run's own evidence.
+import os, tempfile, types
+host = types.SimpleNamespace(canonical=ember['canonical'], STATE_LIMIT=ember['STATE_LIMIT'])
+p4 = dict(type='unit_fraction_cover', a=4, terms=3); p5 = dict(p4, a=5)
+def record(tid, problem, n):
+    return dict(task_id=tid, kind='autonomous_research', problem=problem, tried=['t' * 40] * 200, rederivable=[], log=[],
+                samples=[], objects=[dict(kind='template', data=dict(i=i, pad='x' * 400)) for i in range(n)])
+def saved(carried):
+    state = dict(observations=[record('old', dict(p4, extra_lifts=1), 2200)]); new = record('new', dict(p4, extra_lifts=3), 400)
+    path = os.path.join(tempfile.mkdtemp(), 'state.json')
+    A.save(host, state, path, new, dict(task_id=A.LIBRARY_ID, kind='strategy_library', entries=[]), carried)
+    return state, new, os.path.getsize(path)
+s1, n1, z1 = saved({'old'}); s2, n2, z2 = saved(set())
+old1 = next(o for o in s1['observations'] if o['task_id'] == 'old')
+bound = (n1['dropped_objects'] == 0 and len(n1['objects']) == 400 and 0 < len(old1['objects']) < 2200
+         and old1['tried'] == [] and z1 <= host.STATE_LIMIT and n2['dropped_objects'] > 0 and z2 <= host.STATE_LIMIT)
+# Her library's legacy contexts (no numerator in the name) are read as this numerator only for a one-numerator state.
+lib = [dict(context='unit_fraction_cover:eclass:coprime:square', strategy='egypt_ansatz_extend', successes=0, failures=100,
+            seconds=1.0),
+       dict(context='unit_fraction_cover:a4:eclass:coprime:square', strategy='egypt_family_fit', successes=0, failures=70,
+            seconds=1.0),
+       dict(context='unit_fraction_cover:a4:eclass:coprime:square', strategy='egypt_divisor_ansatz', successes=3,
+            failures=90, seconds=1.0)]
+goal4 = A.CoverGoal(dict(a=4, terms=3, min=2, modulus=24, lifts=[5], verify_to=100), L)
+one = dict(observations=[dict(kind='autonomous_research', task_id='x', problem=dict(p4))])
+two = dict(observations=one['observations'] + [dict(kind='autonomous_research', task_id='y', problem=dict(p5))])
+sq = 'unit_fraction_cover:a4:eclass:coprime:square'
+first, second = A.experience_priors(goal4, lib, one, p4), A.experience_priors(goal4, lib, two, p4)
+priors = (first == {(sq, 'egypt_ansatz_extend'), (sq, 'egypt_family_fit')} and (sq, 'egypt_family_fit') in second
+          and (sq, 'egypt_ansatz_extend') not in second)
+# A checked lemma at a multiple of m implies exactly the walls on coprime square classes modulo m.
+goal120 = A.CoverGoal(dict(a=4, terms=3, min=2, modulus=120, lifts=[], verify_to=100), L)
+rt2 = L.Runtime(C, ember['Budget'](10 ** 9)); goal120.init(rt2)
+rt2.check(rt2.propose('obstruction', dict(a=4, terms=3, m=120, rule='classical_reach_nonsquare'))); goal120.update(rt2)
+implied = (goal120.implied_wall(dict(a=4, terms=3, m=120, r=49)) and goal120.implied_wall(dict(a=4, terms=3, m=24, r=1))
+           and not goal120.implied_wall(dict(a=4, terms=3, m=120, r=7))
+           and not goal120.implied_wall(dict(a=4, terms=3, m=240, r=49))
+           and not goal120.implied_wall(dict(a=5, terms=3, m=120, r=49)))
+# Her refinement prime is chosen on exact counts: the count equals a direct search over every coprime lift.
+def direct(a, M, p, xs):
+    return sum(1 for x in xs for j in range(p) if gcd(x + M * j, M * p) == 1
+               and E['classical_search'](a, M * p, x + M * j, 0, B()))
+cases = [(a, M, [x for x in xs if gcd(x, M) == 1 and not E['classical_search'](a, M, x, 0, B())])
+         for a, M, xs in ((4, 840, [1, 121, 169, 289, 361, 529]), (5, 840, list(range(1, 840, 11))), (4, 24, [1]))]
+lift = all(len(xs) >= 1 for a, M, xs in cases) and all(E['lift_reach'](a, M, p, xs, B()) == direct(a, M, p, xs)
+                                                     for a, M, xs in cases for p in (2, 3, 5, 7, 11, 13, 17))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
-                      obstruction=obstruction)))
+                      obstruction=obstruction, bound=bound, priors=priors, implied=implied, lift=lift)))
 """
         began = time.perf_counter_ns()
         sieve_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', sieve_code], cwd=root, capture_output=True,
@@ -1645,6 +1701,10 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('retirement_spares_the_classical_generator_and_walls', sieve_result.get('retire') is True)
         check('complete_classical_enumeration_reaches_past_the_old_bound', sieve_result.get('complete') is True)
         check('classical_obstruction_proved_for_4_and_refuted_for_5', sieve_result.get('obstruction') is True)
+        check('state_bound_trims_carried_records_before_new_evidence', sieve_result.get('bound') is True)
+        check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)
+        check('lemma_implies_only_square_class_walls', sieve_result.get('implied') is True)
+        check('prime_choice_counts_lifts_exactly', sieve_result.get('lift') is True)
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',
