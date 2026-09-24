@@ -1437,12 +1437,18 @@ def save(host, state, state_path, record, library=None, carried=()):
         for key in ('tried', 'rederivable', 'log', 'samples'):
             if key in o: o[key] = []
     def trim(row):
-        dropped = 0
-        while size() > host.STATE_LIMIT and row['objects']:
-            excess = size() - host.STATE_LIMIT
-            while excess > 0 and row['objects']:
-                excess -= len(host.canonical(row['objects'].pop()).encode()) + 1; dropped += 1
-        return dropped
+        # Drop from the least valuable end until the state fits, then put back, most valuable first, every dropped
+        # object that still fits: one large object must not take the smaller ones behind it along.
+        current = size(); before = len(row['objects'])
+        if current <= host.STATE_LIMIT: return 0
+        gone = []
+        while current > host.STATE_LIMIT and row['objects']:
+            o = row['objects'].pop(); gone.append(o); current -= len(host.canonical(o).encode()) + 1
+        for o in reversed(gone):
+            extra = len(host.canonical(o).encode()) + 1
+            if current + extra <= host.STATE_LIMIT: row['objects'].append(o); current += extra
+        while size() > host.STATE_LIMIT and row['objects']: row['objects'].pop()  # separators make the sum inexact
+        return before - len(row['objects'])
     for o in older:
         if size() <= host.STATE_LIMIT: break
         if o['task_id'] not in carried: continue

@@ -552,6 +552,37 @@ start and her refinement tree started fresh.
   described with the prime choice and the carried walls: new primes first,
   and carried walls that wait until she reaches their level.
 
+### Round 5, second attempt (commit 2372847, fingerprint 25ef49d0, stopped after 14 minutes)
+
+- **Failure mining.** Her prime choice fell to 19% of a parallel profile. Her
+  checker's Type I index then took 54%. Near 10^10 the index is charged
+  millions of work units when it is built, more than one move's allocation.
+  The charge came before the index was kept, so the failed move discarded
+  the finished index, and its retry built it again (about 40 s each time).
+  Fixed: both checker indexes are kept first and then charged, and the least
+  recently used one leaves first.
+
+### Round 5, third attempt (commit ce4a67d, fingerprint d1e35696, one call: 19,665 moves, 715 s)
+
+- **Result.** She chose 13, 19, 23 and then 17, ending at 8,031,343,320 with
+  821 open classes (114 coprime squares and 707 non-squares), an open
+  fraction of 1.02 × 10^-7. Her theorem stands one level up: every n >= 2
+  outside 492 residue classes mod 472,431,960 has a representation 5/n =
+  1/x + 1/y + 1/z (1.04 × 10^-6 of residues open, against 2.73 × 10^-6 in
+  round 4).
+- **Two limits.** A cover at 8,031,343,320 needs more families than the
+  4,096 entries her checker admits in one cover claim. So her finest level
+  carries walls and open classes but no theorem. A cover there would also
+  approach the 1 MiB bound on one claim and on her whole state. Her prime
+  choice does not yet account for the size of the certificate the next
+  level needs; that is an open obligation.
+- **A defect in saving.** The theorem did not reach her state file. Her range
+  had been checked with an earlier cover than the largest one, so the range
+  was saved with its own 400 kB copy of that cover. Trimming from the end
+  removed the theorem before it removed that copy, which then freed far more
+  than needed. Fixed: the cover her latest range uses comes first, and the
+  range and theorem name it by digest.
+
 ## Campaign 3: the Collatz stopping-time sieve to 2^18 (a closed check)
 
 **Problem supplied.** The map T(n) = n/2 or (3n+1)/2: certify descent class
