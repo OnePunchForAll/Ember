@@ -9,7 +9,7 @@ API key, downloaded weights, third-party package or source archive. Python itsel
 is an external prerequisite and is **not** included. Generations through
 `ember-pyramid-15` were tested on Windows with Python 3.14.6. Generation
 `ember-pyramid-16` added the apex layer; this generation, `ember-pyramid-17`,
-adds a typed operator language with 156 executed operators, a move bench and an
+adds a typed operator language with 162 executed operators, a move bench and an
 autonomous research agent. Both were verified on Linux x86_64 with Python 3.11.15
 only; they have not been rerun on the Windows host. Other Python versions,
 operating systems and devices remain unverified. CPU, memory and storage are still

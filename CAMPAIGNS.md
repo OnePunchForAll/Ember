@@ -271,6 +271,36 @@ admitted again by the checker. None was refused.
   Mordell's six square classes open, and used 97 moves instead of 108.
 - A problem statement may now allow up to four refinement primes of her own.
 
+### Round 4 (commit f996f32, fingerprint f37fad1c, one call: 6,880 moves, 147 s)
+
+The run resumed the round-3 state with the instruments above. Each of the
+3,639 saved claims was admitted again, and none was refused.
+
+- **Result.** She stated her theorem at her own level, and the checker
+  admitted it: every n >= 2 outside 2,619 residue classes mod 1,580,040 has
+  a representation 4/n = 1/x + 1/y + 1/z. Every other count matched
+  round 3.
+- **Retirement.** Twelve strategies retired in the square context near move
+  1,030 after 64 failures each, the extended ansatz and its macros among
+  them. The round took 147 s against round 3's 1,518 s, with the pruned
+  wall search contributing to the gain.
+- **Verdict.** Self-test passed. 2,910 claims VERIFIED, the theorem
+  included. Bit: verified.
+- **Failure mining.**
+  - Twelve strategies also retired in the non-square context near move
+    3,450. By then every open non-square class was one of the 189 hardest
+    walls. In a deeper run, the rule would withhold those strategies from
+    the new non-square classes of the next level, and her own grammar is
+    sometimes the only way into those. Fixed: retirement now applies to one
+    refinement level.
+  - Her walls are correct as stated, but the Type I part of her classical
+    generator stopped at u, v, w <= 120. A complete enumeration exists
+    because the set is finite at a fixed modulus. It reaches 26 of the 2,619
+    open classes at 1,580,040, for example 32881 with (u, v, w) =
+    (38, 297, 1), stated on 32881 mod 45,144. Fixed: the generator, the
+    checker and the verdict enumerate Type I completely (commit fcf1925,
+    fingerprint 4873ff1e), and new walls are complete claims.
+
 ## Campaign 2: Sierpiński's 5/n (the related problem she offered)
 
 **Problem supplied.** 5/n = 1/x + 1/y + 1/z for every n >= 2 (open;
@@ -331,3 +361,22 @@ The run resumed her 5/n state under the class-by-class theorem check alone.
 - **Verdict.** Self-test passed. 65 claims VERIFIED, the theorem included.
   Bit: verified.
 
+
+### Round 3, first attempt (fingerprint f37fad1c, stopped after 11 CPU minutes)
+
+The problem statement changed so that she may choose up to three refinement
+primes herself. Her state carried the checked 5/n families and walls from
+rounds 1 and 2, through the warm start.
+
+- **Failure mining.** A live sampling profile put 94% of the time in
+  `egypt_family_fit`. At her deeper levels it factors numbers near 10^16
+  (n times x) by trial division up to 10^8. That work was not charged to the
+  move's allocation, so the move's work bound could never stop it.
+- **Instrument.** Factorization now removes primes below 1,000 by trial
+  division, splits what remains with Pollard's rho (Brent's variant), and
+  certifies primes by Miller-Rabin with thirteen prime bases, which is exact
+  below 3.3 x 10^24. Divisor lists are generated from the factorization. On
+  3,000 random inputs and the edge cases, the results equal trial division.
+  Products near 10^25 factor in milliseconds. The same profile of Campaign 1
+  round 5 found 22% of its time recomputing her square/non-square context
+  for every candidate move; the context is now kept per class.

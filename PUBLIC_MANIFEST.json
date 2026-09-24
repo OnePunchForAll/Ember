@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 19706,
+      "bytes": 21414,
       "path": "CAMPAIGNS.md",
-      "sha256": "21664eab1cdec4ac45f289ecc86982c44c6adb49f04741aef2bc269474995c01"
+      "sha256": "7c90d7f51da200ac00bb10cea31629d92885a5225de9226bb87adae5dba2808d"
     },
     {
       "bytes": 9709,
@@ -18,7 +18,7 @@
     {
       "bytes": 77042,
       "path": "README.md",
-      "sha256": "e772461b366af95da0983f9a1b7d83095e2da5b2a98adef70781b86f5c293443"
+      "sha256": "6d1f4a0d3bf980734faa08df94f0c3204a52cbabbb6c70b93397e7996328068b"
     },
     {
       "bytes": 1633,
@@ -26,9 +26,9 @@
       "sha256": "88b621357e7f2677281eca67b3a3c825e590c74764a438e790eeb2935db6805a"
     },
     {
-      "bytes": 65741,
+      "bytes": 65944,
       "path": "agent.py",
-      "sha256": "2cc46cb09f7aad8c11259bcbc184dccbec7dbec0c790fca7924e313fbdaf886a"
+      "sha256": "1008cc6b59e7e55afe9227ca1e878c70fc6ec87f3cced5ee54dedbf867e81c0c"
     },
     {
       "bytes": 64204,
@@ -341,9 +341,9 @@
       "sha256": "ae6889b7c3f1b79aa34cc3f8616053309cd34f51d3289f8e962f1293350c7205"
     },
     {
-      "bytes": 22955,
+      "bytes": 24999,
       "path": "lexicon.py",
-      "sha256": "5609e12e9933529792bc240bda8261019e256db46d702c9940103d6df6d9cc0c"
+      "sha256": "b995d063f27c7c492e83e774819988a05e3f5440fe7425dd72907b2e4a7b9ed7"
     },
     {
       "bytes": 78602,
@@ -461,7 +461,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 and -17 were verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 833536,
+  "runtime_source_bytes": 835783,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",

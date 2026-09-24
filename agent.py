@@ -168,7 +168,7 @@ class CoverGoal(Goal):
         for q in p['lifts']: self.levels.append(self.levels[-1] * q)
         self.limit = len(self.levels) + p.get('extra_lifts', 0)
         self.fam = {}; self.residual = set(); self.base_miss = set(); self.misses = {}; self.refined = set(); self.seen = 0
-        self.classes = []; self.classical_miss = set(); self._ready = None; self._powers = {}
+        self.classes = []; self.classical_miss = set(); self._ready = None; self._powers = {}; self._contexts = {}
         # Incremental indexes: the step loop reads these instead of rescanning the workspace.
         self.results = []; self.covers_at = {}; self._open = {}; self.fam_count = 0
 
@@ -310,10 +310,14 @@ class CoverGoal(Goal):
         """Classes are told apart by whether they share a factor with the modulus and, if not, by whether they are
         squares modulo every prime-power factor: a feature the agent observes, not a claim."""
         if target['kind'] != 'eclass': return self.kind + ':' + target['kind']
-        m, r = target['data']['m'], target['data']['r']
-        if gcd(r, m) != 1: return self.kind + ':eclass:shared'
-        if m not in self._powers: self._powers[m] = self.L.factor(m)
-        return self.kind + ':eclass:coprime:' + ('nonsquare' if nonresidue_primes(r, self._powers[m]) else 'square')
+        known = self._contexts.get(target['id'])
+        if known is None:
+            m, r = target['data']['m'], target['data']['r']
+            if m not in self._powers: self._powers[m] = self.L.factor(m)
+            known = self.kind + ':eclass:' + ('shared' if gcd(r, m) != 1 else
+                                               'coprime:nonsquare' if nonresidue_primes(r, self._powers[m]) else 'coprime:square')
+            self._contexts[target['id']] = known
+        return known
 
     def progress(self, rt):
         """A cheap signature that changes exactly when a checked family class or a result object is added."""

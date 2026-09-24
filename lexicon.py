@@ -317,16 +317,12 @@ def univariate_expr(coefficients, name):
 # ------------------------------------------------------------- integers
 
 def divisors(v):
+    """Sorted divisors of |v| (and [1] for 0), generated from the factorization."""
     v = abs(v)
     if v == 0: return [1]
-    small, large = [], []
-    i = 1
-    while i * i <= v:
-        if v % i == 0:
-            small.append(i)
-            if i * i != v: large.append(v // i)
-        i += 1
-    return small + large[::-1]
+    out = [1]
+    for p, k in factor(v).items(): out = [d * p ** e for d in out for e in range(k + 1)]
+    return sorted(out)
 
 
 def square_divisors(v):
@@ -338,13 +334,69 @@ def square_divisors(v):
 
 
 def factor(v):
-    """Prime factorization by trial division, as {prime: exponent}."""
+    """Prime factorization as {prime: exponent}, primes increasing. Trial division removes primes below 1000; what
+    remains is split by Pollard's rho (Brent's variant) and certified prime by Miller-Rabin with the first thirteen
+    prime bases, which is exact below 3.3e24. Same result as trial division, much faster on large inputs."""
     v = abs(v); out = {}; p = 2
-    while p * p <= v:
+    while p < 1000 and p * p <= v:
         while v % p == 0: out[p] = out.get(p, 0) + 1; v //= p
         p += 1 if p == 2 else 2
-    if v > 1: out[v] = out.get(v, 0) + 1
-    return out
+    stack = [v] if v > 1 else []
+    while stack:
+        n = stack.pop()
+        if n < 1_000_000 or _probable_prime(n):
+            if n < 1_000_000 and n > 1:
+                q = 1000
+                while q * q <= n:
+                    while n % q == 0: out[q] = out.get(q, 0) + 1; n //= q
+                    q += 1
+            if n > 1: out[n] = out.get(n, 0) + 1
+            continue
+        d = _rho(n); stack += [d, n // d]
+    return dict(sorted(out.items()))
+
+
+_MR_BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41)
+
+
+def _probable_prime(n):
+    """Miller-Rabin with the first thirteen prime bases: exact for n < 3,317,044,064,679,887,385,961,981."""
+    if n < 2: return False
+    for p in _MR_BASES:
+        if n % p == 0: return n == p
+    d, s = n - 1, 0
+    while d % 2 == 0: d //= 2; s += 1
+    for a in _MR_BASES:
+        x = pow(a, d, n)
+        if x in (1, n - 1): continue
+        for _ in range(s - 1):
+            x = x * x % n
+            if x == n - 1: break
+        else: return False
+    return True
+
+
+def _rho(n):
+    """A nontrivial factor of the odd composite n by Brent's cycle search on x*x + c, c = 1, 2, ... in turn."""
+    if n % 2 == 0: return 2
+    for c in range(1, 256):
+        y, r, q, g, x, ys = 2, 1, 1, 1, 2, 2
+        while g == 1:
+            x = y
+            for _ in range(r): y = (y * y + c) % n
+            k = 0
+            while k < r and g == 1:
+                ys = y
+                for _ in range(min(128, r - k)):
+                    y = (y * y + c) % n; q = q * abs(x - y) % n
+                g = gcd(q, n); k += 128
+            r *= 2
+        if g == n:
+            g = 1
+            while g == 1:
+                ys = (ys * ys + c) % n; g = gcd(abs(x - ys), n)
+        if g != n: return g
+    raise ValueError('no factor found for ' + str(n))
 
 
 def is_prime(v):
