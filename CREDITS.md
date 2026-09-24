@@ -5,7 +5,8 @@
 - **OpenAI Codex**: the source reader, source investigation, present Ember runtime,
   mathematical boundary analysis, experiment implementations and this integration work.
 - **Anthropic Claude (Claude Code)**: the apex reasoning layer, the audited Theory
-  Pyramid catalog of Ember's reasoning moves, and the synthesized routes of generation 16.
+  Pyramid catalog of Ember's reasoning moves, the synthesized routes of generation 16,
+  and the typed operator language, move bench and autonomous research agent of generation 17.
 - **Earlier AI collaborators and project contributors**: the supplied Organon,
   TPM, Elythrene/APORIA, HNIS, MAI, TRIAD and 21-engine sources retain their original
   attribution. Individual authorship claims remain source-reported until their
@@ -97,6 +98,26 @@ mathematics: linear recurrences and their evaluation, polynomial invariants that
 separate reachable states, periodicity of finite orbits and checked proof
 transfer. Parallel read-only catalog reviews came from subagents of the same
 model; they are not external replication.
+
+The typed operator language (lexicon.py, lexicon_check.py and the eight ops_*.py
+modules), its move bench and the autonomous research agent were authored by
+Anthropic's Claude (Claude Code) under Seth's direction. They follow Seth's request
+for at least one hundred moves in each TPM direction and for an offline, non-LLM
+agent that invents its next moves from the mathematical language it holds. Every
+operator implements an established mathematical rule: characteristic polynomials
+of transformed linear recurrences, rational generating functions, polynomial
+identity rewriting, invariants and semi-invariants of polynomial maps, orbit
+exclusion by modular reduction, conjugacy and inverse maps, Hensel lifting and the
+Chinese remainder theorem, Goulden-Jackson cluster generating functions, and
+stopping-time descent for residue-class maps. The unit-fraction operators apply
+the classical divisor method for Egyptian fractions. The residue-class covering
+approach to the Erdos-Straus conjecture follows Mordell's identities modulo 840
+and the known obstruction for quadratic-residue classes (Mordell; Schinzel;
+Yamamoto), which the agent's results are compared against but do not reprove. The
+agent's scheduling formula and sample rules are Seth's Elythrene research doctrine.
+Macro and template invention are bounded search control over checked results, not a
+claim of general scientific creativity. Reviews and tests came from the same model;
+they are not external replication.
 
 The current runtime was authored here; it does not import donor programs
 or copy their private runtimes. Newly authored code and public documentation

@@ -1,0 +1,27 @@
+{
+  "query": "autonomous_research",
+  "name": "Explore binary words avoiding 0110 and 111: find a law, a generating function and periods",
+  "problem": {
+    "type": "explore",
+    "objects": [
+      {
+        "kind": "seq",
+        "data": {
+          "def": {
+            "type": "words",
+            "patterns": [
+              "0110",
+              "111"
+            ]
+          }
+        }
+      }
+    ],
+    "goals": [
+      "law",
+      "gf",
+      "period"
+    ]
+  },
+  "moves": 200
+}

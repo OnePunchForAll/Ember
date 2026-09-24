@@ -20,7 +20,8 @@ RUNTIME = ('ember.py', 'algebra.py', 'algebra_check.py', 'word_series.py',
            'word_check.py', 'campaign.py', 'recurrence.py', 'recurrence_check.py',
            'invariant.py', 'invariant_check.py', 'invariant_map.py', 'obligations.py',
            'recursive.py', 'recursive_check.py', 'source_episode.py', 'apex.py', 'apex_check.py',
-           'pyramid.py')
+           'pyramid.py', 'lexicon.py', 'lexicon_check.py', 'movebench.py', 'agent.py', 'ops_seq.py', 'ops_poly.py',
+           'ops_orbit.py', 'ops_egypt.py', 'ops_arith.py', 'ops_word.py', 'ops_matrix.py', 'ops_collatz.py')
 EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'polynomial_consequence.json', 'discover_algebra_guards.json',
             'discover_affine_guards.json', 'word_identity.json', 'word_shortcut.json',
@@ -38,7 +39,9 @@ EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'campaign_recursive_identity.json', 'source_research_episode.json',
             'orbit_exclusion.json', 'hidden_rank_count.json', 'apex_research.json',
             'word_count.json', 'generating_function.json', 'minimal_recurrence.json', 'orbit_drift.json',
-            'recursive_lift.json', 'premise_lift_source.json', 'premise_lift_receiving.json')
+            'recursive_lift.json', 'premise_lift_source.json', 'premise_lift_receiving.json',
+            'agent_erdos_straus.json', 'agent_unit_fraction_small.json', 'agent_collatz.json', 'agent_decide.json',
+            'agent_explore.json')
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 PRIVATE_PATH = re.compile(rb'(?<![A-Za-z0-9_])[A-Za-z]:[\\/]|/(?:home|Users)/')
 
@@ -110,7 +113,7 @@ def collect(root):
         'standing': 'EXPERIMENTAL / SELF_ISOLATED',
         'runtime_source_bytes': sum(len(files[n]) for n in RUNTIME),
         'python_requirement': ('External standard-library Python. Generations through ember-pyramid-15 were tested '
-                               'with Python 3.14.6 on Windows; ember-pyramid-16 was verified with Python 3.11.15 '
+                               'with Python 3.14.6 on Windows; ember-pyramid-16 and -17 were verified with Python 3.11.15 '
                                'on Linux x86_64 only.'),
         'packaging': 'Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.',
         'manifest_self_hash': 'Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.',
@@ -1299,6 +1302,107 @@ print(json.dumps(answers))
                                    'status': envelope.get('status'), 'elapsed_ns': time.perf_counter_ns() - began})
         check('apex_helper_series_closed', process.returncode == 0 and envelope.get('outcome') == 'closed'
               and envelope.get('status') == 'CHECKED_GENERATING_FUNCTION')
+        # The typed language, its move bench and the autonomous agent.
+        check('capabilities_agent_interface', 'autonomous_research' in capabilities.get('queries', [])
+              and capabilities.get('agent', {}).get('problem_types')
+                  == ['unit_fraction_cover', 'descent_cover', 'decide', 'explore']
+              and 'language' in capabilities)
+        bench = cli('move_bench', '--move-bench')
+        check('move_bench_every_operator_observed', bench['status'] == 'MOVE_BENCH' and bench['ok'] is True
+              and bench['operators'] >= 150 and bench['passed'] == bench['operators']
+              and all(row['observed'] == row['dirs'] and row['fixtures'] >= 1 for row in bench['rows']))
+        check('pyramid_language_at_least_100_per_direction', all(pyramid['face_counts'][d] >= 100 for d in 'NWSE')
+              and pyramid['language']['operators'] == bench['operators']
+              and sum(1 for row in pyramid['base'] if row['layer'] == 'lexicon') == bench['operators'])
+        tampered_ops = root / 'ops-tamper'; tampered_ops.mkdir()
+        for name in RUNTIME:
+            (tampered_ops / name).write_bytes(files[name])
+        (tampered_ops / 'ops_egypt.py').write_bytes(files['ops_egypt.py'].replace(
+            b"@op('egypt_zero_class', 'SE'", b"@op('egypt_zero_class', 'NSE'"))
+        began = time.perf_counter_ns()
+        tamper_bench = subprocess.run([python, '-I', '-B', '-X', 'utf8', str(tampered_ops / 'ember.py'), '--move-bench'],
+                                      cwd=tampered_ops, capture_output=True, text=True, encoding='utf-8', timeout=120,
+                                      creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        tamper_rows = {row['name']: row for row in json.loads(tamper_bench.stdout)['rows']}
+        receipt['cli_runs'].append({'case': 'move_bench_tampered_directions', 'returncode': tamper_bench.returncode,
+                                   'elapsed_ns': time.perf_counter_ns() - began})
+        check('move_bench_rejects_unobserved_declared_direction', tamper_bench.returncode == 2 and not tamper_bench.stderr
+              and tamper_rows['egypt_zero_class']['ok'] is False and tamper_rows['egypt_zero_class']['observed'] == 'SE')
+        small = cli('agent_unit_fraction_small', 'examples/agent_unit_fraction_small.json',
+                    ['--state', 'agent-small.json', '--work', '400000000'], expected_code=3)
+        levels = {row['modulus']: row for row in small['goal']['levels']}
+        squares = lambda M: sorted({x * x % M for x in range(M) if __import__('math').gcd(x, M) == 1})
+        check('agent_small_cover_leaves_exactly_the_square_classes', small['status'] == 'UNKNOWN'
+              and levels[24]['uncovered_coprime'] == squares(24) and levels[120]['uncovered_coprime'] == squares(120)
+              and levels[24]['uncovered'] == 1 and levels[120]['uncovered'] == 2
+              and levels[24]['square_pattern'] == {'status': 'checked'}
+              and levels[120]['square_pattern'] == {'status': 'checked'}
+              and {row['kind'] for row in small['results']} >= {'cover', 'pattern', 'density', 'finite'}
+              and any(row['kind'] == 'finite' and row['lo'] == 2 and row['hi'] == 2000 for row in small['results'])
+              and len(small['invented_moves']) >= 1)
+        again = cli('agent_unit_fraction_resume', 'examples/agent_unit_fraction_small.json',
+                    ['--state', 'agent-small.json', '--work', '400000000'], expected_code=3)
+        check('agent_resume_rechecks_saved_objects', again['replayed_objects'] > 0 and again['invalidated_objects'] == 0
+              and again['moves_executed'] < small['moves_executed']
+              and [row['covered'] for row in again['goal']['levels']] == [row['covered'] for row in small['goal']['levels']])
+        forged_agent = json.loads((root / 'agent-small.json').read_bytes())
+        agent_record = next(row for row in forged_agent['observations'] if row.get('kind') == 'autonomous_research')
+        saved_cover = next(row for row in agent_record['objects'] if row['kind'] == 'cover')
+        saved_cover['data']['entries'][0]['family']['x'][0] = ['num', 1, 1]
+        (root / 'agent-forged.json').write_bytes(encoded(forged_agent))
+        forged_run = cli('agent_forged_cover', 'examples/agent_unit_fraction_small.json',
+                         ['--state', 'agent-forged.json', '--work', '400000000'], expected_code=3)
+        check('agent_forged_saved_cover_refused', forged_run['invalidated_objects'] >= 1
+              and [row['covered'] for row in forged_run['goal']['levels']] == [row['covered'] for row in small['goal']['levels']])
+        standalone_lexicon = root / 'lexicon-standalone'; standalone_lexicon.mkdir()
+        for name in ('lexicon_check.py', 'recurrence_check.py'):
+            (standalone_lexicon / name).write_bytes(files[name])
+        saved_objects = [row for row in json.loads((root / 'agent-small.json').read_bytes())['observations']
+                         if row.get('kind') == 'autonomous_research'][0]['objects']
+        (standalone_lexicon / 'evidence.json').write_bytes(encoded([row for row in saved_objects if row['kind'] != 'template']))
+        lexicon_code = r'''import json, pathlib, runpy
+root = pathlib.Path.cwd()
+checker = runpy.run_path(str(root / 'lexicon_check.py'))
+class Budget:
+    def __init__(self): self.work = 0
+    def use(self, n=1):
+        self.work += n
+        if self.work > 50000000: raise RuntimeError('standalone replay work limit')
+print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
+                  for row in json.loads((root / 'evidence.json').read_text(encoding='utf-8'))]))
+'''
+        began = time.perf_counter_ns()
+        lexicon_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', lexicon_code], cwd=standalone_lexicon,
+                                     capture_output=True, text=True, encoding='utf-8', timeout=120,
+                                     creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'agent_objects_standalone', 'returncode': lexicon_run.returncode,
+                                   'elapsed_ns': time.perf_counter_ns() - began, 'stderr': lexicon_run.stderr})
+        replayed_kinds = json.loads(lexicon_run.stdout) if lexicon_run.returncode == 0 else []
+        check('agent_saved_evidence_replays_with_checker_only', lexicon_run.returncode == 0 and not lexicon_run.stderr
+              and 'cover' in replayed_kinds and 'finite' in replayed_kinds)
+        collatz = cli('agent_collatz', 'examples/agent_collatz.json', ['--work', '2000000000'], expected_code=3)
+
+        def open_classes(k):
+            count = 0
+            for r in range(2 ** k):
+                n, odd, contracted = r, 0, False
+                for i in range(1, k + 1):
+                    if n % 2: odd += 1; n = (3 * n + 1) // 2
+                    else: n //= 2
+                    if 3 ** odd < 2 ** i: contracted = True; break
+                count += not contracted
+            return count
+        check('agent_collatz_open_classes_match_independent_count',
+              [row['open'] for row in collatz['goal']['levels']] == [open_classes(k) for k in range(1, 11)]
+              and any(row['kind'] == 'cfinite' and row['hi'] == 20000 for row in collatz['results'])
+              and any(row['kind'] == 'dcover' and row['modulus'] == 1024 and row['covered'] == 1024 - open_classes(10)
+                      for row in collatz['results']))
+        decided = cli('agent_decide_false_law', 'examples/agent_decide.json')
+        check('agent_decides_false_claim_by_checked_refutation', decided['status'] == 'CHECKED_RESEARCH'
+              and decided['goal'] == {'claim_status': 'refuted', 'claim_kind': 'law'} and decided['refutations'] == 1)
+        explored = cli('agent_explore_words', 'examples/agent_explore.json')
+        check('agent_explore_finds_checked_law_gf_period', explored['status'] == 'CHECKED_RESEARCH'
+              and set(explored['goal']['found'][0]['checked_kinds']) >= {'law', 'gf', 'period'})
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',

@@ -7,16 +7,20 @@ representations, their assumptions, counterexamples and checked reuse.
 This source package runs with Python's standard library. It requires no model,
 API key, downloaded weights, third-party package or source archive. Python itself
 is an external prerequisite and is **not** included. Generations through
-`ember-pyramid-15` were tested on Windows with Python 3.14.6. This generation,
-`ember-pyramid-16`, adds the apex layer and was verified on Linux x86_64 with
-Python 3.11.15 only; it has not been rerun on the Windows host. Other Python
-versions, operating systems and devices remain unverified. CPU, memory and
-storage are still required for each calculation.
+`ember-pyramid-15` were tested on Windows with Python 3.14.6. Generation
+`ember-pyramid-16` added the apex layer; this generation, `ember-pyramid-17`,
+adds a typed operator language with 156 executed operators, a move bench and an
+autonomous research agent. Both were verified on Linux x86_64 with Python 3.11.15
+only; they have not been rerun on the Windows host. Other Python versions,
+operating systems and devices remain unverified. CPU, memory and storage are still
+required for each calculation.
 
 Standing: **EXPERIMENTAL / SELF_ISOLATED**. Ember does not currently offer general
 mathematical intelligence, unrestricted invention, or a solution to every open
 problem. Its finite searches and exact checkers support the specific task types
-below. Same-model development and review are not external scientific replication.
+below. Its autonomous agent works only on problems stated in its typed language;
+an open problem stays open unless the checker settles it, and none has been
+settled. Same-model development and review are not external scientific replication.
 
 ## Start locally
 
@@ -620,9 +624,10 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 148 implemented moves across
-17 modules: 140 reasoning moves and 8 control moves that schedule, persist or
-replay work. Each move names its functions, directions, the evidence types it
+`--pyramid` prints the map. Its base is a catalog of 309 implemented moves across
+29 modules: 153 subreasoner moves (9 of them control moves that schedule, persist
+or replay work) and the 156 operators of the typed language described below. The
+base holds 109 moves with an N component, 107 with W, 251 with S and 104 with E. Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
 fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
 move sits at its own directions. A synthesis, a composition of moves, sits at
@@ -635,7 +640,7 @@ a move with that direction, and every chain must type-check. `--pyramid` exits 2
 when the audit fails. Fourteen of the fifteen nodes are realized by code. The
 unrealized node, NWE, would transfer a repair without checking it on an
 original; every admitted Ember result passes through S. The map records 14
-syntheses that predate the apex and 15 that the apex realizes. Generation 16
+syntheses that predate the apex and 18 that the apex and the agent realize. Generation 16
 implemented the seven syntheses that generation 15 listed as proposed (see
 below). Two proposed syntheses remain open, each naming the capability it still
 needs: exclusion by a strictly increasing ranking polynomial beyond exact drift,
@@ -798,7 +803,8 @@ intelligence claim.
 ### Limits
 
 The apex plans only over implemented routes and bounded grammars. It does not
-invent subreasoners, proof systems or research agendas. The orbit question
+invent subreasoners or proof systems; the agent below invents macros and templates
+within the typed language, not new kinds of evidence. The orbit question
 allows one to six variables, transitions of conservative degree at most four,
 invariant degree one to three and at most 1,024 prefix steps, with exact
 arithmetic up to 8192 bits. `UNKNOWN` never means that the target is reachable.
@@ -807,6 +813,181 @@ recurrence checker. Recurrence discovery cost grows roughly with the fourth powe
 of the carrier dimension, so the route pays off when the hidden law has low order
 relative to the horizon. The checkers are custom code, not a formally verified
 kernel.
+
+## Typed language and move bench
+
+```text
+python -I -B -X utf8 ember.py --move-bench
+```
+
+Generation 17 gives Ember a typed mathematical language. Objects are a kind plus
+exact JSON data: questions (a sequence definition, a polynomial map and orbit, a
+residue class of a unit-fraction question, an integer polynomial, a residue-class
+map) and claims (a linear recurrence for every index, a rational generating
+function, a closed form, a period modulo m, a polynomial identity, an invariant or
+semi-invariant, an orbit exclusion, a unit-fraction family polynomial in the class
+parameter, a residue-class cover, a checked finite range, a modular root or its
+absence, a descent certificate, a cycle). `lexicon_check.py` is the only way a
+claim becomes checked. It imports no operator code, has its own exact arithmetic,
+and binds every claim to the question stated in its own data.
+
+156 operators in eight modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+`ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`) consume and produce objects.
+Each output is created through one runtime event with a checkable precondition:
+
+- **N** a new candidate;
+- **W** a checked refutation, orbit exclusion, modular non-existence proof or
+  cycle, or a residual naming the open part;
+- **S** an admission by the checker;
+- **E** a claim about another question derived from a checked claim.
+
+Examples: the law of a+b multiplies characteristic polynomials; the binomial
+transform shifts every root by one; decimation takes a power of the companion
+matrix; a checked invariant of F is an invariant of F∘F, of a conjugate map, of
+a product system and, in its lowest degree, of the linearization; an exclusion
+for F transfers to F∘F, a conjugate, the inverse map and an enclosing system; a
+root modulo p lifts to p² by Hensel's lemma; roots combine by the Chinese
+remainder theorem; a representation of a/p gives the family x_i·k for the class
+0 mod p.
+
+The move bench runs every operator on its fixtures in a fresh runtime. It counts
+only the events that produced the objects the operator returned. An operator
+passes when its declared directions equal the union observed over its fixtures,
+every returned checked object is admitted again by a fresh checker call, and its
+argument and output kinds match its signature. All 156 pass: 56 have an N
+component, 46 W, 149 S and 78 E. Together with the subreasoner moves, every
+direction of the pyramid now has more than one hundred moves. A package check
+changes one operator's declared directions and requires the bench to fail.
+Directions are observed on fixtures, not proved for every input.
+
+## Autonomous research agent
+
+```text
+python -I -B -X utf8 ember.py examples/agent_decide.json
+python -I -B -X utf8 ember.py examples/agent_explore.json
+python -I -B -X utf8 ember.py examples/agent_unit_fraction_small.json --state small-instance.json
+python -I -B -X utf8 ember.py examples/agent_collatz.json --work 2000000000
+python -I -B -X utf8 ember.py examples/agent_erdos_straus.json --state es-instance.json --work 20000000000
+```
+
+`autonomous_research` states a problem in the typed language:
+
+- `decide`: admit a claim or refute it with a checked refutation;
+- `explore`: find checked facts of the requested kinds about given objects;
+- `unit_fraction_cover`: cover the residue classes of a/n = 1/x + 1/y + 1/z by
+  checked polynomial families, refine what stays open, and verify a finite range;
+- `descent_cover`: certify T^j(n) < n class by class for a residue-class map
+  such as 3n+1, refine what does not contract, verify a range and search cycles.
+
+Each step the agent lists the open targets of its goal. It forms candidate moves
+from every operator whose signature accepts a target or an object derived from
+it, and ranks them by the doctrine score p=(1+S)/(2+S+F) over the smoothed mean
+cost (0.01 + sum w t)/(1+S+F). A success is a checked result that changes the
+goal's progress. Samples are kept per context, strategy and task, at most 128.
+Reported samples from another run weigh min(0.25, 1/R), and every fifth unseen
+task reverses the order. Each strategy is tried once per target, and a target
+gets at most 24 moves. A class is refined toward the next modulus only after both
+family grammars have missed it. These are scheduling policies, not evidence.
+
+The agent invents moves in three ways:
+
+- when a checked result's derivation chains two to four operators, the chain
+  becomes a macro that replays it on new targets;
+- every 25 moves, a pair of operators with at least one success each, where the
+  first produces the kind the second consumes, is proposed as a composition and
+  promoted when it first produces a checked result;
+- the extended unit-fraction ansatz turns a family found outside the base grammar
+  into a reusable template object.
+
+Invented moves are reported with their origin, uses and successes. Saved objects
+are proposals until the checker admits them again on resume. If a saved object is
+refused, the scheduling memory built on it is discarded and the search is redone.
+The report lists only checked results, residuals, invented moves, the scheduler's
+ranking and the directions observed.
+
+## Launch: two open problems
+
+Both runs used this package with Python 3.11.15 on Linux x86_64, from a fresh state, in one run each.
+
+### The Erdős–Straus conjecture
+
+The conjecture (Erdős and Straus, 1948) states that 4/n = 1/x + 1/y + 1/z has a
+solution in positive integers for every n >= 2. It is open. It has been verified
+far beyond any bound used here, and Mordell showed polynomial identities for every
+residue class modulo 840 except 1, 121, 169, 289, 361 and 529. Polynomial
+identities cannot cover classes that are quadratic residues (Mordell; Schinzel;
+Yamamoto). Ember was given only the problem statement
+`examples/agent_erdos_straus.json`: numerator 4, three terms, n >= 2, base modulus
+840, refinement primes 11, 3 and 3 (moduli 840, 9,240, 27,720 and 83,160), and a
+checked range below 100,000.
+
+Ember ran 4,289 moves in 159 s (185,105,722 work units) and ended when no open
+target had an untried move. Its status is `UNKNOWN`.
+
+| Modulus | Covered residues | Open squares | Open non-squares | Square-class pattern |
+|---|---|---|---|---|
+| 840 | 834 of 840 | 6 | 0 | checked |
+| 9,240 | 9,206 of 9,240 | 30 | 4 | refuted at 2041 |
+| 27,720 | 27,624 of 27,720 | 90 | 6 | refuted at 2521 |
+| 83,160 | 82,876 of 83,160 | 270 | 14 | refuted at 2521 |
+
+- **Mordell's classes rediscovered.** Modulo 840 her 190 checked families cover
+  every class except exactly 1, 121, 169, 289, 361 and 529. She proposed, and the
+  checker admitted, the claim that for this cover the uncovered coprime classes
+  are exactly the coprime squares.
+- **Refinement.** She refined the six classes by 11, then by 3 twice, and found 37
+  more families. At every level the open square classes are exactly all coprime
+  squares: 6, 30, 90 and 270. Her own square-class conjecture was refuted by the
+  checker at 9,240, 27,720 and 83,160, where 4, 6 and 14 non-square classes stayed
+  open under her grammar. Refining by 3 closed 6 of the 12 lifts of the four open
+  non-square classes mod 9,240: a limitation she found and partly removed.
+- **Finite range.** Every n with 2 <= n < 100,000 has a checked representation:
+  99,656 by a family at or above its threshold, 135 by explicit witnesses and 207
+  by scaling a checked divisor.
+- **Invention.** She invented 16 templates outside the base grammar and 16
+  macros. Two type-directed compositions were promoted after their first checked
+  success. The derivation macro for zero classes (greedy witness, then the class
+  0 mod p) was reused successfully.
+- **Independent check.** An independent script, outside Ember, evaluated all 227
+  saved families at 50 class members each (11,350 instances, none wrong). It also
+  replayed the finite range for all 99,998 values of n.
+
+What this establishes: every family, cover, density, pattern and finite range in
+the report was admitted by `lexicon_check.py`, and the saved cover and range
+replay with only the checker present. Every n below 100,000 has a checked
+representation, and every n in a covered class has one at or above its family's
+threshold. What it does not establish: anything about the uncovered classes. The
+square classes are the known obstruction to polynomial identities, and the
+non-square classes left open are limits of this grammar and depth, not
+counterexamples. The conjecture remains open. Rediscovering Mordell's classes and
+observing the square-class pattern are results for this program, not new
+mathematics.
+
+### The Collatz stopping-time sieve
+
+The Collatz conjecture states that iterating T(n) = n/2 or (3n+1)/2 reaches 1 from
+every positive integer. It is open. The stopping-time sieve (Terras; Everett)
+certifies residue classes modulo 2^k on which some iterate falls below n.
+
+`examples/agent_collatz.json` certifies descent to modulus 2^10. The report run
+below used depth 12 and a finite check to 10^6. Ember ran 849 moves in 2.0 s
+(3,591,929 work units):
+
+- the open classes modulo 2^k for k = 1..12 are 1, 1, 2, 3, 4, 8, 13, 19, 38, 64, 128
+  and 226;
+- 57 checked descent certificates lift to a checked cover of 3,870 of the 4,096
+  classes modulo 4,096;
+- every n with 2 <= n < 1,000,000 falls below itself, so every n below 10^6 reaches
+  1 by induction from n = 1;
+- the cycle search found no cycle avoiding 1 from starts below 2,000. The same
+  search on the map 5n+1 finds the cycle through 13 in the move bench.
+
+A package check recomputes the open counts independently, by exact parity
+simulation of every residue.
+
+As with Erdős–Straus, the surviving classes are where the problem stays open.
+Descent on a class says nothing about its survivors, and verification below a
+bound is not a proof.
 
 ## Task and result interface
 
@@ -850,6 +1031,7 @@ bound does not impose a child-process disk quota.
 | `count_word_avoiders` | Count binary words of a given length avoiding two patterns, by exact automaton iteration or a checked all-length law. |
 | `discover_generating_function` | Return a checked rational generating function for a word or matrix carrier. |
 | `certify_minimal_recurrence` | Return a checked all-index recurrence with a nonzero Hankel determinant excluding every lower order. |
+| `autonomous_research` | Run the offline agent on a problem stated in the typed language: decide, explore, cover unit-fraction classes or certify descent; report only checked results. |
 
 Exit code `0` means the returned result is closed within its stated scope. Exit
 code `3` with `status: "UNKNOWN"` means the evidence did not settle the request
@@ -918,8 +1100,13 @@ tampered trace label that the audit must reject. They also cover orbit witnesses
 repeated states and separating invariants with forged saved evidence, the law
 answer against exact iteration, forged apex checkpoints, recursive memory transfer,
 standalone replay of apex certificates with only the checkers present, helper
-calls and a large exact answer. These checks do not demonstrate another
-operating system or enforced network isolation. There is no package installation
+calls and a large exact answer. Language checks run the move bench, require at
+least 100 moves per pyramid direction, and reject a tampered operator whose declared
+directions it does not observe. Agent checks cover the square-class residue of a
+small unit-fraction cover, resume replay, a forged saved cover, standalone replay of
+saved agent evidence with only the checker present, Collatz open-class counts
+against an independent count, and decide and explore problems. These checks do not
+demonstrate another operating system or enforced network isolation. There is no package installation
 step and no background service.
 
 The checks also exercise original nonzero cancellation, fresh default/helper/

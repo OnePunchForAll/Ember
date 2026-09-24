@@ -1,0 +1,54 @@
+{
+  "query": "autonomous_research",
+  "name": "Decide whether the Fibonacci numbers satisfy a(n+2) = a(n+1) + 2 a(n)",
+  "problem": {
+    "type": "decide",
+    "kind": "law",
+    "data": {
+      "def": {
+        "type": "lrs",
+        "coefficients": [
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "initial": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "coefficients": [
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "initial": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    }
+  },
+  "moves": 50
+}

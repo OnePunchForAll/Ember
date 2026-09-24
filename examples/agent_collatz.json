@@ -1,0 +1,22 @@
+{
+  "query": "autonomous_research",
+  "name": "Collatz map T(n) = n/2 or (3n+1)/2: certify descent class by class modulo 2^10",
+  "problem": {
+    "type": "descent_cover",
+    "map": {
+      "d": 2,
+      "a": [
+        1,
+        3
+      ],
+      "b": [
+        0,
+        1
+      ]
+    },
+    "depth": 10,
+    "verify_to": 20000
+  },
+  "moves": 3000,
+  "move_work": 2000000
+}

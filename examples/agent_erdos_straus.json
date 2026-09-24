@@ -1,0 +1,19 @@
+{
+  "query": "autonomous_research",
+  "name": "Erdos-Straus conjecture: 4/n = 1/x + 1/y + 1/z has a solution in positive integers for every n >= 2",
+  "problem": {
+    "type": "unit_fraction_cover",
+    "a": 4,
+    "terms": 3,
+    "min": 2,
+    "modulus": 840,
+    "lifts": [
+      11,
+      3,
+      3
+    ],
+    "verify_to": 100000
+  },
+  "moves": 20000,
+  "move_work": 5000000
+}

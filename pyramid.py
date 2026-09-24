@@ -31,7 +31,15 @@ TYPES = ('original', 'candidate', 'certificate', 'counterexample', 'residual', '
          'answer', 'decision')
 MODULES = ('ember.py', 'campaign.py', 'algebra.py', 'algebra_check.py', 'word_series.py', 'word_check.py',
            'recurrence.py', 'recurrence_check.py', 'invariant.py', 'invariant_map.py', 'invariant_check.py',
-           'obligations.py', 'recursive.py', 'recursive_check.py', 'source_episode.py', 'apex.py', 'apex_check.py')
+           'obligations.py', 'recursive.py', 'recursive_check.py', 'source_episode.py', 'apex.py', 'apex_check.py',
+           'lexicon.py', 'lexicon_check.py', 'movebench.py', 'agent.py')
+# Operators of the typed language (lexicon.py) are read from these modules' @op declarations.
+LEXICON_MODULES = ('ops_seq.py', 'ops_poly.py', 'ops_orbit.py', 'ops_egypt.py', 'ops_arith.py', 'ops_word.py',
+                   'ops_matrix.py', 'ops_collatz.py')
+QUESTION_KINDS = frozenset(('seq', 'words', 'orbit', 'map', 'poly', 'esq', 'eclass', 'en', 'count', 'diophantine', 'modq',
+                            'cmap', 'cclass', 'cproblem', 'matrixq'))
+EVIDENCE_KINDS = frozenset(('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle'))
+LAW_KINDS = frozenset(('law', 'gf', 'closed', 'period', 'invariant', 'semi'))
 
 
 def move(id, module, entries, dirs, labels, consumes, produces, activation, summary):
@@ -443,6 +451,20 @@ MOVES = (
     move('level_set_lemma', 'apex.py', ('level_set_lemma', 'remember_level_set', 'text'), 'NSE', (), ('law',),
          ('certificate', 'library'), 'apex memory of admitted invariants',
          'A checked law becomes the polynomial lemma P(x)-level=0 implies P(F(x))-level=0.'),
+    # ---- agent.py: the autonomous research loop over the typed language
+    move('agent_goal_targets', 'agent.py', ('targets', 'allowed', 'covered', 'residual_of', 'descendants'), 'W', (),
+         ('residual', 'original'), ('decision',), 'autonomous_research',
+         'List the open part of the goal: uncovered classes, undecided claims or missing facts, refining only residual classes.'),
+    move('agent_doctrine_schedule', 'agent.py', ('doctrine_score', 'record_sample', 'weighted_reports', 'step', 'candidates',
+         'companions', 'index'), '', (), ('decision',), ('decision',), 'autonomous_research',
+         'Rank candidate moves by p=(1+S)/(2+S+F) over smoothed cost; reverse the order on every fifth unseen task.'),
+    move('agent_macro_invention', 'agent.py', ('invent', 'run_macro'), 'NE', (), ('certificate',), ('library', 'candidate'),
+         'autonomous_research', 'Promote the operator chain behind a checked result to a macro move for other targets.'),
+    move('agent_type_composition', 'agent.py', ('propose_compositions',), 'N', (), ('decision',), ('candidate',),
+         'autonomous_research', 'Propose operator pairs whose output kind is the next input kind; promote on first success.'),
+    move('agent_checked_resume', 'agent.py', ('run', 'save', 'compact', 'execute', 'run_op'), 'S', (), ('library',),
+         ('certificate',), 'autonomous_research with --state',
+         'Saved objects are proposals until the checker admits them again; only checked results are reported.'),
     move('apex_single_question', 'apex.py', ('solve_single', 'single_binding', 'single_status', 'single_routes'), '',
          (), ('decision',), ('decision',), 'apex-only queries', 'Ask each face of one question in order; replay saved results.'),
     move('apex_face_schedule', 'apex.py', ('order', 'deferred', 'plan', 'face', 'face_counts'), '', (), ('decision',),
@@ -547,6 +569,18 @@ SYNTHESES = (
     synthesis('counterexample_instance_lifting', 'APEX', ('apex_memory', 'recursive_refutation_lift',
               'recursive_counterexample_admission'), 'apex.recursive_lift',
               'A counterexample to an instance of a goal maps to a counterexample of the general goal.'),
+    synthesis('autonomous_cover_research', 'APEX', ('agent_goal_targets', 'egypt_divisor_ansatz', 'egypt_ansatz_extend',
+              'egypt_class_split', 'egypt_class_refine', 'egypt_template_transfer', 'egypt_zero_class',
+              'egypt_finite_verify', 'egypt_square_pattern', 'agent_macro_invention'), 'agent.run unit_fraction_cover',
+              'Cover residue classes by checked families, refine the residual, invent templates and macros, verify ranges.',
+              form='faces'),
+    synthesis('autonomous_descent_research', 'APEX', ('agent_goal_targets', 'collatz_affine_descent', 'collatz_split',
+              'collatz_descent_subclass', 'collatz_finite', 'collatz_cycle_search', 'agent_macro_invention'),
+              'agent.run descent_cover', 'Certify descent class by class, refine what does not contract, search cycles.',
+              form='faces'),
+    synthesis('invented_move_transfer', 'APEX', ('agent_macro_invention', 'agent_type_composition', 'agent_checked_resume'),
+              'agent.invent, agent.propose_compositions', 'Invented moves carry a checked derivation to new targets; '
+              'their results are admitted only by the checker.', form='faces'),
     synthesis('ranking_exclusion', 'PROPOSED', ('orbit_prefix', 'orbit_check'), 'none',
               'Exclude a target by a polynomial that strictly increases along the orbit, beyond exact drift.',
               needs=('ranking_polynomial_proposal', 'ordered_field_monotonicity_check'), node='NWS'),
@@ -608,16 +642,51 @@ def satisfies(produced, consumed):
     return produced == consumed or consumed in WIDER.get(produced, ())
 
 
-def synthesis_node(s):
-    return s['declared'] or union(s['steps'])
+def synthesis_node(s, table=None):
+    return s['declared'] or union(s['steps'], table)
 
 
 def _moves():
     return {m['id']: m for m in MOVES}
 
 
-def union(ids):
-    table = _moves()
+def _consumed_type(kind):
+    return ('original' if kind in QUESTION_KINDS else 'residual' if kind == 'residual'
+            else 'library' if kind == 'template' else 'certificate')
+
+
+def _produced_types(kind, dirs):
+    base = ('counterexample' if kind in EVIDENCE_KINDS else 'residual' if kind == 'residual'
+            else 'library' if kind == 'template' else 'law' if kind in LAW_KINDS
+            else 'derived' if kind in QUESTION_KINDS else 'certificate')
+    return (base, 'candidate') if 'N' in dirs and base not in ('residual', 'counterexample') else (base,)
+
+
+def lexicon_moves(root):
+    """Every @op declaration in the operator modules, read from source text as a base move."""
+    out = []
+    for name in LEXICON_MODULES:
+        tree = ast.parse((Path(root) / name).read_bytes(), filename=name)
+        for node in tree.body:
+            if not isinstance(node, ast.FunctionDef): continue
+            for dec in node.decorator_list:
+                if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name) and dec.func.id == 'op'): continue
+                ident, dirs, consumes, produces, summary = (ast.literal_eval(a) for a in dec.args)
+                produced = []
+                for kind in produces:
+                    for t in _produced_types(kind, dirs):
+                        if t not in produced: produced.append(t)
+                out.append(move(ident, name, (node.name,), dirs, (), tuple(dict.fromkeys(_consumed_type(k) for k in consumes)),
+                                tuple(produced), 'lexicon operator; ember.py --move-bench executes it', summary))
+    return tuple(out)
+
+
+def catalog(root):
+    return MOVES + lexicon_moves(root)
+
+
+def union(ids, table=None):
+    table = table or _moves()
     return node(''.join(table[i]['dirs'] for i in ids))
 
 
@@ -650,13 +719,16 @@ def _source_facts(path):
 
 def audit(root):
     """Bind the catalog to source text: entries exist, labels are claimed, syntheses chain."""
-    root = Path(root); problems = []; table = _moves(); facts = {}
-    for name in MODULES:
+    root = Path(root); problems = []; facts = {}
+    try: moves = catalog(root)
+    except (OSError, SyntaxError, ValueError) as exc: moves = MOVES; problems.append('lexicon operators unreadable: ' + str(exc))
+    table = {m['id']: m for m in moves}
+    for name in MODULES + LEXICON_MODULES:
         try: facts[name] = _source_facts(root / name)
         except (OSError, SyntaxError) as exc: problems.append(name + ': unreadable module: ' + str(exc))
-    if len(table) != len(MOVES): problems.append('duplicate move identifiers')
-    claimed = {name: set() for name in MODULES}
-    for m in MOVES:
+    if len(table) != len(moves): problems.append('duplicate move identifiers')
+    claimed = {name: set() for name in MODULES + LEXICON_MODULES}
+    for m in moves:
         if m['module'] not in facts: problems.append(m['id'] + ': module not audited'); continue
         names, labels = facts[m['module']]
         if node(m['dirs']) != m['dirs']: problems.append(m['id'] + ': directions not in N,W,S,E order')
@@ -687,29 +759,37 @@ def audit(root):
     for strategy, steps in list(ROUTES.items()) + list(QUERY_ROUTES.items()):
         if any(i not in table for i in steps): problems.append('route ' + strategy + ': unknown move')
     labels_in_code = sum(len(v[1]) for v in facts.values())
-    return dict(ok=not problems, problems=problems, modules=len(facts), moves=len(MOVES),
+    return dict(ok=not problems, problems=problems, modules=len(facts), moves=len(moves),
                 trace_labels=labels_in_code, syntheses=len(SYNTHESES))
 
 
-def lattice():
+def lattice(moves=MOVES):
     """Fifteen nodes, level by level, with the moves and syntheses realizing each."""
-    rows = []
+    rows = []; table = {m['id']: m for m in moves}
     for key in NODE_ORDER:
-        moves = [m['id'] for m in MOVES if m['dirs'] == key]
-        built = [s['id'] for s in SYNTHESES if s['status'] != 'PROPOSED' and synthesis_node(s) == key]
-        open_ = [s['id'] for s in SYNTHESES if s['status'] == 'PROPOSED' and synthesis_node(s) == key]
-        rows.append(dict(node=key, level=len(key), name=NODE_NAMES[key], moves=moves, syntheses=built,
-                         proposed=open_, realized=bool(moves or built)))
+        at = [m['id'] for m in moves if m['dirs'] == key]
+        built = [s['id'] for s in SYNTHESES if s['status'] != 'PROPOSED' and synthesis_node(s, table) == key]
+        open_ = [s['id'] for s in SYNTHESES if s['status'] == 'PROPOSED' and synthesis_node(s, table) == key]
+        rows.append(dict(node=key, level=len(key), name=NODE_NAMES[key], moves=at, syntheses=built,
+                         proposed=open_, realized=bool(at or built)))
     return rows
 
 
 def report(root):
     checked = audit(root)
-    faces = {d: [m['id'] for m in MOVES if d in m['dirs']] for d in DIRECTIONS}
+    try: moves = catalog(root)
+    except (OSError, SyntaxError, ValueError): moves = MOVES
+    faces = {d: [m['id'] for m in moves if d in m['dirs']] for d in DIRECTIONS}
+    lexicon = {m['id'] for m in moves} - {m['id'] for m in MOVES}; table = {m['id']: m for m in moves}
     return dict(status='PYRAMID', schema=VERSION, directions=MEANING, faces=faces,
-                base=[dict(m, node=m['dirs'] or 'control') for m in MOVES],
-                syntheses=[dict(s, node=synthesis_node(s)) for s in SYNTHESES],
-                lattice=lattice(), apex=[s['id'] for s in SYNTHESES if s['status'] != 'PROPOSED'
-                                         and synthesis_node(s) == 'NWSE'],
+                face_counts={d: len(v) for d, v in faces.items()},
+                language=dict(operators=len(lexicon), modules=list(LEXICON_MODULES),
+                              face_counts={d: sum(d in m['dirs'] for m in moves if m['id'] in lexicon) for d in DIRECTIONS}),
+                base=[dict(m, node=m['dirs'] or 'control', layer='lexicon' if m['id'] in lexicon else 'subreasoner')
+                      for m in moves],
+                syntheses=[dict(s, node=synthesis_node(s, table)) for s in SYNTHESES],
+                lattice=lattice(moves), apex=[s['id'] for s in SYNTHESES if s['status'] != 'PROPOSED'
+                                              and synthesis_node(s, table) == 'NWSE'],
                 audit=checked,
-                limits='A classification of implemented operations bound to source text; not evidence that any claim holds.')
+                limits='A classification of implemented operations bound to source text; not evidence that any claim holds. '
+                       'ember.py --move-bench executes every lexicon operator and observes its directions.')

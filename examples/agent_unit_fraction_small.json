@@ -1,0 +1,17 @@
+{
+  "query": "autonomous_research",
+  "name": "4/n = 1/x + 1/y + 1/z on residue classes modulo 24 and 120, verified below 2000",
+  "problem": {
+    "type": "unit_fraction_cover",
+    "a": 4,
+    "terms": 3,
+    "min": 2,
+    "modulus": 24,
+    "lifts": [
+      5
+    ],
+    "verify_to": 2000
+  },
+  "moves": 400,
+  "move_work": 2000000
+}
