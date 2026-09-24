@@ -9,7 +9,7 @@ API key, downloaded weights, third-party package or source archive. Python itsel
 is an external prerequisite and is **not** included. Generations through
 `ember-pyramid-15` were tested on Windows with Python 3.14.6. Generation
 `ember-pyramid-16` added the apex layer; this generation, `ember-pyramid-17`,
-adds a typed operator language with 162 executed operators, a move bench and an
+adds a typed operator language with 163 executed operators, a move bench and an
 autonomous research agent. Both were verified on Linux x86_64 with Python 3.11.15
 only; they have not been rerun on the Windows host. Other Python versions,
 operating systems and devices remain unverified. CPU, memory and storage are still
@@ -626,10 +626,10 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 319 implemented moves across
+`--pyramid` prints the map. Its base is a catalog of 320 implemented moves across
 29 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 162 operators of the typed language described below. The
-base holds 117 moves with an N component, 113 with W, 260 with S and 104 with E.
+or replay work) and the 163 operators of the typed language described below. The
+base holds 118 moves with an N component, 114 with W, 261 with S and 104 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
 fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
@@ -869,7 +869,7 @@ absence, a descent certificate, a cycle). `lexicon_check.py` is the only way a
 claim becomes checked. It imports no operator code, has its own exact arithmetic,
 and binds every claim to the question stated in its own data.
 
-162 operators in eight modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+163 operators in eight modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
 `ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`) consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
 
@@ -893,8 +893,8 @@ The move bench runs every operator on its fixtures in a fresh runtime. It counts
 only the events that produced the objects the operator returned. An operator
 passes when its declared directions equal the union observed over its fixtures,
 every returned checked object is admitted again by a fresh checker call, and its
-argument and output kinds match its signature. All 162 pass: 62 have an N
-component, 48 W, 154 S and 78 E. Together with the subreasoner moves, every
+argument and output kinds match its signature. All 163 pass: 63 have an N
+component, 49 W, 155 S and 78 E. Together with the subreasoner moves, every
 direction of the pyramid now has more than one hundred moves. A package check
 changes one operator's declared directions and requires the bench to fail.
 Directions are observed on fixtures, not proved for every input.
@@ -960,6 +960,25 @@ chain again. Every family of the cover holds from its threshold, the range
 checks every n below its bound, and the cover's bound lies inside the range.
 The theorem names what stays open: the residues no family reaches. Nothing is
 claimed for those above the range.
+
+She can also state an obstruction lemma (`obstruction`): no classical
+fixed-parameter family, with any parameters and a class modulus dividing m,
+reaches a coprime square class mod m. The checker enumerates every reached
+class, since both parameter sets are finite at a fixed modulus. A reached
+square class, named with its family's parameters, refutes the lemma. For 4/n
+she proves it. For 5/n her checker refutes it. Once the lemma holds at her
+finest level, square classes need no walls of their own.
+
+Covers and descent covers may carry their chain of levels. Coverage,
+patterns, density and the theorem are then decided by a sieve that lifts
+only the classes no family reaches. The theorem is checked class by class:
+each covered residue needs a family whose threshold is at most the
+residue's first member past the checked range. Classical families may be
+stated by their parameters. The checker and the independent verdict each
+rebuild the polynomials. Strategies that fail 64 times without a success in
+one context (class kind and local squareness) and one refinement level are
+retired there for the rest of the run. The classical generator and the
+wall certificates are never retired.
 
 Every report mines its own failures. It lists the open targets, the moves each
 received and the residuals they left, and a profile of what stayed open (for

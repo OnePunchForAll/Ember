@@ -531,6 +531,22 @@ sees: 1, 1, 2, 3, 4, 8, 13, 19, 38, 64, 128, 226, 367, 734, 1,295, 2,114,
     254,649 = 262,144 - 7,495 classes. The committed rerun is recorded
     below once it has run.
 
+### Round 2 (commit 0474b45, fingerprint 832b6e55, one call: 25,985 moves, 171 s)
+
+The run started fresh, with only her strategy library.
+
+- **Result.** Her open counts equal the independent simulation at all 18
+  levels, ending with 7,495 open classes mod 2^18. Her sieved descent cover
+  at 2^18 covers exactly 254,649 = 262,144 - 7,495 classes. Every n below
+  10^6 falls below itself. She needed 1,752 descents, against 3,502 in
+  round 1: each class is now certified at its own level instead of being
+  refined first.
+- **Verdict.** Self-test passed. 1,753 claims VERIFIED (the descents and the
+  range). Bit: verified.
+- **What this establishes.** Her machinery reproduces a known computation
+  exactly, after a defect that the closed check exposed was fixed. It says
+  nothing about the classes that survive, and the conjecture stays open.
+
 ## Instruments built after Campaign 1 round 5, Campaign 2 round 3 and the first Collatz attempt (commit 9498159, fingerprint 0bf025cf)
 
 - **A lemma instead of 2,430 walls (authorship).** The `obstruction` claim
