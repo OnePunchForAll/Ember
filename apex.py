@@ -9,32 +9,39 @@ original-task checkers. It also owns synthesized routes that compose existing
 subreasoners. Directions and scores schedule work; they never establish truth.
 """
 import copy
+from fractions import Fraction
 import hashlib
+import itertools
 import json
+import math
 from pathlib import Path
 import time
 
 # Tie order: the question as stated, checked memory, failure-directed work, then
 # broader generalization. A chosen scheduling policy, not a claim about truth.
 FACE_ORDER = ('S', 'E', 'W', 'N')
-ORBIT_ROUTES = ('orbit_prefix', 'orbit_transfer', 'orbit_invariant', 'orbit_drift')
+ORBIT_ROUTES = ('orbit_prefix', 'orbit_transfer', 'orbit_invariant', 'orbit_drift', 'orbit_ranking')
 SINGLE_ROUTES = {'prove_orbit_exclusion': ORBIT_ROUTES,
                  'count_word_avoiders': ('word_count_law', 'word_count_direct'),
                  'discover_generating_function': ('generating_function',),
-                 'certify_minimal_recurrence': ('recurrence_minimality',)}
+                 'certify_minimal_recurrence': ('recurrence_minimality',),
+                 'certify_eventual_recurrence': ('reduced_generating_function',)}
+SERIES_QUERIES = ('discover_generating_function', 'certify_minimal_recurrence', 'certify_eventual_recurrence')
 SYNTHESES = (('law_instance', 'recursive_seeded', 'recursive_lifted_counterexample', 'word_count_direct', 'word_count_law',
-              'generating_function', 'recurrence_minimality') + ORBIT_ROUTES)
+              'generating_function', 'recurrence_minimality', 'reduced_generating_function') + ORBIT_ROUTES)
 CHECKED_BY_APEX = ('law_instance', 'word_count_direct', 'word_count_law', 'generating_function',
-                   'recurrence_minimality') + ORBIT_ROUTES
+                   'recurrence_minimality', 'reduced_generating_function') + ORBIT_ROUTES
 ROLE_FACES = {'repair': 'W', 'generalization': 'N', 'expansion': 'N'}
 STRATEGY_FACES = {'quotient': 'N', 'law_instance': 'N', 'invariant_mapped': 'N', 'localized_implication': 'N',
                   'recursive_enumerate': 'N', 'orbit_invariant': 'N', 'orbit_drift': 'N', 'invariant_reuse_first': 'E',
                   'guarded_lemma_first': 'E', 'orbit_transfer': 'E', 'recursive_seeded': 'E', 'recursive_residual': 'W',
                   'recursive_lifted_counterexample': 'E', 'word_count_law': 'N', 'generating_function': 'N',
-                  'recurrence_minimality': 'W'}
+                  'recurrence_minimality': 'W', 'orbit_ranking': 'N', 'reduced_generating_function': 'W'}
 LAW_CARRIER_STATES = 64
 TRANSFER_RECORDS = 8
 SEED_ENTRIES = 8
+# Rankings: every signed basis monomial, then signed pairs while the basis has at most 20 monomials.
+RANKING_PAIR_BASIS = 20
 
 
 class _Uncharged:
@@ -314,6 +321,98 @@ def orbit_drift(task, budget, host):
                 invariant_search=diagnostics)
 
 
+def ranking_candidates(n, degree, host):
+    basis = host.local_module('algebra').monomials(n, degree)[1:]
+    out = [{e: Fraction(sign)} for e in basis for sign in (1, -1)]
+    if len(basis) <= RANKING_PAIR_BASIS:
+        out += [{e: Fraction(s), f: Fraction(t)} for e, f in itertools.combinations(basis, 2) for s in (1, -1) for t in (1, -1)]
+    return out
+
+
+def ranking_rise(ranking, images, n, budget, host):
+    """R(F(x))-R(x) expanded from the original transition expressions."""
+    algebra = host.local_module('algebra'); invariant = host.local_module('invariant_check'); total = {}
+    for powers, q in ranking.items():
+        term = {(0,) * n: q}
+        for j, k in enumerate(powers):
+            for _ in range(k): term = algebra.multiply(term, images[j], budget, invariant)
+        total = algebra.add(total, term, budget, invariant)
+    return algebra.add(total, {e: -q for e, q in ranking.items()}, budget, invariant)
+
+
+def completed_squares(rise, n):
+    """LDL^T of a form of degree at most two in (x_1..x_n, 1); None unless every pivot and the floor are nonnegative."""
+    unit = lambda i: tuple(int(j == i) for j in range(n))
+    G = [[Fraction(0)] * (n + 1) for _ in range(n + 1)]
+    for e, q in rise.items():
+        i, j = ([i for i in range(n) for _ in range(e[i])] + [n, n])[:2]
+        if i == j: G[i][i] += q
+        else: G[i][j] += q / 2; G[j][i] += q / 2
+    squares = []
+    for k in range(n):
+        pivot = G[k][k]
+        if pivot < 0 or (pivot == 0 and any(G[k][j] for j in range(k + 1, n + 1))): return None
+        if pivot == 0: continue
+        form = {unit(k): Fraction(1)}
+        for j in range(k + 1, n + 1):
+            if G[k][j]: form[unit(j)] = G[k][j] / pivot
+        squares.append((pivot, form))
+        for i in range(k + 1, n + 1):
+            for j in range(k + 1, n + 1): G[i][j] -= G[i][k] * G[k][j] / pivot
+    return (G[n][n], squares) if G[n][n] >= 0 else None
+
+
+def positive_form(rise, n):
+    """rise = floor + sum w*q**2 with floor >= 0 and w > 0, or None.
+
+    Two sufficient forms: every nonconstant monomial has even exponents and a
+    positive coefficient, or the rise has degree at most two and completes to
+    squares. Other nonnegative polynomials are missed, not refused."""
+    zero = (0,) * n; floor = rise.get(zero, Fraction(0))
+    rest = sorted((e, q) for e, q in rise.items() if e != zero)
+    if floor >= 0 and all(q > 0 and all(k % 2 == 0 for k in e) for e, q in rest):
+        return floor, [(q, {tuple(k // 2 for k in e): Fraction(1)}) for e, q in rest]
+    if all(sum(e) <= 2 for e in rise): return completed_squares(rise, n)
+    return None
+
+
+def orbit_ranking(task, budget, host):
+    """N then S and W: a ranking R whose rise R(F(x))-R(x) is a nonnegative floor plus weighted squares."""
+    checker = host.local_module('apex_check'); invariant = host.local_module('invariant_check')
+    algebra = host.local_module('algebra')
+    b = checker.bind_orbit(task); n = len(b['names'])
+    images = [algebra.expand(node, b['names'], budget, invariant) for node in b['transitions']]
+    best = None; tried = 0
+    for ranking in ranking_candidates(n, b['degree'], host):
+        tried += 1; form = positive_form(ranking_rise(ranking, images, n, budget, host), n)
+        if form is None: continue
+        floor, squares = form
+        if len(squares) > checker.RANKING_SQUARES or any(sum(e) > checker.RANKING_SQUARE_DEGREE for _, q in squares for e in q):
+            continue
+        sized = [(w, sorted(q.items())) for w, q in squares]
+        if math.prod(d + 1 for d in checker.rise_degrees(b, sorted(ranking.items()), sized, budget)) > checker.GRID_POINTS:
+            continue
+        gap = algebra.evaluate(ranking, b['target'], budget, invariant) - algebra.evaluate(ranking, b['initial'], budget, invariant)
+        if gap < 0: bound = 0
+        elif floor > 0: bound = math.floor(gap / floor)
+        else: continue
+        if bound <= b['max_steps'] and (best is None or bound < best[0]): best = (bound, ranking, floor, squares)
+        if best is not None and best[0] == 0: break
+    if best is None:
+        return dict(status='UNKNOWN', trace=[], rankings_tried=tried,
+                    reason='no ranking within the degree bound has a certified nonnegative rise bounding the target index')
+    bound, ranking, floor, squares = best
+    trace = [dict(direction='N', operation='propose_ranking_polynomial', terms=len(ranking), prefix=bound)]
+    certificate = dict(kind='ranking_separation', task_id=b['identity'], ranking=algebra.encoded(ranking),
+                       floor=encoded(floor), squares=[[encoded(w), algebra.encoded(q)] for w, q in squares], prefix=bound)
+    checked = checker.check_orbit(task, certificate, budget)
+    if checked['outcome'] == 'EXCLUDED':
+        trace.append(dict(direction='W', operation='refute_reachability_by_ranking', accepted=True))
+    else: trace.append(dict(direction='S', operation='witness_reachability_below_rank_bound', index=checked['index']))
+    return dict(status=checker.orbit_status(checked), certificate=certificate, check=checked, trace=trace,
+                rankings_tried=tried)
+
+
 def word_count_direct(task, budget, host):
     """S: iterate the checker's own prefix automaton to the original length."""
     checker = host.local_module('apex_check'); counted = checker.bind_word_count(task)
@@ -367,6 +466,68 @@ def recurrence_minimality(task, budget, host):
     checked = checker.check_minimal_recurrence(task, certificate, budget)
     trace.append(dict(direction='S', operation='check_minimal_order_on_original', accepted=True))
     return dict(status='CHECKED_MINIMAL_RECURRENCE', certificate=certificate, check=checked, trace=trace)
+
+
+def polynomial_trim(p):
+    p = list(p)
+    while p and p[-1] == 0: p.pop()
+    return p
+
+
+def polynomial_product(a, b, budget):
+    if not a or not b: return []
+    out = [Fraction(0)] * (len(a) + len(b) - 1)
+    for i, x in enumerate(a):
+        for j, y in enumerate(b): budget.use(); out[i + j] += x * y
+    return polynomial_trim(out)
+
+
+def polynomial_difference(a, b):
+    return polynomial_trim([(a[i] if i < len(a) else 0) - (b[i] if i < len(b) else 0) for i in range(max(len(a), len(b)))])
+
+
+def polynomial_divmod(a, b, budget):
+    """Quotient and remainder over QQ, coefficients from x**0 upward; b is nonzero."""
+    a = polynomial_trim(a); quotient = [Fraction(0)] * max(0, len(a) - len(b) + 1)
+    while len(a) >= len(b):
+        budget.use(len(b)); shift = len(a) - len(b); factor = a[-1] / b[-1]; quotient[shift] = factor
+        a = polynomial_difference(a, [Fraction(0)] * shift + [factor * c for c in b])
+    return polynomial_trim(quotient), a
+
+
+def extended_gcd(a, b, budget):
+    """(g, s, t) with s*a + t*b = g = gcd(a, b) up to a constant, by Euclid over QQ."""
+    r0, r1, s0, s1, t0, t1 = polynomial_trim(a), polynomial_trim(b), [Fraction(1)], [], [], [Fraction(1)]
+    while r1:
+        q, r = polynomial_divmod(r0, r1, budget)
+        r0, r1 = r1, r
+        s0, s1 = s1, polynomial_difference(s0, polynomial_product(q, s1, budget))
+        t0, t1 = t1, polynomial_difference(t0, polynomial_product(q, t1, budget))
+    return r0, s0, t0
+
+
+def eventual_recurrence(task, budget, host):
+    """N, W then S: reduce a checked P/Q by gcd; a Bezout identity refutes every lower eventual order."""
+    checker = host.local_module('apex_check'); carried = checker.carrier(task, 'certify_eventual_recurrence')
+    found, trace = recurrence_certificate(carried['derived'], budget, host)
+    if found['status'] != 'CHECKED_RECURRENCE':
+        return dict(status='UNKNOWN', reason=found.get('reason', 'no checked recurrence'), trace=trace)
+    numerator, denominator = checker.generating_function(found['certificate'])
+    trace.append(dict(direction='N', operation='form_rational_generating_function', order=found['certificate']['order']))
+    P = [Fraction(*x) for x in numerator]; Q = [Fraction(*x) for x in denominator]
+    g, s, t = extended_gcd(P, Q, budget); c = g[0]
+    common = [x / c for x in g]
+    reduced_p, _ = polynomial_divmod(P, common, budget); reduced_q, _ = polynomial_divmod(Q, common, budget)
+    trace.append(dict(direction='N', operation='reduce_generating_function_by_gcd', common_degree=len(common) - 1))
+    code = lambda p: [encoded(x) for x in p]
+    certificate = dict(kind='reduced_generating_function', task_id=carried['identity'], recurrence=found['certificate'],
+                       numerator=code(reduced_p), denominator=code(reduced_q), common=code(common),
+                       bezout=[code([x / c for x in s]), code([x / c for x in t])])
+    trace.append(dict(direction='W', operation='refute_lower_eventual_orders_by_coprimality', order=len(reduced_q) - 1))
+    checked = checker.check_eventual_recurrence(task, certificate, budget)
+    trace.append(dict(direction='S', operation='check_reduced_fraction_on_original', accepted=True))
+    return dict(status='CHECKED_EVENTUAL_RECURRENCE', certificate=certificate, check=checked, trace=trace,
+                order=checked['order'], start=checked['start'], all_index_order=checked['all_index_order'])
 
 
 def recursive_refutations(task, state):
@@ -450,10 +611,12 @@ def run_synthesis(strategy, task, state, budget, host):
     if strategy == 'orbit_invariant': return orbit_invariant(task, budget, host)
     if strategy == 'orbit_transfer': return orbit_transfer(task, budget, host, host.invariant_candidates(state))
     if strategy == 'orbit_drift': return orbit_drift(task, budget, host)
+    if strategy == 'orbit_ranking': return orbit_ranking(task, budget, host)
     if strategy == 'word_count_direct': return word_count_direct(task, budget, host)
     if strategy == 'word_count_law': return word_count_law(task, budget, host)
     if strategy == 'generating_function': return generating_function(task, budget, host)
     if strategy == 'recurrence_minimality': return recurrence_minimality(task, budget, host)
+    if strategy == 'reduced_generating_function': return eventual_recurrence(task, budget, host)
     if strategy == 'recursive_lifted_counterexample': return recursive_lift(task, state, budget, host)
     raise host.Refused('unknown apex synthesis')
 
@@ -480,7 +643,7 @@ def single_binding(task, host):
         counted = checker.bind_word_count(task)
         return counted['identity'], dict(query=query, lengths=[len(w) for w in counted['binding']['words']],
                                          length_bits=counted['length'].bit_length())
-    if query in ('discover_generating_function', 'certify_minimal_recurrence'):
+    if query in SERIES_QUERIES:
         carried = checker.carrier(task, query)
         return carried['identity'], dict(query=query, words='words' in carried['binding'],
                                          dimension=carried['binding']['n'])
@@ -503,6 +666,9 @@ def single_status(task, result, budget, host):
     if query == 'discover_generating_function':
         checker.check_generating_function(task, result.get('certificate'), budget)
         return 'CHECKED_GENERATING_FUNCTION'
+    if query == 'certify_eventual_recurrence':
+        checker.check_eventual_recurrence(task, result.get('certificate'), budget)
+        return 'CHECKED_EVENTUAL_RECURRENCE'
     checker.check_minimal_recurrence(task, result.get('certificate'), budget)
     return 'CHECKED_MINIMAL_RECURRENCE'
 

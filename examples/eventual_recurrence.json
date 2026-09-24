@@ -1,0 +1,23 @@
+{
+  "query": "certify_eventual_recurrence",
+  "domain": "QQ",
+  "matrix": [
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ]
+  ],
+  "initial": [
+    1,
+    0
+  ],
+  "terminal": [
+    5,
+    1
+  ],
+  "name": "Counts 5, 1, 2, 4, 8, ... need order two from the start but obey a(h)=2a(h-1) from h=2"
+}

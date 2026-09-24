@@ -3,12 +3,16 @@
 A law instance evaluates an all-index recurrence that the recurrence checker
 admits on the original transition system, or on a quotient whose equations are
 checked here against that original. Orbit certificates are a finite witness, a
-repeated state, or a checked polynomial invariant separating the initial point
-from the target. Every certificate is bound to the exact original task.
+repeated state, a checked polynomial invariant separating the initial point from
+the target, a clocked drift law, or a ranking polynomial whose rise along the
+orbit is a nonnegative floor plus weighted squares. A reduced generating function
+carries a Bezout coprimality certificate. Every certificate is bound to the exact
+original task.
 """
 from fractions import Fraction
 import hashlib
 import importlib.util
+import itertools
 import json
 import math
 from pathlib import Path
@@ -31,6 +35,10 @@ _INVALID = (_recurrence.Invalid, _invariant.Invalid)
 _LIMIT = (_recurrence.Limit, _invariant.Limit)
 MAX_ORBIT_STEPS = 1024
 WORD_LENGTH_LIMIT = 20000
+RANKING_SQUARES = 16
+RANKING_SQUARE_DEGREE = 6
+GRID_POINTS = 50_000
+POLY_TERMS = 258
 
 
 def need(condition, reason):
@@ -238,7 +246,63 @@ def check_orbit(task, certificate, budget):
                     grid_points=checked['grid_points'], proof=proof, formal_status='NOT_FORMALLY_VERIFIED',
                     scope=('The original orbit equals the target at this index.' if reaches else
                            'No nonnegative iterate of the original orbit equals the target.'))
+    if kind == 'ranking_separation':
+        need(set(certificate) == {'kind', 'task_id', 'ranking', 'floor', 'squares', 'prefix'}, 'ranking separation fields')
+        n = len(b['names'])
+        ranking = _guard(lambda: _algebra.multiplier_read(certificate['ranking'], n, b['degree']))
+        need(any(any(e) for e, _ in ranking), 'ranking polynomial must be nonconstant')
+        floor = _guard(lambda: _algebra.exact(certificate['floor']))
+        need(floor >= 0, 'ranking floor must be nonnegative')
+        raw = certificate['squares']
+        need(type(raw) is list and len(raw) <= RANKING_SQUARES, 'at most sixteen weighted squares')
+        squares = []
+        for item in raw:
+            need(type(item) is list and len(item) == 2, 'weighted square entry')
+            weight = _guard(lambda: _algebra.exact(item[0]))
+            need(weight > 0, 'square weights must be positive')
+            squares.append((weight, _guard(lambda: _algebra.multiplier_read(item[1], n, RANKING_SQUARE_DEGREE))))
+        degrees = rise_degrees(b, ranking, squares, budget)
+        points = math.prod(d + 1 for d in degrees)
+        if points > GRID_POINTS: raise Limit('complete ranking degree grid exceeds 50000 points')
+        for point in itertools.product(*(range(d + 1) for d in degrees)):
+            image = orbit_step(b, point, budget)
+            rise = _guard(lambda: _algebra.monomial_value(ranking, image, budget)
+                          - _algebra.monomial_value(ranking, point, budget))
+            form = floor + sum(w * _guard(lambda q=q: _algebra.monomial_value(q, point, budget)) ** 2 for w, q in squares)
+            need(rise == form, 'ranking rise differs from its nonnegative form on the complete original grid')
+        gap = (_guard(lambda: _algebra.monomial_value(ranking, b['target'], budget))
+               - _guard(lambda: _algebra.monomial_value(ranking, b['initial'], budget)))
+        if gap < 0: bound = 0
+        else:
+            need(floor > 0, 'target rank is not below the start and the ranking has no positive floor')
+            bound = math.floor(gap / floor)
+        need(type(certificate['prefix']) is int and certificate['prefix'] == bound, 'ranking prefix differs from the rank bound')
+        need(bound <= b['max_steps'], 'rank bound exceeds the orbit step bound')
+        states = orbit_prefix(b, bound, budget)
+        index = next((k for k, state in enumerate(states) if state == b['target']), None)
+        proof = ('R(F(x))-R(x)=floor+sum w*q(x)**2 on the complete original degree grid, hence for every rational x; it is '
+                 'at least floor>=0, so R(x(n))>=R(x(0))+n*floor and every n with R(x(n))<=R(target) is at most the prefix '
+                 'bound, which is iterated exactly.')
+        if index is not None:
+            return dict(ok=True, kind=kind, outcome='REACHES', index=index, grid_points=points, prefix=bound, proof=proof,
+                        scope='The original orbit equals the target at this index.', formal_status='NOT_FORMALLY_VERIFIED')
+        return dict(ok=True, kind=kind, outcome='EXCLUDED', grid_points=points, prefix=bound, proof=proof,
+                    scope='No nonnegative iterate of the original orbit equals the target.',
+                    formal_status='NOT_FORMALLY_VERIFIED')
     raise Invalid('unsupported orbit certificate kind')
+
+
+def rise_degrees(b, ranking, squares, budget):
+    """Individual degrees bounding R(F(x))-R(x)-floor-sum w*q(x)**2 before cancellation."""
+    n = len(b['names']); degrees = [0] * n
+    for exps, _ in ranking:
+        for i in range(n):
+            budget.use(n + 1)
+            degrees[i] = max(degrees[i], exps[i], sum(exps[j] * b['transition_degrees'][j][i] for j in range(n)))
+    for _, q in squares:
+        for exps, _ in q:
+            for i in range(n): budget.use(); degrees[i] = max(degrees[i], 2 * exps[i])
+    return degrees
 
 
 def clocked_task(b):
@@ -351,6 +415,64 @@ def check_minimal_recurrence(task, certificate, budget):
                 formal_status='NOT_FORMALLY_VERIFIED')
 
 
+def poly_read(raw, label):
+    """Coefficients from x**0 upward as reduced rational pairs, without a trailing zero; [] is the zero polynomial."""
+    need(type(raw) is list and len(raw) <= POLY_TERMS, label + ' coefficient list')
+    out = [_guard(lambda x=x: _recurrence.rational(x)) for x in raw]
+    need(not out or out[-1] != 0, label + ' has a trailing zero coefficient')
+    return out
+
+
+def poly_trim(p):
+    p = list(p)
+    while p and p[-1] == 0: p.pop()
+    return p
+
+
+def poly_mul(a, b, budget):
+    if not a or not b: return []
+    out = [Fraction(0)] * (len(a) + len(b) - 1)
+    for i, x in enumerate(a):
+        for j, y in enumerate(b):
+            budget.use(2); out[i + j] = _guard(lambda: _recurrence.bounded(out[i + j] + x * y))
+    return poly_trim(out)
+
+
+def poly_add(a, b):
+    return poly_trim([(a[i] if i < len(a) else 0) + (b[i] if i < len(b) else 0) for i in range(max(len(a), len(b)))])
+
+
+def check_eventual_recurrence(task, certificate, budget):
+    carried = carrier(task, 'certify_eventual_recurrence')
+    need(type(certificate) is dict and set(certificate) == {'kind', 'task_id', 'recurrence', 'numerator', 'denominator',
+                                                             'common', 'bezout'}
+         and certificate['kind'] == 'reduced_generating_function' and certificate['task_id'] == carried['identity'],
+         'reduced generating function certificate binding')
+    checked = _guard(lambda: _recurrence.check(carried['derived'], certificate['recurrence'], budget))
+    P, Q = (poly_read(part, 'generating function') for part in generating_function(certificate['recurrence']))
+    numerator = poly_read(certificate['numerator'], 'reduced numerator')
+    denominator = poly_read(certificate['denominator'], 'reduced denominator')
+    common = poly_read(certificate['common'], 'common factor')
+    need(type(certificate['bezout']) is list and len(certificate['bezout']) == 2, 'Bezout cofactor pair')
+    U, V = (poly_read(part, 'Bezout cofactor') for part in certificate['bezout'])
+    need(denominator and denominator[0] == 1, 'reduced denominator must have constant term one')
+    need(poly_mul(common, numerator, budget) == P and poly_mul(common, denominator, budget) == Q,
+         'common factor times the reduced fraction differs from the checked P/Q')
+    need(poly_add(poly_mul(U, numerator, budget), poly_mul(V, denominator, budget)) == [1],
+         'Bezout identity U*P+V*Q=1 fails: the fraction is not certified reduced')
+    order = len(denominator) - 1; start = max(order, len(numerator))
+    lags = [-q for q in reversed(denominator[1:])]
+    return dict(ok=True, kind='reduced_generating_function', order=order, start=start, all_index_order=checked['order'],
+                coefficients=[[q.numerator, q.denominator] for q in lags],
+                numerator=certificate['numerator'], denominator=certificate['denominator'],
+                scope=('a(h+d)=sum_k c[k]*a(h+k) with d=deg Q\' for every h>=start-d, where sum a(h) x^h=P\'/Q\' in '
+                       'lowest terms; no linear recurrence of order below d holds for all large h.'),
+                proof=('Q*A=P by the checked recurrence; P=g*P\' and Q=g*Q\' give Q\'*A=P\' because Q\'(0)=1. '
+                       'U*P\'+V*Q\'=1 makes P\'/Q\' reduced: if R(0)=1 and R*A is a polynomial T then R*P\'=T*Q\', '
+                       'so Q\' divides R and deg R>=d.'),
+                formal_status='NOT_FORMALLY_VERIFIED')
+
+
 def bind_word_count(task):
     need(type(task) is dict and task.get('query') == 'count_word_avoiders', 'original word-count query')
     need(not set(task) - {'query', 'patterns', 'length', 'name', 'family'}, 'unsupported word-count fields')
@@ -386,4 +508,5 @@ def check(task, certificate, budget):
     if task.get('query') == 'count_word_avoiders': return check_word_count(task, certificate, budget)
     if task.get('query') == 'discover_generating_function': return check_generating_function(task, certificate, budget)
     if task.get('query') == 'certify_minimal_recurrence': return check_minimal_recurrence(task, certificate, budget)
+    if task.get('query') == 'certify_eventual_recurrence': return check_eventual_recurrence(task, certificate, budget)
     raise Invalid('no apex synthesis checker for this original query')

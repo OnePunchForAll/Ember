@@ -605,9 +605,11 @@ python -I -B -X utf8 ember.py examples/apex_research.json --state apex-instance.
 python -I -B -X utf8 ember.py examples/hidden_rank_count.json --layer apex --state rank-instance.json
 python -I -B -X utf8 ember.py examples/orbit_exclusion.json --state orbit-instance.json
 python -I -B -X utf8 ember.py examples/orbit_drift.json
+python -I -B -X utf8 ember.py examples/orbit_ranking.json
 python -I -B -X utf8 ember.py examples/word_count.json
 python -I -B -X utf8 ember.py examples/generating_function.json
 python -I -B -X utf8 ember.py examples/minimal_recurrence.json
+python -I -B -X utf8 ember.py examples/eventual_recurrence.json
 python -I -B -X utf8 ember.py examples/recursive_lift.json --state lift-instance.json
 python -I -B -X utf8 tools/helper_client.py examples/orbit_exclusion.json --layer apex
 ```
@@ -624,10 +626,11 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 309 implemented moves across
-29 modules: 153 subreasoner moves (9 of them control moves that schedule, persist
+`--pyramid` prints the map. Its base is a catalog of 313 implemented moves across
+29 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
 or replay work) and the 156 operators of the typed language described below. The
-base holds 109 moves with an N component, 107 with W, 251 with S and 104 with E. Each move names its functions, directions, the evidence types it
+base holds 111 moves with an N component, 111 with W, 255 with S and 104 with E.
+Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
 fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
 move sits at its own directions. A synthesis, a composition of moves, sits at
@@ -640,19 +643,20 @@ a move with that direction, and every chain must type-check. `--pyramid` exits 2
 when the audit fails. Fourteen of the fifteen nodes are realized by code. The
 unrealized node, NWE, would transfer a repair without checking it on an
 original; every admitted Ember result passes through S. The map records 14
-syntheses that predate the apex and 18 that the apex and the agent realize. Generation 16
-implemented the seven syntheses that generation 15 listed as proposed (see
-below). Two proposed syntheses remain open, each naming the capability it still
-needs: exclusion by a strictly increasing ranking polynomial beyond exact drift,
-and a reduced generating function that certifies the least eventual recurrence.
-Directions classify operations; the map is a description bound to source text,
-not evidence that any claim holds.
+syntheses that predate the apex and 20 that the apex and the agent realize. The
+first audit listed seven proposed syntheses. Six were implemented next, together
+with exact drift, a special case of the seventh. This generation implements the
+seventh, exclusion by a ranking polynomial, and the one proposal added after it,
+a reduced generating function that certifies the least eventual recurrence. No
+proposed synthesis remains. Directions classify operations; the map is a
+description bound to source text, not evidence that any claim holds.
 
 ### Scheduling
 
 `apex_research` accepts one to sixteen original questions of the campaign kinds,
-plus `prove_orbit_exclusion`, `count_word_avoiders`, `discover_generating_function`
-and `certify_minimal_recurrence`. `--layer apex` sends a single original through the
+plus `prove_orbit_exclusion`, `count_word_avoiders`, `discover_generating_function`,
+`certify_minimal_recurrence` and `certify_eventual_recurrence`. `--layer apex` sends
+a single original through the
 same layer. The apex reuses the campaign's durable executor: saved outcomes are
 checked again on restart, and an unchanged miss is not searched again. It enables
 the campaign's optional generalization, localization and reuse routes.
@@ -696,6 +700,17 @@ other result by its original checker.
   A nonintegral or negative index excludes the target. Otherwise the checker
   iterates to that index, which must lie within `max_steps`, and reports
   exclusion or reachability. The clocked law is checked on the complete grid.
+- `orbit_ranking` (N, then W or S) generalizes exact drift to a ranking polynomial
+  R whose rise R(F(x))-R(x) equals a floor c >= 0 plus a sum of positively
+  weighted squares. Then R(x(n)) >= R(x(0))+n*c for every n. A target of lower
+  rank than the start is excluded at once. Otherwise, with c > 0, only indices up to
+  (R(target)-R(x(0)))/c can meet it, and the checker iterates those exactly. The
+  producer tries every signed monomial and signed pair within the degree bound.
+  It recognizes two positive forms: even monomials with positive coefficients, and
+  quadratics completed to squares by an exact LDL^T decomposition. The checker
+  verifies the identity on the complete original degree grid, recomputes the rank
+  gap and the bound, and iterates the prefix. Nonnegative rises of other shapes
+  are missed, not refused.
 - `word_count_direct` (S) and `word_count_law` (N, then S) answer
   `count_word_avoiders`, the number of binary words of a given length up to 20,000
   avoiding two patterns. The law route discovers the all-length word recurrence
@@ -711,6 +726,14 @@ other result by its original checker.
   order holds for every index. A lower-order recurrence would make the columns of
   the r-by-r Hankel matrix [a(i+j)] dependent. The checker recomputes 2r-1 terms
   from the original carrier and requires a nonzero fraction-free determinant.
+- `reduced_generating_function` (N, W, then S) answers
+  `certify_eventual_recurrence`. It forms P/Q from a checked recurrence, removes
+  gcd(P,Q) by Euclid's algorithm over QQ, and keeps the Bezout cofactors U, V with
+  U*P'+V*Q'=1. The checker rechecks the recurrence, verifies P=g*P', Q=g*Q',
+  Q'(0)=1 and the Bezout identity. The reduced denominator of degree d then gives
+  a recurrence that holds from index max(d, deg P'+1). No recurrence of order
+  below d holds for all large indices. If R(0)=1 and R*A is a polynomial, then Q'
+  divides R*P' and so divides R.
 - `recursive_lifted_counterexample` (E, N, W, then S) matches a remembered refuted
   instance into the general equation. When the instance is the general goal under
   a substitution, the refuting values are pushed through that substitution and
@@ -764,7 +787,20 @@ order-six law. A package check compares it with an independent dynamic program.
 `examples/generating_function.json` gives
 (1+x+x^2+x^3+x^4+x^5)/(1-x-x^2) for the same words.
 `examples/minimal_recurrence.json` certifies that a three-state carrier's counts
-2*2^h+3^h obey a recurrence of order two and no lower. In
+2*2^h+3^h obey a recurrence of order two and no lower.
+`examples/orbit_ranking.json` asks whether the orbit of (x+y^2+1, y^2) from (0,2)
+reaches (10,3). The prefix exceeds the 8,192-bit exact-arithmetic bound at step
+13, no stored law transfers, and the invariant and drift searches find no law of
+degree at most two that decides it: four routes return `UNKNOWN`. The ranking R=x
+rises by 1+y^2 >= 1, so only the first ten indices can meet a target of rank 10,
+and none does.
+`examples/eventual_recurrence.json` has counts 5, 1, 2, 4, 8, ...: every
+recurrence valid from the start has order two, but a(h)=2a(h-1) holds from h=2,
+and the Bezout certificate rules out order zero. Applied to the words avoiding
+0110 and 111, the same route shows that the counts 1, 2, 4, 7, 12, 20, 32, 52, ...
+obey the Fibonacci recurrence a(h)=a(h-1)+a(h-2) from h=6, although no recurrence
+of order below six holds from h=0. A package check confirms both against
+independent counts. In
 `examples/recursive_lift.json`, the claim sub(sub(x,2),y)=0 holds on every value
 that bounded testing tries (numbers up to 2), and the recursive routes leave it
 `UNKNOWN`. The refuted instance sub(sub(3,2),y)=0 lifts to the counterexample
@@ -776,22 +812,24 @@ The comparison used 27 original tasks: 23 shared example questions, the hidden
 rank-two count and three orbit questions. Each task started from a fresh state
 with 1,000,000 work units per attempt, 64 attempts and 10,000,000 units per call,
 and calls were repeated until the result closed or a call executed nothing. The
-host was Linux x86_64 with Python 3.11.15, in one run of each configuration.
+host was Linux x86_64 with Python 3.11.15, in one run of each configuration, on
+the code of this generation.
 
 | Configuration | Originals settled (27) | Shared settled (23) | Shared work | Shared wall time |
 |---|---|---|---|---|
-| campaign `fixed` | 20 | 20 | 3,774,082 | 7.95 s |
-| campaign `structure_first` | 20 | 20 | 3,780,352 | 7.73 s |
-| campaign `learned` | 20 | 20 | 4,719,560 | 8.45 s |
-| campaign `fixed`, all optional routes | 23 | 23 | 1,889,066 | 4.27 s |
-| apex | 27 | 23 | 2,354,845 | 5.19 s |
+| campaign `fixed` | 20 | 20 | 3,707,545 | 7.87 s |
+| campaign `structure_first` | 20 | 20 | 3,713,815 | 7.67 s |
+| campaign `learned` | 20 | 20 | 4,273,617 | 8.20 s |
+| campaign `fixed`, all optional routes | 23 | 23 | 1,822,529 | 4.19 s |
+| apex | 27 | 23 | 2,153,380 | 5.32 s |
 
 The apex's gain on the shared tasks comes from the optional routes it enables;
-a campaign with the same routes settles the same 23 tasks with about 25% less
-work. The four extra settlements are the hidden rank-two count and the three orbit
-questions, which the campaigns refuse. On the two resumed recursive identities,
-rotating faces spent 848,295 and 190,160 units, against 491,462 and 129,172 for
-the fixed campaign order.
+a campaign with the same routes settles the same 23 tasks with about 15% less
+work (the apex spends about 18% more). The four extra settlements are the hidden
+rank-two count and the three orbit questions, which the campaigns refuse. On the
+two resumed recursive identities, rotating faces spent 642,946 and 194,044 units,
+against 424,925 and 129,172 for the fixed campaign order. The `learned` policy
+scores routes by measured time, so its work can vary between runs.
 
 Two scheduling details were changed after inspecting these development tasks.
 Superseded attempts now count toward their face; without that, a resumed
@@ -1027,10 +1065,11 @@ bound does not impose a child-process disk quota.
 | `source_research_episode` | Interpret bounded structured sources, preserve original claims and questions, and attempt checked same-definition proof transfer. |
 | `research_campaign` | Persist a bounded sequence of original-task and repair attempts across calls. |
 | `apex_research` | Plan one to sixteen originals from the four TPM faces, with synthesized law, orbit and memory-transfer routes; admit only original-task certificates. |
-| `prove_orbit_exclusion` | Decide whether an exact rational polynomial orbit reaches a target: witness, repeated state, checked separating invariant or clocked drift law. |
+| `prove_orbit_exclusion` | Decide whether an exact rational polynomial orbit reaches a target: witness, repeated state, checked separating invariant, clocked drift law or ranking polynomial. |
 | `count_word_avoiders` | Count binary words of a given length avoiding two patterns, by exact automaton iteration or a checked all-length law. |
 | `discover_generating_function` | Return a checked rational generating function for a word or matrix carrier. |
 | `certify_minimal_recurrence` | Return a checked all-index recurrence with a nonzero Hankel determinant excluding every lower order. |
+| `certify_eventual_recurrence` | Return a reduced generating function with a Bezout coprimality certificate: the least order of a recurrence valid for all large indices, and where it starts. |
 | `autonomous_research` | Run the offline agent on a problem stated in the typed language: decide, explore, cover unit-fraction classes or certify descent; report only checked results. |
 
 Exit code `0` means the returned result is closed within its stated scope. Exit

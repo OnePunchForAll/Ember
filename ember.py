@@ -507,7 +507,7 @@ def solve(task,state_path=None,limit=10_000_000,strategy='auto',guard_policy='re
         names=('Refused','Exhausted','Budget','STATE_LIMIT','local_module','read_state','canonical','digest')
         host=SimpleNamespace(**{name:globals()[name] for name in names})
         return local_module('agent').run(task,state_path,limit,host)
-    if query in ('apex_research','prove_orbit_exclusion','count_word_avoiders','discover_generating_function','certify_minimal_recurrence'):
+    if query in ('apex_research','prove_orbit_exclusion','count_word_avoiders','discover_generating_function','certify_minimal_recurrence','certify_eventual_recurrence'):
         # The apex chooses subreasoner policies itself; caller policy flags stay default.
         if lemma_records or guard_policy!='residual_first':raise Refused('apex queries accept only original tasks')
         names=('Refused','Exhausted','Budget','STATE_LIMIT','bind','bind_discovery','local_module','read_state',
@@ -674,17 +674,19 @@ def capabilities():
     return {'status':'CAPABILITIES','api_version':'ember.task.v1','runtime_version':VERSION,
         'queries':['transition_count','test_overlap_shortcut','polynomial_consequence',
                    'discover_guards','word_avoidance_identity','research_campaign','discover_recurrence','discover_word_recurrence','discover_invariant','prove_recursive_identity','source_research_episode',
-                   'apex_research','prove_orbit_exclusion','count_word_avoiders','discover_generating_function','certify_minimal_recurrence',
+                   'apex_research','prove_orbit_exclusion','count_word_avoiders','discover_generating_function','certify_minimal_recurrence','certify_eventual_recurrence',
                    'autonomous_research'],
         'layers':['direct','apex'],
         'apex':{'faces':['N','W','S','E'],
                 'schedule':'per obligation, the face with the fewest attempts; routes inside a face by measured outcome and cost',
                 'synthesized_routes':['law_instance','recursive_seeded','recursive_lifted_counterexample','word_count_direct',
-                                      'word_count_law','generating_function','recurrence_minimality','orbit_prefix',
-                                      'orbit_transfer','orbit_invariant','orbit_drift'],
+                                      'word_count_law','generating_function','recurrence_minimality',
+                                      'reduced_generating_function','orbit_prefix','orbit_transfer','orbit_invariant',
+                                      'orbit_drift','orbit_ranking'],
                 'law_certificate_kinds':['law_instance','word_count_law'],
-                'orbit_certificate_kinds':['orbit_witness','periodic_orbit','invariant_separation','drift_separation'],
-                'series_certificate_kinds':['rational_generating_function','minimal_recurrence'],
+                'orbit_certificate_kinds':['orbit_witness','periodic_orbit','invariant_separation','drift_separation',
+                                           'ranking_separation'],
+                'series_certificate_kinds':['rational_generating_function','minimal_recurrence','reduced_generating_function'],
                 'memory':'admitted invariants are also stored as checked level-set polynomial lemmas; admitted recursive refutations lift to generalizations',
                 'pyramid':'python -I -B -X utf8 ember.py --pyramid prints the audited reasoning catalog and synthesis lattice',
                 'scope':'Plans over implemented subreasoners and admits only original-task certificates; no unrestricted agenda'},

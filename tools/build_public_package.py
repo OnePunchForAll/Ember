@@ -39,6 +39,7 @@ EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'campaign_recursive_identity.json', 'source_research_episode.json',
             'orbit_exclusion.json', 'hidden_rank_count.json', 'apex_research.json',
             'word_count.json', 'generating_function.json', 'minimal_recurrence.json', 'orbit_drift.json',
+            'orbit_ranking.json', 'eventual_recurrence.json',
             'recursive_lift.json', 'premise_lift_source.json', 'premise_lift_receiving.json',
             'agent_erdos_straus.json', 'agent_unit_fraction_small.json', 'agent_collatz.json', 'agent_decide.json',
             'agent_explore.json')
@@ -981,10 +982,10 @@ print(json.dumps(answers))
               and capabilities.get('apex', {}).get('faces') == ['N', 'W', 'S', 'E']
               and capabilities.get('apex', {}).get('synthesized_routes')
                   == ['law_instance', 'recursive_seeded', 'recursive_lifted_counterexample', 'word_count_direct',
-                      'word_count_law', 'generating_function', 'recurrence_minimality', 'orbit_prefix',
-                      'orbit_transfer', 'orbit_invariant', 'orbit_drift']
-              and {'count_word_avoiders', 'discover_generating_function', 'certify_minimal_recurrence'}
-                  <= set(capabilities.get('queries', []))
+                      'word_count_law', 'generating_function', 'recurrence_minimality', 'reduced_generating_function',
+                      'orbit_prefix', 'orbit_transfer', 'orbit_invariant', 'orbit_drift', 'orbit_ranking']
+              and {'count_word_avoiders', 'discover_generating_function', 'certify_minimal_recurrence',
+                   'certify_eventual_recurrence'} <= set(capabilities.get('queries', []))
               and capabilities.get('limits', {}).get('orbit_steps') == 1024)
         pyramid = cli('pyramid_map', '--pyramid')
         nodes = {row['node']: row for row in pyramid['lattice']}
@@ -1043,8 +1044,9 @@ print(json.dumps(answers))
         (root / 'orbit-blind.json').write_bytes(encoded(dict(turn, max_steps=3)))
         blind = cli('orbit_short_prefix_same_invariant_value', 'orbit-blind.json', expected_code=3)
         check('orbit_unknown_does_not_claim_reachability', blind['status'] == 'UNKNOWN'
-              and [row['status'] for row in blind['faces_tried']] == ['UNKNOWN'] * 4
-              and 'separates' in blind['faces_tried'][2]['reason'])
+              and [row['status'] for row in blind['faces_tried']] == ['UNKNOWN'] * 5
+              and 'separates' in blind['faces_tried'][2]['reason']
+              and blind['faces_tried'][4]['route'] == 'orbit_ranking')
         check('orbit_zero_work_unknown', cli('orbit_zero_work', 'examples/orbit_exclusion.json', ['--work', '0'],
                                              expected_code=3)['status'] == 'UNKNOWN')
         (root / 'orbit-extra.json').write_bytes(encoded(dict(orbit_task, proof='trusted')))
@@ -1302,6 +1304,92 @@ print(json.dumps(answers))
                                    'status': envelope.get('status'), 'elapsed_ns': time.perf_counter_ns() - began})
         check('apex_helper_series_closed', process.returncode == 0 and envelope.get('outcome') == 'closed'
               and envelope.get('status') == 'CHECKED_GENERATING_FUNCTION')
+        # The last two pyramid proposals: ranking exclusion and reduced generating functions.
+        ranking = cli('orbit_ranking_exclusion', 'examples/orbit_ranking.json', ['--state', 'ranking-state.json'])
+        ranking_task = json.loads((root / 'examples/orbit_ranking.json').read_bytes())
+        orbit_states = [(Fraction(0), Fraction(2))]
+        for _ in range(10):
+            x, y = orbit_states[-1]; orbit_states.append((x + y * y + 1, y * y))
+        sample = [(Fraction(a, b), Fraction(c, d)) for a, b, c, d in
+                  ((3, 1, -7, 2), (-5, 3, 11, 4), (13, 7, 0, 1), (-2, 9, -1, 5), (8, 11, 17, 3), (0, 1, 1, 1))]
+        check('orbit_ranking_decides_where_other_faces_fail', ranking['status'] == 'CHECKED_ORBIT_EXCLUSION'
+              and ranking['route'] == 'orbit_ranking' and ranking['face'] == 'N'
+              and ranking['certificate']['kind'] == 'ranking_separation'
+              and ranking['certificate']['ranking'] == [[[1, 0], [1, 1]]] and ranking['certificate']['prefix'] == 10
+              and [row['status'] for row in ranking['faces_tried']] == ['UNKNOWN'] * 4 + ['CHECKED_ORBIT_EXCLUSION']
+              and all((x + y * y + 1) - x == 1 + y * y for x, y in sample)
+              and (Fraction(10), Fraction(3)) not in orbit_states
+              and all(b[0] > a[0] for a, b in zip(orbit_states, orbit_states[1:])))
+        (root / 'ranking-negative.json').write_bytes(encoded(dict(ranking_task, target=[[-3, 1], [7, 1]])))
+        ranking_negative = cli('orbit_ranking_negative_gap', 'ranking-negative.json')
+        check('orbit_ranking_negative_gap_excludes_without_iteration',
+              ranking_negative['status'] == 'CHECKED_ORBIT_EXCLUSION' and ranking_negative['route'] == 'orbit_ranking'
+              and ranking_negative['certificate']['prefix'] == 0)
+        forged_ranking = json.loads((root / 'ranking-state.json').read_bytes())
+        next(row for row in forged_ranking['observations']
+             if row.get('kind') == 'prove_orbit_exclusion')['certificate']['floor'] = [2, 1]
+        (root / 'ranking-forged.json').write_bytes(encoded(forged_ranking))
+        ranking_repaired = cli('orbit_ranking_forged_floor', 'examples/orbit_ranking.json', ['--state', 'ranking-forged.json'])
+        check('orbit_ranking_forged_floor_not_reused', not ranking_repaired.get('reused_after_fresh_check')
+              and ranking_repaired['certificate'] == ranking['certificate'])
+        eventual = cli('eventual_recurrence', 'examples/eventual_recurrence.json', ['--state', 'eventual-state.json'])
+        carrier_terms = []; row = [1, 0]
+        for _ in range(40):
+            carrier_terms.append(row[0] * 5 + row[1]); row = [0, row[0] + 2 * row[1]]
+        check('eventual_recurrence_below_all_index_order', eventual['status'] == 'CHECKED_EVENTUAL_RECURRENCE'
+              and eventual['face'] == 'W' and eventual['check']['order'] == 1 and eventual['check']['start'] == 2
+              and eventual['check']['all_index_order'] == 2 and eventual['check']['coefficients'] == [[2, 1]]
+              and carrier_terms[:4] == [5, 1, 2, 4] and carrier_terms[1] != 2 * carrier_terms[0]
+              and all(carrier_terms[h] == 2 * carrier_terms[h - 1] for h in range(2, 40)))
+        (root / 'eventual-words.json').write_bytes(encoded({'query': 'certify_eventual_recurrence', 'patterns': word_patterns}))
+        eventual_words = cli('eventual_word_recurrence', 'eventual-words.json')
+        counts = [avoiders(word_patterns, h) for h in range(60)]
+        check('eventual_word_recurrence_is_fibonacci_from_six', eventual_words['status'] == 'CHECKED_EVENTUAL_RECURRENCE'
+              and eventual_words['check']['order'] == 2 and eventual_words['check']['start'] == 6
+              and eventual_words['check']['all_index_order'] == 6
+              and eventual_words['check']['coefficients'] == [[1, 1], [1, 1]]
+              and all(counts[h] == counts[h - 1] + counts[h - 2] for h in range(6, 60))
+              and counts[5] != counts[4] + counts[3])
+        forged_eventual = json.loads((root / 'eventual-state.json').read_bytes())
+        next(row for row in forged_eventual['observations']
+             if row.get('kind') == 'certify_eventual_recurrence')['certificate']['bezout'][0] = [[3, 1]]
+        (root / 'eventual-forged.json').write_bytes(encoded(forged_eventual))
+        eventual_repaired = cli('eventual_recurrence_forged_bezout', 'examples/eventual_recurrence.json',
+                                ['--state', 'eventual-forged.json'])
+        check('eventual_recurrence_forged_bezout_not_reused', not eventual_repaired.get('reused_after_fresh_check')
+              and eventual_repaired['certificate'] == eventual['certificate'])
+        diagonal = dict(json.loads((root / 'examples/minimal_recurrence.json').read_bytes()),
+                        query='certify_eventual_recurrence')
+        (root / 'eventual-diagonal.json').write_bytes(encoded(diagonal))
+        reduced = cli('eventual_recurrence_diagonal', 'eventual-diagonal.json')['certificate']
+        # (x-5)(x^2-5x+6): an order-3 all-index law of 2*2**h+3**h whose P/Q shares the factor 1-5x.
+        widened = dict(reduced, common=[[1, 1], [-5, 1]],
+                       recurrence=dict(reduced['recurrence'], order=3, coefficients=[[30, 1], [-31, 1], [10, 1]],
+                                       initial_terms=[[3, 1], [7, 1], [17, 1]]))
+        reaching_ranking = dict(ranking_task, target=[[5, 1], [4, 1]])
+        standalone_series = root / 'apex-standalone-series'; standalone_series.mkdir()
+        for name in ('apex_check.py', 'recurrence_check.py', 'invariant_check.py', 'algebra_check.py'):
+            (standalone_series / name).write_bytes(files[name])
+        (root / 'ranking-reach.json').write_bytes(encoded(reaching_ranking))
+        reached_by_prefix = cli('orbit_ranking_reachable_target', 'ranking-reach.json')
+        (standalone_series / 'evidence.json').write_bytes(encoded([
+            {'task': ranking_task, 'certificate': ranking['certificate']},
+            {'task': reaching_ranking, 'certificate': dict(ranking['certificate'], prefix=5,
+                                                           task_id=reached_by_prefix['task_id'])},
+            {'task': diagonal, 'certificate': widened}]))
+        began = time.perf_counter_ns()
+        series_standalone = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', apex_standalone_code],
+            cwd=standalone_series, capture_output=True, text=True, encoding='utf-8', timeout=90,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'apex_standalone_ranking_and_reduction',
+            'returncode': series_standalone.returncode, 'elapsed_ns': time.perf_counter_ns() - began,
+            'stderr': series_standalone.stderr})
+        series_checks = json.loads(series_standalone.stdout)
+        check('ranking_and_reduced_fraction_replay_with_only_checkers', series_standalone.returncode == 0
+              and not series_standalone.stderr and [row['ok'] for row in series_checks] == [True] * 3
+              and [row.get('outcome') for row in series_checks[:2]] == ['EXCLUDED', 'REACHES']
+              and series_checks[1]['index'] == 1 and reached_by_prefix['status'] == 'CHECKED_ORBIT_REACHES'
+              and (series_checks[2]['order'], series_checks[2]['all_index_order']) == (2, 3))
         # The typed language, its move bench and the autonomous agent.
         check('capabilities_agent_interface', 'autonomous_research' in capabilities.get('queries', [])
               and capabilities.get('agent', {}).get('problem_types')

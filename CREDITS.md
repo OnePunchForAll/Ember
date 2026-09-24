@@ -97,7 +97,12 @@ composition rule formalize that request. The syntheses use established
 mathematics: linear recurrences and their evaluation, polynomial invariants that
 separate reachable states, periodicity of finite orbits and checked proof
 transfer. Parallel read-only catalog reviews came from subagents of the same
-model; they are not external replication.
+model; they are not external replication. The ranking route uses the classical
+ranking-function argument for termination (Turing, 1949; Floyd, 1967) with an
+explicit weighted-sum-of-squares positivity certificate. The eventual-recurrence
+route uses rational generating functions in lowest terms and the Bezout identity,
+as in standard treatments of rational generating functions (Stanley, Enumerative
+Combinatorics, Vol. 1, Ch. 4).
 
 The typed operator language (lexicon.py, lexicon_check.py and the eight ops_*.py
 modules), its move bench and the autonomous research agent were authored by
