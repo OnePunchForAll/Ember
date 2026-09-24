@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 21414,
+      "bytes": 22562,
       "path": "CAMPAIGNS.md",
-      "sha256": "7c90d7f51da200ac00bb10cea31629d92885a5225de9226bb87adae5dba2808d"
+      "sha256": "43b0515c97e53d00182c9ab8ea007e72469498c0297f74baa57e6a6fa31b03b1"
     },
     {
       "bytes": 9709,
@@ -346,9 +346,9 @@
       "sha256": "b995d063f27c7c492e83e774819988a05e3f5440fe7425dd72907b2e4a7b9ed7"
     },
     {
-      "bytes": 78602,
+      "bytes": 79478,
       "path": "lexicon_check.py",
-      "sha256": "4f2e9597fb7bd47dea8d8b9b984ee1dae552f08dd9a7f6452160376d1cfd8751"
+      "sha256": "91ae7e25356c8b8d0e5773eb6d9cc54415312ac9ca3a9e6662b92cb94efa6176"
     },
     {
       "bytes": 3884,
@@ -441,9 +441,9 @@
       "sha256": "f860bd1961f445a93bc42d5514111d3caf40a4fbd8ac66b7eb3ace6f46d66a4b"
     },
     {
-      "bytes": 26330,
+      "bytes": 27070,
       "path": "tools/verdict.py",
-      "sha256": "a6b588ec7b763df0d699734db50dfc87adfe8f5f23a361a47c6020266be1ca9e"
+      "sha256": "17b320bf2bb56aa97eecd7d99e00fc76bdff1e557f0c766c85099d9b7602d82d"
     },
     {
       "bytes": 9009,
@@ -461,7 +461,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 and -17 were verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 835783,
+  "runtime_source_bytes": 836659,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",

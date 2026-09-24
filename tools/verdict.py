@@ -289,8 +289,8 @@ def classical_hit(a, m, r, bound):
         for u in divisor_list(uv):
             if u <= uv // u and (u + uv // u) % e == 0: return ('II', u, uv // u)
     if bound == 0:
-        for u, v, w in type1_everything(a, m):
-            if ((u + v) * r + w) % (a * u * v * w) == 0: return ('I', u, v, w)
+        for modulus, residues in type1_reach(a, m).items():
+            if r % modulus in residues: return ('I',) + residues[r % modulus]
         return None
     for u in range(1, bound + 1):
         for v in range(u, bound + 1):
@@ -302,6 +302,22 @@ def classical_hit(a, m, r, bound):
 
 
 _ALL_TYPE1 = {}
+_REACH = {}
+
+
+def type1_reach(a, m):
+    """For each Type I triple, the residues r modulo m with a*u*v*w | (u+v)*r + w, found by solving the congruence
+    directly: they form a single class modulo q/g (g = gcd(u+v, q)) when g divides w, and none otherwise."""
+    if (a, m) not in _REACH:
+        reach = {}
+        for u, v, w in type1_everything(a, m):
+            q = a * u * v * w; s = u + v; g = gcd(s, q)
+            if w % g: continue
+            modulus = q // g; inverse = pow(s // g, -1, modulus) if modulus > 1 else 0
+            reach.setdefault(modulus, {}).setdefault((-(w // g) * inverse) % modulus, (u, v, w))
+        if len(_REACH) > 16: _REACH.clear()
+        _REACH[(a, m)] = reach
+    return _REACH[(a, m)]
 
 
 def type1_everything(a, m):
