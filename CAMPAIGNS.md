@@ -537,6 +537,21 @@ the last section). Each of the 3,700 saved claims was admitted again, and none w
   genuine classical family with a modulus dividing m that reaches a coprime
   square class.
 
+### Round 5, first attempt (commit c6a9673, fingerprint 6b6c3a09, stopped after 57 minutes)
+
+The statement lets her choose up to four refinement primes, one more than
+round 4, so it is a new problem: her checked claims carried over by the warm
+start and her refinement tree started fresh.
+
+- **Failure mining.** A profile of a parallel copy showed 42% of the time in
+  her prime choice and 36% in her checker. Each exact count built the whole
+  classical table for M·p, eleven times per level, and a table near 10^10
+  takes about 35 s. Her lemma is refuted for 5/n, so every carried wall was
+  checked again at once. That included the walls at 595,675,080, a level her
+  better choice no longer visits. It was stopped for the two instruments
+  described with the prime choice and the carried walls: new primes first,
+  and carried walls that wait until she reaches their level.
+
 ## Campaign 3: the Collatz stopping-time sieve to 2^18 (a closed check)
 
 **Problem supplied.** The map T(n) = n/2 or (3n+1)/2: certify descent class
@@ -688,9 +703,16 @@ one line of that profile, or a defect that her runs exposed.
   p^(v_p(M)+1) is its own, for its entries congruent to x mod q/p, so the
   count needs one lookup per table modulus for each open class, not one per
   lift. On 2,619 classes and eight primes it equals a direct search over every
-  lift, at 3 to 19 times less work. A package check compares the two.
+  lift, at 3 to 19 times less work. A package check compares the two. Each
+  count still needs the whole classical table for M·p, about 35 s near
+  10^10, so she counts new primes first and primes of M only when no new prime
+  reaches a lift: a prime already in M gets no lift divisible by it, and its
+  measured yields were far lower (74 of 5,238 lifts for 2 at 1,580,040). The
+  table cache is bounded by entries as well as count.
 - **Carried walls wait for her lemma.** Walls carried from a related problem
-  are admitted once her lemma at their level is settled. A wall on a class
+  are admitted once she reaches their level and her lemma there is settled;
+  walls at levels she does not reach are saved as they were carried, and the
+  verdict checks them. A wall on a class
   that is a coprime square modulo every prime-power factor of m follows from a
   checked lemma at a multiple of m: a family reaching it would have a modulus
   dividing m and would reach a coprime square class at the lemma's level.

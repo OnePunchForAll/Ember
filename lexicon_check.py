@@ -1167,9 +1167,11 @@ def _type2_index(a, m, budget):
                 for e in _divisors(u + v):
                     count += 1; row.setdefault((-e) % D, []).append((u, v, (u + v) // e))
             index[D] = row
-        budget.use(count)
-        if len(_TYPE2_INDEX) >= 4: _TYPE2_INDEX.clear()
+        # Kept before it is charged: a move whose allocation the charge exceeds fails, and its retry reuses the index.
+        while len(_TYPE2_INDEX) >= 4: del _TYPE2_INDEX[next(iter(_TYPE2_INDEX))]
         _TYPE2_INDEX[(a, m)] = (count, index)
+        budget.use(count)
+    else: _TYPE2_INDEX[(a, m)] = _TYPE2_INDEX.pop((a, m))  # least recently used leaves first
     count, index = _TYPE2_INDEX[(a, m)]
     budget.use(len(index))
     return index
@@ -1199,9 +1201,11 @@ def _type1_index(a, m, budget):
                         if w % g: continue
                         mod = q // g; r0 = (-(w // g) * pow(s // g, -1, mod)) % mod if mod > 1 else 0
                         index.setdefault(mod, {}).setdefault(r0, (u, v, w))
-        budget.use(count)
-        if len(_TYPE1_INDEX) >= 4: _TYPE1_INDEX.clear()
+        # Kept before it is charged: a move whose allocation the charge exceeds fails, and its retry reuses the index.
+        while len(_TYPE1_INDEX) >= 4: del _TYPE1_INDEX[next(iter(_TYPE1_INDEX))]
         _TYPE1_INDEX[(a, m)] = (count, dict(sorted(index.items())))
+        budget.use(count)
+    else: _TYPE1_INDEX[(a, m)] = _TYPE1_INDEX.pop((a, m))  # least recently used leaves first
     count, index = _TYPE1_INDEX[(a, m)]
     budget.use(len(index))
     return index
