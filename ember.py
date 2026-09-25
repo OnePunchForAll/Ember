@@ -15,7 +15,8 @@ import time
 from types import SimpleNamespace
 
 VERSION='ember-pyramid-17'
-STATE_LIMIT=1_048_576
+INPUT_LIMIT=1_048_576  # a task file
+STATE_LIMIT=8_388_608  # an instance state file: her saved research records
 # Exact answers can exceed Python's default 4300-digit decimal conversion limit.
 INT_DIGITS=100_000
 _MODULES={}
@@ -32,9 +33,9 @@ class Budget:
 def canonical(x): return json.dumps(x,sort_keys=True,separators=(',',':'),allow_nan=False)
 def digest(x): return hashlib.sha256(canonical(x).encode()).hexdigest()
 
-def load_json(path):
-    with Path(path).open('rb') as handle: raw=handle.read(STATE_LIMIT+1)
-    if len(raw)>STATE_LIMIT: raise Refused('JSON input exceeds 1 MiB')
+def load_json(path,limit=INPUT_LIMIT):
+    with Path(path).open('rb') as handle: raw=handle.read(limit+1)
+    if len(raw)>limit: raise Refused('JSON input exceeds '+str(limit)+' bytes')
     def pairs(items):
         out={}
         for key,value in items:
@@ -56,7 +57,7 @@ def local_module(name):
 def read_state(path):
     state={'version':VERSION,'observations':[]}
     if path is not None and Path(path).exists():
-        state=load_json(path)
+        state=load_json(path,STATE_LIMIT)
         if type(state) is not dict or state.get('version') not in (VERSION,'ember-pyramid-2','ember-pyramid-3','ember-pyramid-4','ember-pyramid-5','ember-pyramid-6','ember-pyramid-7','ember-pyramid-8','ember-pyramid-9','ember-pyramid-10','ember-pyramid-11','ember-pyramid-12','ember-pyramid-13','ember-pyramid-14','ember-pyramid-15','ember-pyramid-16'):
             raise Refused('incompatible experience generation')
         if type(state.get('observations')) is not list or len(state['observations'])>128:
@@ -711,7 +712,7 @@ def capabilities():
         'polynomial_guarded_transfer':'lemma_first and obligations preserve all mapped original guards; premise children require flat certificates',
         'campaign_guarded_transfer':'reuse_guarded_polynomials=true adds an original lemma_first route with guarded source candidates',
         'campaign_discovery':'discover_after_solving optionally derives recurrence questions from settled transition-count and word-identity originals',
-        'limits':{'json_input_bytes':STATE_LIMIT,'state_bytes':STATE_LIMIT,'observations':128,
+        'limits':{'json_input_bytes':INPUT_LIMIT,'state_bytes':STATE_LIMIT,'observations':128,
                   'campaign_problems':16,'campaign_attempts_per_call':64,'lemma_candidates':8,
                   'recurrence_dimension':64,'recurrence_arithmetic_bits':8192,
                   'invariant_variables':6,'invariant_degree':3,'invariant_grid_points':50000,

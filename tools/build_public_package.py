@@ -1648,14 +1648,15 @@ p4 = dict(type='unit_fraction_cover', a=4, terms=3); p5 = dict(p4, a=5)
 def record(tid, problem, n):
     return dict(task_id=tid, kind='autonomous_research', problem=problem, tried=['t' * 40] * 200, rederivable=[], log=[],
                 samples=[], objects=[dict(kind='template', data=dict(i=i, pad='x' * 400)) for i in range(n)])
+n_old, n_new = host.STATE_LIMIT * 9 // 10 // 430, host.STATE_LIMIT // 6 // 430  # sized to the host's state bound
 def saved(carried):
-    state = dict(observations=[record('old', dict(p4, extra_lifts=1), 2200)]); new = record('new', dict(p4, extra_lifts=3), 400)
+    state = dict(observations=[record('old', dict(p4, extra_lifts=1), n_old)]); new = record('new', dict(p4, extra_lifts=3), n_new)
     path = os.path.join(tempfile.mkdtemp(), 'state.json')
     A.save(host, state, path, new, dict(task_id=A.LIBRARY_ID, kind='strategy_library', entries=[]), carried)
     return state, new, os.path.getsize(path)
 s1, n1, z1 = saved({'old'}); s2, n2, z2 = saved(set())
 old1 = next(o for o in s1['observations'] if o['task_id'] == 'old')
-bound = (n1['dropped_objects'] == 0 and len(n1['objects']) == 400 and 0 < len(old1['objects']) < 2200
+bound = (n1['dropped_objects'] == 0 and len(n1['objects']) == n_new and 0 < len(old1['objects']) < n_old
          and old1['tried'] == [] and z1 <= host.STATE_LIMIT and n2['dropped_objects'] > 0 and z2 <= host.STATE_LIMIT)
 # Her library's legacy contexts (no numerator in the name) are read as this numerator only for a one-numerator state.
 lib = [dict(context='unit_fraction_cover:eclass:coprime:square', strategy='egypt_ansatz_extend', successes=0, failures=100,

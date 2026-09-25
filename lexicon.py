@@ -31,7 +31,7 @@ DIRECTIONS = ('N', 'W', 'S', 'E')
 # Checked objects of these kinds refute an existence or reachability claim.
 EVIDENCE_KINDS = ('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle', 'nofamily', 'obstruction')
 RESIDUAL_KINDS = ('residual',)
-MAX_OBJECT_BYTES = 1_048_576  # one claim; a state file stays bounded by the host's STATE_LIMIT
+MAX_OBJECT_BYTES = 4_194_304  # one claim; a state file stays bounded by the host's STATE_LIMIT
 
 
 def canonical(value):
@@ -665,7 +665,7 @@ class Runtime:
 
     def _make(self, kind, data, parents, status):
         data = json.loads(canonical(data))
-        if len(canonical(data)) > MAX_OBJECT_BYTES: raise ValueError('object exceeds 1 MiB')
+        if len(canonical(data)) > MAX_OBJECT_BYTES: raise ValueError('object exceeds ' + str(MAX_OBJECT_BYTES) + ' bytes')
         question = self.checker.question(kind, data)
         identity = digest(dict(kind=kind, data=data))
         existing = self.objects.get(identity)

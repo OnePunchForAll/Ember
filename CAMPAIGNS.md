@@ -806,3 +806,38 @@ classes as the committed code at every level of both 4/n and 5/n. It took
 107 s against 299 s on 4/n, and 392 s against 565 s on 5/n. The new choice
 then gave her smaller open fractions as well. Her move order still depends on
 measured seconds, so two runs of the same code can differ.
+
+## The compact proof format and a larger state (commits c5fdbb2 and the one after it)
+
+Her Campaign 2 round 5 stopped at two size limits. A cover at her finest
+level, 8,031,343,320, needed more than the 4,096 families her checker admits
+in one claim. And her largest cover, about 500 kB, did not fit into the 1 MiB
+state beside the cover her theorem uses. First the certificates were made
+shorter, then the bounds were raised.
+
+- **An identity written once.** A family on the class n = m·k + r is an
+  identity in n placed on a class: x(k) = X(m·k + r), with X(n) =
+  x((n − r)/m). Her round-5 covers held 1,910 and 2,185 families written out
+  in full (about 250 bytes each), but only 111 and 130 distinct identities.
+  A cover may now carry a shape table: each identity once, as its
+  denominators in n. An entry names its class, threshold and identity (about
+  45 bytes), and classical families keep their parameters. Her covers are
+  assembled in this form. The checker rebuilds each entry with its own
+  arithmetic and checks it as if it were written out; the verdict does the
+  same with its own code, and three self-test cases cover it. Written-out
+  covers are still admitted.
+- **Family batches.** The families outside her covers are saved as batch
+  claims of at most 512 families, each with one shape table. On resume, and
+  in the verdict, a batch becomes one claim per family.
+- **Measured on her saved round-5 claims.** The round trip is exact.
+  Covers: 500,666 → 123,449 bytes (5/n) and 498,278 → 139,089 bytes
+  (4/n). The 598 saved 5/n families: 151,820 → 35,897 bytes. The checker
+  admits both forms with the same coverage (472,431,468 and 36,730,458
+  residues) and refuses a forged identity. Two package checks guard the
+  format.
+- **Larger bounds.** A task file stays bounded to 1 MiB. An instance state
+  may now take 8 MiB instead of 1 MiB, one claim 4 MiB instead of 1 MiB,
+  and one cover 65,536 families instead of 4,096 (about 2.9 MB in the
+  compact form). The state-bound package check now sizes its test records
+  to the host's bound.
+

@@ -979,8 +979,14 @@ patterns, density and the theorem are then decided by a sieve that lifts
 only the classes no family reaches. The theorem is checked class by class:
 each covered residue needs a family whose threshold is at most the
 residue's first member past the checked range. Classical families may be
-stated by their parameters. The checker and the independent verdict each
-rebuild the polynomials. Strategies that fail 64 times without a success in
+stated by their parameters. Every other family is saved in a compact form: a
+family on n = m k + r is an identity in n placed on a class, x(k) = X(m k + r),
+so a cover or a batch of families writes each identity once, as its
+denominators in n, and names each family by its class, threshold and identity.
+Her round-5 covers held 1,910 and 2,185 families but only 111 and 130
+identities. The checker and the independent verdict each rebuild the
+polynomials with their own arithmetic and check every family as if it were
+written out. Strategies that fail 64 times without a success in
 one context (class kind and local squareness) and one refinement level are
 retired there for the rest of the run. The classical generator and the
 wall certificates are never retired.
@@ -1186,7 +1192,9 @@ every step; sieved descent covers; and, from her round-5 profile, her lemma
 first with whole-level sweeps, rescans only when a class can gain a move,
 priors from her own library, a refinement prime chosen on exact counts,
 carried walls settled by her lemma, a Type II index in the checker, and a
-state bound that keeps her newest results. Each is described, with the
+state bound that keeps her newest results; then a compact proof format (each
+identity written once, families named by class, threshold and identity) and
+a larger state, 8 MiB. Each is described, with the
 failure that prompted it, in `CAMPAIGNS.md`.
 
 ## Task and result interface
@@ -1255,7 +1263,8 @@ result. `--layer apex` wraps a single original as the only obligation of an
 defaults because the apex chooses routes itself.
 
 `--work` limits charged search and checking operations, not operating-system time,
-memory or integer bit complexity. Input and instance state are bounded to 1 MiB;
+memory or integer bit complexity. A task file is bounded to 1 MiB, one claim to
+4 MiB and an instance state to 8 MiB;
 at most 128 observations and bounded scheduling samples are retained. These limits
 make incomplete work explicit. Do not let two processes write the same instance
 file simultaneously. Changing a task can invalidate reuse; a saved status flag
