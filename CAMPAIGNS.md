@@ -333,7 +333,7 @@ carried over by the warm start.
   examples and a depth-16 Collatz run the results are the same; only the
   scope sentence of the new sieved descent cover differs.
 
-### Round 5 (commit e11f640, fingerprint 832b6e55, one call: 47,904 moves, 4,851 s)
+### Round 5 (commit e11f640, fingerprint 832b6e55, one call: 47,904 moves, 4,852 s)
 
 The statement lets her choose up to three refinement primes. It is a new
 problem, so round 4's checked families, covers and walls carried over by the
@@ -351,7 +351,7 @@ warm start (3,635 admitted again, none refused).
   format. The verdict on that state covers only round 4's claims (2,910
   VERIFIED, bit verified), so the theorem at 20,540,520 has no independent
   verdict. Fixed below.
-- **Failure mining.** 873 of the 4,851 s went to her moves; the rest was
+- **Failure mining.** 873 of the 4,852 s went to her moves; the rest was
   scheduling. Of the move time, 422 s were per-class classical searches
   (17,328 misses) and walls (17,202) on square classes her checked lemma
   already settles, and 50 s the extended ansatz on square classes (0 of
@@ -359,7 +359,7 @@ warm start (3,635 admitted again, none refused).
   338 families directly and about 440 through its macros. The instruments
   in the section on her round-5 profile answer these lines.
 
-### Round 5 rerun (commit c6a9673, fingerprint 6b6c3a09, one call: 6,582 moves, 368 s)
+### Round 5 rerun (commit c6a9673, fingerprint 6b6c3a09, one call: 6,582 moves, 370 s)
 
 The same statement, from the same round-4 state, with the upgraded code.
 
@@ -373,7 +373,7 @@ The same statement, from the same round-4 state, with the upgraded code.
   again (270 carried ones). The 2,620 walls carried from level 1,580,040,
   which she did not choose this time, were saved as carried and checked again
   by the verdict.
-- **Speed.** 368 s against 4,851 s, and 6,582 moves against 47,904. Sixty-five
+- **Speed.** 370 s against 4,852 s, and 6,582 moves against 47,904. Sixty-five
   strategies retired on her library's prior after 8 tries each.
 - **Saving.** Nothing of her record was dropped. The superseded round-4
   record was trimmed to fit instead; its evidence stays in the round-4
@@ -583,6 +583,29 @@ start and her refinement tree started fresh.
   than needed. Fixed: the cover her latest range uses comes first, and the
   range and theorem name it by digest.
 
+### Round 5 (commit 02d6910, fingerprint fa4ddeb0, one call: 20,683 moves, 701 s)
+
+The same statement as the third attempt, from the same round-4 state.
+
+- **Result.** The same choices and counts: primes 13, 19, 23 and 17, her
+  theorem that every n >= 2 outside 492 residue classes mod 472,431,960 has
+  a representation, and 821 open classes at 8,031,343,320 with no cover
+  there. At 472,431,960 her checked pattern says every open class is 1 mod
+  5, 7 and 13, 1 mod 9, and 1 mod 4.
+- **Saving.** Her state now holds her theorem's cover, range and theorem, her
+  refutation of the lemma, her templates, walls and refinement tree, and
+  166 kB of her families: 1,048,374 of 1,048,576 bytes. The finest cover
+  (about 500 kB) and 3,556 families did not fit and were dropped.
+- **Verdict.** Self-test passed. 9,482 claims VERIFIED, among them the
+  theorem, the refutation (Type II (1, 1, 1) reaches the square class 4 mod
+  5), 598 families and 8,873 walls; none REFUTED or UNRESOLVED. Bit:
+  verified. The verdict took 560 s, most of it on walls at large moduli.
+- **What this establishes.** A checked reduction of 5/n to 492 residue
+  classes mod 472,431,960, with every smaller n checked below 100,000.
+  Secondary sources say the case is settled except possibly for n ≡ 1
+  (mod 278,460); her open classes are consistent with that statement. The
+  problem stays open here.
+
 ## Campaign 3: the Collatz stopping-time sieve to 2^18 (a closed check)
 
 **Problem supplied.** The map T(n) = n/2 or (3n+1)/2: certify descent class
@@ -631,7 +654,7 @@ sees: 1, 1, 2, 3, 4, 8, 13, 19, 38, 64, 128, 226, 367, 734, 1,295, 2,114,
     254,649 = 262,144 - 7,495 classes. The committed rerun is recorded
     below once it has run.
 
-### Round 2 (commit 0474b45, fingerprint 832b6e55, one call: 25,985 moves, 171 s)
+### Round 2 (commit 0474b45, fingerprint 832b6e55, one call: 25,985 moves, 172 s)
 
 The run started fresh, with only her strategy library.
 
@@ -687,7 +710,7 @@ The run started fresh, with only her strategy library.
 
 ## Instruments built from her round-5 profile (the upgrade for faster, smarter rounds)
 
-Her round 5 on the committed code took 4,851 s. Only 873 s of it went to her
+Her round 5 on the committed code took 4,852 s. Only 873 s of it went to her
 moves; the rest was scheduling and bookkeeping. Of the move time, 422 s went to
 per-class classical searches (17,328 misses) and walls (17,202) on square
 classes that her checked lemma already settles. Each instrument below answers

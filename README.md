@@ -1150,15 +1150,18 @@ simulation she never sees.
   open fraction of 7.14 × 10^-4). Of the open classes, 25,920 are coprime
   squares, the known obstruction, which her own lemma shows no classical
   fixed-parameter family reaches. The other 342 are non-residues at 11, 13
-  or 17, where she certified walls. The round took 368 s; the same round
-  on the code before the upgrade took 4,851 s.
-- **Sierpiński, 5/n.** She chose 13, 19 and 29 and proved that every
-  n >= 2 outside 1,624 residue classes mod 595,675,080 has a
-  representation. That is 2.7 open classes in a million. At 1,081,080
-  every open class is 1 mod 5, 7 and 13, 1 mod 9, and 1 mod 4. For 5/n
-  the square classes are not the obstruction. She stated the obstruction
-  lemma that holds for 4/n, and her checker refuted it with her own
-  witness: Type II (1, 1, 1) reaches the square class 4 mod 5.
+  or 17, where she certified walls. The round took 370 s; the same round
+  on the code before the upgrade took 4,852 s.
+- **Sierpiński, 5/n.** In round 5 she chose 13, 19, 23 and 17, counting
+  every lift exactly, and proved that every n >= 2 outside 492 residue
+  classes mod 472,431,960 has a representation: about one open class in a
+  million, against 2.7 in round 4. Her finest level, 8,031,343,320, has 821
+  open classes, but a cover there needs more families than her checker
+  admits in one claim, so her theorem stands one level up. At 472,431,960
+  every open class is 1 mod 5, 7 and 13, 1 mod 9, and 1 mod 4. For 5/n the square classes
+  are not the obstruction. She stated the obstruction lemma that holds for
+  4/n, and her checker refuted it with her own witness: Type II (1, 1, 1)
+  reaches the square class 4 mod 5.
 - **Collatz sieve to 2^18 (closed).** In a first run her open counts
   matched the known counts at 16 of 18 levels. The two misses exposed a
   defect: an invented macro could refine a class without trying to
