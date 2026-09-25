@@ -29,6 +29,7 @@ import json
 from math import gcd
 from pathlib import Path
 import time
+from types import GeneratorType
 
 VERSION = 'ember.autonomous_agent.v1'
 MAX_SAMPLES = 128
@@ -40,7 +41,10 @@ MAX_TARGET_MOVES = 24
 COMPANIONS = 4
 # Operators that read the workspace: an attempt is new whenever the goal's progress has changed since.
 READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift',
-                             'egypt_classical_sweep', 'egypt_wall_sweep'))
+                             'egypt_classical_sweep', 'egypt_wall_sweep', 'egypt_range_chunk', 'egypt_range_union',
+                             'egypt_theorem_range'))
+# Moves tried once per state of what they read, not once per target and call: each chunk, union or extension is new.
+REPEATABLE = frozenset(('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range'))
 MACRO_STEPS = 4
 PROPOSE_EVERY = 25
 # A move that fails only for lack of work is retried once with this many times the allocation.
@@ -63,6 +67,17 @@ LEDGER_ID = 'problem-rounds'  # one record keeping every problem's rounds, so he
 MAX_RECORDS = 128  # records one instance state holds (the host's bound); the oldest are evicted first
 ARCHIVE_ENTRIES = 1024  # evicted records whose evidence file her ledger still names, oldest dropped first
 EXHAUSTED = 'no untried move for any open target'
+# Anytime moves: an operator that breathes (yields) runs in slices of at most SLICE_WORK; at a breath past the slice
+# it waits with its own budget and place, and each step chooses again between the waiting moves and the best fresh
+# one. At most MAX_SUSPENDED moves wait: with the table full she resumes one rather than starting another, so every
+# search she starts is run to its end within the call unless its target closes.
+SLICE_WORK = 4_000_000
+MAX_SUSPENDED = 8
+# Her choice among problems: a round is a success to the degree g / (g + GAIN_HALF) of its g new checked results, and
+# a failure for the rest; only her last RECENT_ROUNDS rounds on a problem count.
+GAIN_HALF = 64
+RECENT_ROUNDS = 4
+MAX_WIDEN_LEVELS = 4  # a settled window is restated with larger bounds up to this many times, by her own proposal
 
 
 def digest(value):
@@ -314,7 +329,7 @@ class CoverGoal(Goal):
                 # Only a refinement onto a tracked level hands the parent's obligation to its subclasses.
                 self.classes.append(o)
                 for parent in o['parents']: self.refined.add(parent)
-            if o['kind'] == 'template' or o['kind'] in ('finite', 'cover', 'pattern', 'density', 'theorem', 'obstruction'):
+            if o['kind'] == 'template' or o['kind'] in ('finite', 'cover', 'pattern', 'density', 'theorem', 'obstruction', 'derived'):
                 self.results.append(o)
                 if o['kind'] == 'theorem': self.theorems.append(o)
                 if o['kind'] == 'obstruction': self.lemmas.append(o); self.lemma_tried.add(o['data']['m'])
@@ -543,6 +558,10 @@ class CoverGoal(Goal):
         if strategy in ('egypt_classical_sweep', 'egypt_wall_sweep'):
             return (self.fam_count, len(self.classical_miss), len(self.classes), len(self.lemmas),
                     sum(len(v) for v in self.walled.values()))
+        if strategy in ('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range'):
+            # The range moves depend on the admitted ranges, derivations, theorems and covers.
+            return tuple(sum(1 for o in self.results if o['kind'] == k and o['status'] == 'checked')
+                         for k in ('finite', 'derived', 'theorem', 'cover'))
         return sum(len(rs) for rs in self.fam.values())
 
     def allowed(self, strategy, target, rt):
@@ -614,7 +633,10 @@ class CoverGoal(Goal):
         cover in compact form (the cover replaced by its digest); then the finest checked cover and its claims when it
         is another cover; her lemmas, templates, walls and refinement tree; and the families outside both covers."""
         covers = [o for o in rt.objects.values() if o['kind'] == 'cover' and o['status'] == 'checked']
-        finite = [o for o in rt.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked']
+        # The base range starts at the problem's least n; later chunks extend it through derivations.
+        finite = sorted((o for o in rt.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked'),
+                        key=lambda o: (o['data']['lo'] != self.p['min'], o['data']['lo'], -o['data']['hi']))
+        chunks = [o for o in finite[1:] if finite and o['data']['lo'] >= finite[0]['data']['hi']]; finite = finite[:1]
         best = max(covers, key=lambda o: (o['data']['modulus'], len(o['data']['entries'])), default=None)
         chain = next((o for o in covers if finite and o['data'] == finite[-1]['data']['cover']), None) or best
         heads = [chain] + ([best] if best is not None and best is not chain else []) if chain is not None else []
@@ -639,6 +661,9 @@ class CoverGoal(Goal):
                 and o['data']['finite'] == finite[-1]['data']]
         claims_first = ([chain] + chained + claims[id(chain)] if chain is not None else chained)
         claims_first += [row for head in heads[1:] for row in [head] + claims[id(head)]]
+        # Range chunks past the base range and the derivations built on them (the chunk's cover is named by digest).
+        claims_first += [compact_range(self.L, o, chain) for o in chunks]
+        claims_first += [o for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
         lemmas = [o for o in rt.objects.values() if (o['kind'] == 'obstruction' and o['status'] == 'checked') or
                   (o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'obstruction')]
         batches = {}
@@ -698,7 +723,8 @@ class CoverGoal(Goal):
         for m, r, mask in misses:
             cls = rt.given('eclass', dict(a=p['a'], terms=p['terms'], m=m, r=r))
             for k, note in enumerate(notes):
-                if mask >> k & 1: rt.residual(cls, ['restored from the saved refinement tree'], note)
+                # The restored miss records the attempt of the generator whose miss it is.
+                if mask >> k & 1: rt.residual(cls, ['restored from the saved refinement tree'], note, by=MISS_SOURCES.get(note))
         self.update(rt)
 
     def covered_by(self, cover, family):
@@ -744,7 +770,19 @@ class CoverGoal(Goal):
             expanded.append(dict(kind=row['kind'], data=data))
         saved = expanded
         walls = [row for row in saved if row['kind'] == 'nofamily']
-        admitted, refused = Goal.restore(self, rt, [row for row in saved if row['kind'] != 'nofamily'])
+        derived = [row for row in saved if row['kind'] == 'derived']
+        admitted, refused = Goal.restore(self, rt, [row for row in saved if row['kind'] not in ('nofamily', 'derived')])
+        # A derivation is admitted once every premise it names is admitted again; one whose premise is gone is refused.
+        pending = derived
+        while pending:
+            rest = []
+            for row in pending:
+                if all(rt.admitted(i) is not None for i in row['data'].get('premises', [])):
+                    if rt.check(rt.propose('derived', row['data'])): admitted += 1
+                    else: refused += 1
+                else: rest.append(row)
+            if len(rest) == len(pending): refused += len(rest); break
+            pending = rest
         # Walls come after her lemmas: a wall a restored lemma implies is not checked again.
         self.update(rt); kept = []
         for row in walls:
@@ -999,7 +1037,7 @@ class DescentGoal(Goal):
                         rt.propose('cclass', dict(map=self.p['map'], modulus=M * d, residue=r + M * i), (parent,))
                 for M, r in row['data'].get('residual', []):
                     rt.residual(rt.given('cclass', dict(map=self.p['map'], modulus=M, residue=r)),
-                                ['restored from the saved refinement tree'], 'refine the class')
+                                ['restored from the saved refinement tree'], 'refine the class', by='collatz_affine_descent')
                 continue
         for row in saved:
             if row['kind'] == 'descent_tree': continue
@@ -1160,6 +1198,9 @@ class Agent:
         # Strategies retired per context and level after RETIRE_AFTER failures without a success in this run.
         self.retired = {}; goal.retired = self.retired; self.retire_tally = {}; self.priors = set(); self.retired_in = {}
         self.pooled = set(); self.quiet = set(); self.quiet_key = None
+        # Anytime moves waiting at a breath, by move key; and (object, move) pairs whose residual records an attempt.
+        self.suspended = {}; self.attempted_by = set(); self.switches = 0; self.resumes = 0; self.slices = 0
+        self.abandoned = 0; self.last_key = None
 
     def index(self):
         """Incrementally index new workspace objects by kind and by parent."""
@@ -1167,6 +1208,7 @@ class Agent:
             o = self.rt.objects.get(identity)
             if o is None: continue
             self.by_kind.setdefault(o['kind'], []).append(identity)
+            if o['kind'] == 'residual' and 'by' in o['data']: self.attempted_by.add((o['data']['of'], o['data']['by']))
             for parent in o['parents']:
                 self.children.setdefault(parent, []).append(identity); self.quiet.discard(parent)
         self.indexed = len(self.rt.order)
@@ -1231,7 +1273,12 @@ class Agent:
                 out.append(('verify', [f]))
             for name, slot in by_kind.get(f['kind'], []):
                 if name == 'verify' or not allowed(name): continue
-                if name not in LEVEL_STEPS and self.attempts.get((target['id'], name), 0) >= MAX_PER_TARGET: continue
+                if name not in LEVEL_STEPS and name not in REPEATABLE \
+                        and self.attempts.get((target['id'], name), 0) >= MAX_PER_TARGET: continue
+                # A deterministic one-argument move that left a residual on this object has been attempted, whatever
+                # the tried-move memory kept: the residual is the record.
+                if len(table[name]['consumes']) == 1 and name not in READS_WORKSPACE and (f['id'], name) in self.attempted_by:
+                    continue
                 kinds = table[name]['consumes']; args = [None] * len(kinds); args[slot] = f; ok = True
                 for j, other in enumerate(kinds):
                     if j == slot: continue
@@ -1245,31 +1292,32 @@ class Agent:
             if name in READS_WORKSPACE:
                 parts.append(repr(self.goal.version(self.rt, name, target)))
             key = digest(parts)[:20]  # scheduling memory only; a collision can at worst skip one move
-            if key not in self.tried: fresh.append((name, args, key))
+            if key not in self.tried and key not in self.suspended: fresh.append((name, args, key))
         return fresh
 
     def run_op(self, name, args, budget):
+        """Start a move: the verify move, an operator (a list, or an anytime move's generator) or a macro. Events and
+        provenance are recorded by execute, per slice and at completion."""
         spec = self.registry.get(name)
-        self.rt.budget = budget; before = set(self.rt.objects); self.rt.events = []
+        self.rt.budget = budget; self.rt.events = []
         if name == 'verify':
-            ok = self.rt.check(args[0]); out = [args[0]] if ok else []
-        elif spec is not None:
-            out = self.apply(name, spec, args)
-        else:
-            out = self.run_macro(name, args, budget)
-        for event, identity in self.rt.events: self.events[event] += 1
-        for o in out:
-            if o['id'] not in before: self.produced_by[o['id']] = (name, [a['id'] for a in args])
-        return out
+            ok = self.rt.check(args[0]); return [args[0]] if ok else []
+        if spec is not None: return self.apply(name, spec, args)
+        return self.run_macro(name, args, budget)
 
     def apply(self, name, spec, args):
-        """One operator application. An operator that reads only its arguments is not recomputed on the same
-        arguments within a run: a macro replaying a step already taken reuses its outputs."""
+        """One operator application: a list of objects, or an anytime move's generator (see finish). An operator that
+        reads only its arguments is not recomputed on the same arguments within a run: a macro replaying a step
+        already taken reuses its outputs."""
         if name in READS_WORKSPACE: return spec['fn'](self.rt, *args)
         key = (name,) + tuple(a['id'] for a in args)
         if key in self.memo: return [self.rt.objects[i] for i in self.memo[key] if i in self.rt.objects]
-        out = spec['fn'](self.rt, *args)
-        self.memo[key] = [o['id'] for o in out]
+        return spec['fn'](self.rt, *args)
+
+    def finish(self, name, args, out):
+        """Record a completed application's outputs for reuse on the same arguments."""
+        if name not in READS_WORKSPACE and name in self.registry:
+            self.memo[(name,) + tuple(a['id'] for a in args)] = [o['id'] for o in out]
         return out
 
     def run_macro(self, name, args, budget):
@@ -1279,7 +1327,7 @@ class Agent:
             # restricted move (a refinement, say) must not reach a derived class the policy would refuse.
             if i and not self.goal.allowed(step, current[0], self.rt): break
             spec = self.registry[step]; before = set(self.rt.objects); self.rt.events = []
-            produced = self.apply(step, spec, current)
+            produced = self.finish(step, current, self.L.drive(self.apply(step, spec, current)))  # a macro runs its steps whole
             for o in produced:
                 if o['id'] not in before: self.produced_by[o['id']] = (step, [a['id'] for a in current])
             out += produced
@@ -1331,13 +1379,18 @@ class Agent:
                 return
 
     def step(self, allocation, remaining=None):
+        """One scheduling decision: the best fresh move of the first open target with one, or a suspended anytime
+        move, whichever scores higher (a suspended move's doctrine score is divided by 1 + its idle slices). So she
+        can leave a long search at any breath for a better move and come back to it, and a search that keeps
+        producing keeps its place."""
         self.index(); table, by_kind = self.strategies(); progress = repr(self.goal.progress(self.rt))
         key_extra = self.goal.schedule_key(self.rt); pools = None
         # Quiet targets are capped targets found exhausted since the goal-wide part of their signature last changed and
         # with no new derived object since: their signature is unchanged, so they are skipped without recomputing it.
         quiet_key = (len(table), self.goal.capped_global(self.rt), self.companion_kinds(table), len(self.retired))
         if quiet_key != self.quiet_key: self.quiet.clear(); self.quiet_key = quiet_key
-        for target in self.goal.targets(self.rt):
+        targets = self.goal.targets(self.rt); fresh_choice = None
+        for target in targets:
             if target['id'] in self.quiet: continue
             if target['kind'] in self.goal.capped and self.target_moves.get(target['id'], 0) >= MAX_TARGET_MOVES: continue
             # A target with no fresh move stays exhausted until the move table or its derived objects change. A class
@@ -1362,27 +1415,105 @@ class Agent:
                 self.seen_contexts.add((context, target['id'])); self.unseen += 1
                 if self.unseen % 5 == 0: fresh.reverse()
             name, args, key = fresh[0]
-            if key in self.escalated:
-                allocation = min(allocation * ESCALATION, max(allocation, (remaining or allocation) // 2))
-            return self.execute(target, context, name, args, key, allocation)
-        return None
+            fresh_choice = (target, context, name, args, key, doctrine_score(self.samples, context, name)); break
+        open_ids = {t['id'] for t in targets}
+        for rec in list(self.suspended.values()):
+            if rec['target']['id'] not in open_ids: self.drop(rec, 'target closed')
+        waiting = max(self.suspended.values(), key=lambda r: doctrine_score(self.samples, r['context'], r['name']) / (1 + r['idle']),
+                      default=None)
+        if waiting is not None:
+            score = doctrine_score(self.samples, waiting['context'], waiting['name']) / (1 + waiting['idle'])
+            if fresh_choice is None or score >= fresh_choice[5] or len(self.suspended) >= MAX_SUSPENDED:
+                if self.last_key != waiting['key']: self.switches += 1
+                return self.execute(waiting['target'], waiting['context'], waiting['name'], waiting['args'], waiting['key'],
+                                    allocation, resume=waiting)
+        if fresh_choice is None: return None
+        target, context, name, args, key, _ = fresh_choice
+        if key in self.escalated:
+            allocation = min(allocation * ESCALATION, max(allocation, (remaining or allocation) // 2))
+        return self.execute(target, context, name, args, key, allocation)
 
-    def execute(self, target, context, name, args, key, allocation):
-        host = self.host; budget = host.Budget(allocation); parent = self.rt.budget
-        before = self.goal.progress(self.rt); began = time.perf_counter_ns(); reason = None; out = []
-        existing = set(self.rt.objects) if self.goal.limit_kinds else None
-        self.goal.attempting(name, target, self.rt)
-        try: out = self.run_op(name, args, budget)
-        except (host.Exhausted, RuntimeError, self.checker.Limit) as exc: reason = 'limit: ' + str(exc)[:120]
+    def breathe(self, gen, budget, stop_at):
+        """Advance an anytime move until it returns its objects, or until a breath finds the slice used (None)."""
+        while True:
+            try: next(gen)
+            except StopIteration as done: return done.value or []
+            if budget.work >= stop_at: return None
+
+    def suspend(self, rec):
+        """Keep a move waiting at its breath (step starts no fresh move while MAX_SUSPENDED wait, so the table is
+        bounded without abandoning any search)."""
+        self.suspended[rec['key']] = rec
+
+    def drop(self, rec, why):
+        """End a suspended move without its result: its generator is closed; an abandoned move counts as tried and as
+        a failure of its strategy, a move whose target closed leaves no sample."""
+        rec['gen'].close(); self.suspended.pop(rec['key'], None)
+        if why == 'abandoned':
+            self.tried.add(rec['key']); self.abandoned += 1
+            self.samples = record_sample(self.samples, dict(context=rec['context'], strategy=rec['name'], task=rec['target']['id'],
+                                                            success=False, seconds=round(rec['seconds'], 6), weight=1, source='local'))
+        self.log = (self.log + [dict(move=self.moves, target=rec['target']['kind'], strategy=rec['name'], success=False,
+                                     work=rec['budget'].work, outputs=[], dropped=why, slices=rec['slices'])])[-MAX_LOG:]
+
+    def close(self):
+        """End of the call: moves still waiting are closed; they start over if chosen in a later call."""
+        waiting = len(self.suspended)
+        for rec in list(self.suspended.values()): rec['gen'].close()
+        self.suspended.clear()
+        return waiting
+
+    def execute(self, target, context, name, args, key, allocation, resume=None):
+        """Run a move for one slice. A plain move runs to its end or its work bound. An anytime move runs until it
+        breathes with its slice used, and then waits with its own budget for a later step (resume); its outcome is
+        recorded when it ends. The move being run is named to the runtime, so a residual it leaves records it."""
+        host = self.host; parent = self.rt.budget
+        if resume is None:
+            budget = host.Budget(allocation); gen = None; began_work = 0; slices = 0; seconds_before = 0.0
+            progressed = False; objects_before = set(self.rt.objects)
+            existing = objects_before if self.goal.limit_kinds else None
+            self.goal.attempting(name, target, self.rt)
+        else:
+            budget = resume['budget']; budget.limit = budget.work + allocation; gen = resume['gen']; began_work = budget.work
+            slices = resume['slices']; seconds_before = resume['seconds']; progressed = resume['progressed']
+            existing = resume['existing']; objects_before = resume['objects_before']; self.resumes += 1
+        before = self.goal.progress(self.rt); began = time.perf_counter_ns(); reason = None; out = None
+        self.rt.budget = budget; self.rt.current_move = name; self.rt.events = []
+        try:
+            if gen is None:
+                out = self.run_op(name, args, budget)
+                if isinstance(out, GeneratorType): gen, out = out, None
+            # The slice ends at the first breath past half the move's work bound (or SLICE_WORK), so a breath comes
+            # before the bound even when the bound is small.
+            if gen is not None: out = self.breathe(gen, budget, began_work + min(max(allocation // 2, 1), SLICE_WORK))
+        except (host.Exhausted, RuntimeError, self.checker.Limit) as exc: reason = 'limit: ' + str(exc)[:120]; gen = None
         except (ValueError, KeyError, TypeError, IndexError, ZeroDivisionError) as exc:
-            reason = 'operator error: ' + type(exc).__name__ + ': ' + str(exc)[:120]
-        self.rt.budget = parent
-        parent.use(budget.work)
-        seconds = (time.perf_counter_ns() - began) / 1e9
+            reason = 'operator error: ' + type(exc).__name__ + ': ' + str(exc)[:120]; gen = None
+        self.rt.budget = parent; self.rt.current_move = None
+        for event, identity in self.rt.events: self.events[event] += 1
+        parent.use(budget.work - began_work)
+        seconds = seconds_before + (time.perf_counter_ns() - began) / 1e9
+        self.moves += 1; self.last_key = key; slice_progress = self.goal.progress(self.rt) != before
+        progressed = progressed or slice_progress
+        if out is None and reason is None and gen is not None:
+            # Waiting at a breath with the slice used: the move keeps its budget and its place.
+            self.slices += 1
+            self.suspend(dict(gen=gen, budget=budget, target=target, context=context, name=name, args=args, key=key,
+                              slices=slices + 1, idle=0 if slice_progress else (resume['idle'] + 1 if resume else 1),
+                              seconds=seconds, progressed=progressed, existing=existing, objects_before=objects_before))
+            row = dict(move=self.moves, target=target['kind'], strategy=name, success=slice_progress, work=budget.work - began_work,
+                       outputs=[], waiting=True, slices=slices + 1)
+            self.log = (self.log + [row])[-MAX_LOG:]
+            return row
+        out = self.finish(name, args, out or []); self.suspended.pop(key, None)
+        for o in out:
+            if o['id'] not in objects_before: self.produced_by[o['id']] = (name, [a['id'] for a in args])
         # Progress, or a newly checked certificate of a limit (a wall): a certified limitation is a result.
-        success = self.goal.progress(self.rt) != before or (existing is not None and any(
+        success = progressed or (existing is not None and any(
             o['id'] not in existing and o['kind'] in self.goal.limit_kinds and o['status'] == 'checked' for o in out))
-        self.moves += 1
+        if resume is None:
+            self.attempts[(target['id'], name)] = self.attempts.get((target['id'], name), 0) + 1
+            self.target_moves[target['id']] = self.target_moves.get(target['id'], 0) + 1
         if reason and reason.startswith('limit') and key not in self.escalated:
             # Out of resources, not out of ideas: the same move gets one retry with a larger allocation.
             self.escalated[key] = allocation
@@ -1390,8 +1521,6 @@ class Agent:
             self.target_moves[target['id']] = self.target_moves.get(target['id'], 0) - 1
         else: self.tried.add(key)
         if name in READS_WORKSPACE or 'cover' in [a['kind'] for a in args]: self.rederivable.add(key)
-        self.attempts[(target['id'], name)] = self.attempts.get((target['id'], name), 0) + 1
-        self.target_moves[target['id']] = self.target_moves.get(target['id'], 0) + 1
         self.samples = record_sample(self.samples, dict(context=context, strategy=name, task=target['id'], success=success,
                                                         seconds=round(seconds, 6), weight=1, source='local'))
         tally = self.outcomes.setdefault((context, name), [0, 0, 0.0])
@@ -1416,6 +1545,7 @@ class Agent:
         if self.moves % PROPOSE_EVERY == 0: self.propose_compositions()
         row = dict(move=self.moves, target=target['kind'], strategy=name, success=success, work=budget.work,
                    outputs=[(o['kind'], o['status']) for o in out][:6])
+        if slices: row['slices'] = slices + 1
         if reason: row['reason'] = reason
         if invented: row['invented'] = invented['name']
         self.log = (self.log + [row])[-MAX_LOG:]
@@ -1695,6 +1825,7 @@ def run(task, state_path, limit, host):
             if row is None: reason = EXHAUSTED; break
     except host.Exhausted as exc:
         reason = str(exc)
+    waiting = agent.close() if agent else 0
     settled = None
     if goal.done(rt): status, reason, settled = 'CHECKED_RESEARCH', 'goal settled by checked results', goal.outcome(rt)
     gained = max(0, sum(1 for o in rt.objects.values() if o['status'] == 'checked') - baseline) if agent else 0
@@ -1729,13 +1860,13 @@ def run(task, state_path, limit, host):
                                                   for s in strategies[:6]]))
     return dict(status=status, reason=reason, settled=settled, task_id=identity, problem=problem, generation=gen,
                 new_checked=gained, rounds=len(rounds), moves_executed=agent.moves if agent else 0, work=budget.work,
+                anytime=dict(slices=agent.slices, resumes=agent.resumes, switches=agent.switches, abandoned=agent.abandoned,
+                             waiting_at_end=waiting) if agent else {},
                 elapsed_ns=time.perf_counter_ns() - started, replayed_objects=replayed, invalidated_objects=invalid,
                 dropped_objects=dropped, carried_objects=dict(admitted=carried[0], refused=carried[1]),
                 carried_later=goal.carry_report(),
                 goal=goal.summary(rt), checked_objects=by_kind,
-                results=[result_row(o) for o in checked if o['kind'] in ('cover', 'finite', 'pattern', 'density', 'theorem',
-                                                                           'dcover', 'cfinite', 'cycle', 'exclusion',
-                                                                           'value', 'witness', 'proof')][-12:],
+                results=visible_results(checked),
                 refutations=sum(1 for o in checked if o['kind'] == 'refutation'),
                 invented_moves=[dict(name=m['name'], origin=m['origin'], status=m['status'], dirs=m['dirs'],
                                      uses=m['uses'], successes=m['successes'], invented_at=m['invented_at'])
@@ -1757,10 +1888,53 @@ PROBLEMS_SCHEMA = 'ember.problems.v1'
 UNTRIED = 'not attempted yet'
 # Ties among equal scores: open problems, then windows (finite exact views onto catalog problems), then closed ones.
 STATUS_TIERS = dict(open=0, window=1, closed=2)
-CHOICE_RULE = ('an untried problem scores p = 1/2 over m = 0.01; a tried one, the doctrine score over her own rounds on '
-               'it (a round with new checked results is a success, its seconds its cost); ties go to open problems, then '
-               'windows, then closed problems, then to the problem type her strategy library has the most successes '
-               'with, then to the id')
+CHOICE_RULE = ('an untried problem scores p = 1/2 over m = 0.01; a tried one, the doctrine score over her last four '
+               'rounds on it (a round with g new checked results is a success of weight g / (g + 64) and a failure of '
+               'the remaining weight, its seconds its cost); a widening she proposed inherits the rounds of the window '
+               'it widens until it has its own; ties go to open problems, then windows, then closed problems, then to '
+               'the problem type her strategy library has the most successes with, then to the id')
+
+
+def round_samples(rounds, name):
+    """Doctrine samples from her rounds on a problem: the last RECENT_ROUNDS rounds, each a success to the degree
+    g / (g + GAIN_HALF) of its g new checked results and a failure for the rest, at the round's seconds."""
+    out = []
+    for i, r in enumerate(rounds[-RECENT_ROUNDS:]):
+        g = r.get('new_checked') if type(r.get('new_checked')) is int and r['new_checked'] >= 0 else 0
+        seconds = r['seconds'] if type(r.get('seconds')) in (int, float) and r['seconds'] >= 0 else 0.0
+        w = g / (g + GAIN_HALF)
+        if w: out.append(dict(context='problem', strategy=name, task=str(i), success=True, weight=w, seconds=seconds))
+        if w < 1: out.append(dict(context='problem', strategy=name, task=str(i), success=False, weight=1 - w, seconds=seconds))
+    return out
+
+
+def proposed_windows(problems, ledger, widen, valid):
+    """Her own next problems: a settled window restated with larger bounds, up to MAX_WIDEN_LEVELS levels. A
+    widening is offered only while the window below it is settled, so her frontier grows one step per settled step;
+    the ledger keeps a widening's rounds under its own task, like any problem's."""
+    out = []
+    if widen is None: return out
+    for e in problems:
+        if e['status'] != 'window': continue
+        parent = e
+        for level in range(2, MAX_WIDEN_LEVELS + 1):
+            key = digest(dict(query='autonomous_research', problem=parent['task']))
+            rounds = ledger.get(key, [])
+            if not rounds or rounds[-1].get('status') != 'CHECKED_RESEARCH': break
+            objects = []
+            for o in parent['task']['objects']:
+                if type(o.get('data')) is not dict or type(o['data'].get('params')) is not dict: objects = None; break
+                p = widen(o['kind'], o['data'].get('family'), o['data']['params'])
+                if p is None: objects = None; break
+                objects.append(dict(kind=o['kind'], data=dict(family=o['data']['family'], params=p)))
+            if objects is None: break
+            task = dict(type='explore', objects=objects, goals=list(parent['task']['goals']))
+            if not valid(task): break
+            child = dict(id=e['id'] + '@' + str(level), title=(e.get('title') or e['id']) + ', widened ' + str(level - 1) + 'x',
+                         status='window', window_of=e.get('window_of'), task=task, proposed_by='ember', level=level,
+                         parent=parent['id'], parent_key=key)
+            out.append(child); parent = child
+    return out
 
 
 def load_problems(host, L):
@@ -1807,24 +1981,30 @@ def choose(problems, state, gen):
     for e in problems:
         key = digest(dict(query='autonomous_research', problem=e['task'])); rec = records.get(key)
         rounds = ledger.get(key) or [r for r in (rec or {}).get('rounds', []) if type(r) is dict]
-        samples = [dict(context='problem', strategy=e['id'], task=str(i), success=bool(r.get('new_checked')), weight=1,
-                        seconds=r['seconds'] if type(r.get('seconds')) in (int, float) and r['seconds'] >= 0 else 0.0)
-                   for i, r in enumerate(rounds)]
+        inherited = not rounds and e.get('parent_key') in ledger
+        history = ledger[e['parent_key']] if inherited else rounds
+        samples = round_samples(history, e['id'])
         score = doctrine_score(samples, 'problem', e['id'])
         here = [r for r in rounds if r.get('generation') == gen[:16]]
         last = here[-1] if here else {}
+        recent = history[-RECENT_ROUNDS:]
         if last.get('status') == 'CHECKED_RESEARCH':
             eligible, why = False, 'settled at this generation (' + str(last.get('settled')) + ')'
         elif last.get('reason') == EXHAUSTED:
             eligible, why = False, 'no untried move left at this generation; waits for new instruments'
+        elif inherited:
+            eligible, why = True, ('her own widening of ' + e['parent'] + ', ranked by its rounds: gains ' +
+                                   ', '.join(str(r.get('new_checked', 0)) for r in recent) + ' in ' +
+                                   str(round(sum(x['seconds'] for x in samples))) + ' s')
         elif not rounds:
             eligible, why = True, UNTRIED if rec is None and key not in ledger else 'attempted before rounds were recorded'
         else:
-            eligible, why = True, (str(sum(1 for x in samples if x['success'])) + ' of ' + str(len(rounds)) +
-                                   ' rounds with new checked results, ' + str(round(sum(x['seconds'] for x in samples))) +
-                                   ' s in all')
+            eligible, why = True, ('last ' + str(len(recent)) + ' of ' + str(len(rounds)) + ' rounds gained ' +
+                                   ', '.join(str(r.get('new_checked', 0)) for r in recent) + ' checked results in ' +
+                                   str(round(sum(x['seconds'] for x in samples))) + ' s')
         rows.append(dict(id=e['id'], status=e['status'], type=e['task']['type'], eligible=eligible, why=why,
                          score=round(score, 6), rounds=len(rounds),
+                         **({'proposed_by': e['proposed_by'], 'level': e['level'], 'parent': e['parent']} if 'proposed_by' in e else {}),
                          order=(not eligible, -score, STATUS_TIERS[e['status']], -affinity.get(e['task']['type'], 0),
                                 e['id'])))
     rows.sort(key=lambda r: r['order'])
@@ -1842,14 +2022,20 @@ def scan(task, state_path, limit, host):
     if type(per) is not int or not 1 <= per <= 100_000_000: raise host.Refused('move work bound')
     if type(go) is not bool: raise host.Refused('run is true or false')
     problems, catalog, needs = load_problems(host, L)
-    gen = generation(); ranking = choose(problems, host.read_state(state_path), gen)
+    gen = generation(); state = host.read_state(state_path)
+    def valid(problem):
+        try: bind(dict(query='autonomous_research', problem=problem), host, L); return True
+        except host.Refused: return False
+    proposed = proposed_windows(problems, load_ledger(state), L.load_ops()[0].get('_widen'), valid)
+    ranking = choose(problems + proposed, state, gen)
     tally = {}; windowed = {e['window_of'] for e in problems if e['status'] == 'window'}
     for e in catalog:
         for n in e['needs']: tally.setdefault(n, []).append(e['id'])
     report = dict(query='open_problems', rule=CHOICE_RULE, ranking=ranking,
                   library=dict(stated=len(problems), open=sum(1 for e in problems if e['status'] == 'open'),
                                closed=sum(1 for e in problems if e['status'] == 'closed'),
-                               windows=sum(1 for e in problems if e['status'] == 'window'), catalog=len(catalog)),
+                               windows=sum(1 for e in problems if e['status'] == 'window'), catalog=len(catalog),
+                               proposed=len(proposed)),
                   backlog=[dict(need=n, problems=len(ids), windowed=sum(1 for i in ids if i in windowed), examples=ids[:4])
                            for n, ids in sorted(tally.items(), key=lambda kv: (-len(kv[1]), kv[0]))])
     pick = next((r for r in ranking if r['eligible']), None)
@@ -1857,14 +2043,35 @@ def scan(task, state_path, limit, host):
         return dict(report, status='UNKNOWN', generation=gen,
                     reason='every stated problem is settled or has no untried move at this generation; the backlog '
                            'names what her language lacks for the rest')
-    entry = next(e for e in problems if e['id'] == pick['id'])
+    entry = next(e for e in problems + proposed if e['id'] == pick['id'])
     report['choice'] = dict(id=entry['id'], title=entry.get('title'), status=entry['status'], why=pick['why'],
                             score=pick['score'])
     if entry['status'] == 'window': report['choice']['window_of'] = entry['window_of']
+    if 'proposed_by' in entry:
+        report['choice'].update(proposed_by=entry['proposed_by'], level=entry['level'], parent=entry['parent'],
+                                task=entry['task'])
     if not go: return dict(report, status='SCANNED', generation=gen, reason='choice made; the round was not run')
     result = run(dict(query='autonomous_research', problem=entry['task'], moves=moves, move_work=per, name=entry['id']),
                  state_path, limit, host)
     return dict(result, **report)
+
+
+RESULT_KINDS = ('cover', 'finite', 'pattern', 'density', 'theorem', 'derived', 'dcover', 'cfinite', 'cycle', 'exclusion',
+                'value', 'witness', 'proof')
+
+
+def visible_results(checked):
+    """The last twelve result rows, with the range chain summarized: the base range, the widest admitted union and
+    the widest theorem extension stand for the chunks and derivations behind them (all of which are counted)."""
+    rows = [o for o in checked if o['kind'] in RESULT_KINDS]
+    unions = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'range_union']
+    extensions = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_range']
+    keep = {id(o) for o in (max(unions, key=lambda o: o['data']['statement']['hi'], default=None),
+                            max(extensions, key=lambda o: o['data']['statement']['range_hi'], default=None)) if o is not None}
+    base_lo = min((o['data']['lo'] for o in rows if o['kind'] == 'finite'), default=None)
+    shown = [o for o in rows if not (o['kind'] == 'finite' and o['data']['lo'] != base_lo)
+             and not (o['kind'] == 'derived' and id(o) not in keep)]
+    return [result_row(o) for o in shown][-12:]
 
 
 def result_row(o):
@@ -1879,6 +2086,8 @@ def result_row(o):
                                           open_coprime=ev.get('open_coprime'), lo=d['lo'], range_hi=ev.get('range_hi'))
     if o['kind'] == 'dcover': row.update(modulus=d['modulus'], covered=ev.get('covered'))
     if o['kind'] == 'cfinite': row.update(lo=d['lo'], hi=d['hi'])
+    if o['kind'] == 'derived': row.update(rule=d['rule'], premises=len(d['premises']), **{k: v for k, v in d['statement'].items() if k != 'kind'},
+                                          statement=d['statement']['kind'])
     if o['kind'] == 'cycle': row.update(start=d['start'], length=d['length'])
     if o['kind'] in ('value', 'witness', 'proof'):
         # a window's answer: the value itself, or the checker's summary of a witness or proof, cut for the report

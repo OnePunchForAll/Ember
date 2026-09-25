@@ -540,6 +540,51 @@ def _windows():
 WINDOWS = _windows()
 
 
+# ------------------------------------------------------------- derivations: claims that follow from other saved claims
+
+def statement_of(kind, data):
+    """What a saved claim states, in the form the derivation rules compose (this tool's own reading of it)."""
+    if kind == 'finite': return dict(kind='range', a=data['a'], terms=data['terms'], lo=data['lo'], hi=data['hi'])
+    if kind == 'theorem':
+        return dict(kind='theorem', a=data['a'], terms=data['terms'], lo=data['lo'],
+                    modulus=data['finite']['cover']['modulus'], range_hi=data['finite']['hi'])
+    if kind == 'derived': return data['statement']
+    return None
+
+
+def derived_verdict(d, admitted):
+    """A derivation holds when every premise it names is a VERIFIED saved claim of the same record and its statement
+    is exactly what the named rule gives from the premises' statements. admitted maps a claim's identity (the digest
+    of its kind and data) to (kind, data, verdict)."""
+    if set(d) != {'rule', 'premises', 'statement'} or type(d['premises']) is not list: return 'REFUTED', 'malformed derivation'
+    premises = []
+    for i in d['premises']:
+        row = admitted.get(i)
+        if row is None: return 'UNRESOLVED', 'premise ' + str(i)[:12] + ' is not among the saved claims'
+        kind, data, v = row
+        if v != 'VERIFIED': return 'UNRESOLVED', 'premise ' + str(i)[:12] + ' did not verify'
+        s = statement_of(kind, data)
+        if s is None: return 'REFUTED', 'a ' + kind + ' claim is not a premise of any rule'
+        premises.append(s)
+    s = d['statement']
+    if d['rule'] == 'range_union':
+        if len(premises) != 2 or any(q['kind'] != 'range' for q in premises): return 'REFUTED', 'range_union takes two ranges'
+        first, second = sorted(premises, key=lambda q: (q['lo'], q['hi']))
+        if (first['a'], first['terms']) != (second['a'], second['terms']): return 'REFUTED', 'ranges of different questions'
+        if second['lo'] > first['hi']: return 'REFUTED', 'the ranges leave a gap'
+        expected = dict(kind='range', a=first['a'], terms=first['terms'], lo=first['lo'], hi=max(first['hi'], second['hi']))
+        return ('VERIFIED', 'union of admitted ranges') if s == expected else ('REFUTED', 'the stated range is not the union')
+    if d['rule'] == 'theorem_range':
+        T = [q for q in premises if q['kind'] == 'theorem']; R = [q for q in premises if q['kind'] == 'range']
+        if len(premises) != 2 or len(T) != 1 or len(R) != 1: return 'REFUTED', 'theorem_range takes a theorem and a range'
+        T, R = T[0], R[0]
+        if (T['a'], T['terms']) != (R['a'], R['terms']): return 'REFUTED', 'a theorem and a range of different questions'
+        if not (T['lo'] <= R['lo'] <= T['range_hi'] < R['hi']): return 'REFUTED', 'the range does not extend the theorem range'
+        expected = dict(T, range_hi=R['hi'])
+        return ('VERIFIED', 'theorem extended over an admitted range') if s == expected else ('REFUTED', 'the statement is not the extension')
+    return 'UNRESOLVED', 'no independent rule for derivation ' + str(d['rule'])
+
+
 def verdict(kind, data):
     if type(data) is dict and set(data) == {'unresolvable'}: return 'UNRESOLVED', data['unresolvable']
     if kind in ('value', 'witness', 'proof'): return WINDOWS.verdict(kind, data)
@@ -602,6 +647,10 @@ def self_test():
         'compact family rebuilds the written one': [trim(expand(e)) for e in unshaped(
             dict(a=4, m=4, r=3, k0=0, s=0), compact_case(False)['shapes'])['x']] == [trim(expand(e)) for e in good['x']],
         'window rules tell true from false claims': WINDOWS.self_test()[0],
+        'range union of touching ranges verifies': derivation_case()[0] == 'VERIFIED',
+        'range union with a gap refuted': derivation_case(gap=True)[0] == 'REFUTED',
+        'theorem range extension verifies': derivation_case(theorem=True)[0] == 'VERIFIED',
+        'theorem range claiming more refuted': derivation_case(theorem=True, more=True)[0] == 'REFUTED',
     }
     return all(checks.values()), checks
 
@@ -632,6 +681,23 @@ def sieved(case):
 def digest(value):
     import hashlib
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+def derivation_case(gap=False, theorem=False, more=False):
+    """Derivations over premises this tool treats as verified: two touching ranges (or with a gap), and a theorem
+    extended by a range (or claiming a larger range than the premise gives)."""
+    base = dict(a=4, terms=3, lo=2, hi=100, witnesses={}, divisors={}, cover=None)
+    chunk = dict(base, lo=101 if gap else 100, hi=200)
+    admitted = {digest(dict(kind='finite', data=base)): ('finite', base, 'VERIFIED'),
+                digest(dict(kind='finite', data=chunk)): ('finite', chunk, 'VERIFIED')}
+    union = dict(rule='range_union', premises=list(admitted), statement=dict(kind='range', a=4, terms=3, lo=2, hi=200))
+    if not theorem: return derived_verdict(union, admitted)
+    admitted[digest(dict(kind='derived', data=union))] = ('derived', union, 'VERIFIED')
+    T = dict(a=4, terms=3, lo=2, finite=dict(base, cover=dict(modulus=24)))
+    admitted[digest(dict(kind='theorem', data=T))] = ('theorem', T, 'VERIFIED')
+    ext = dict(rule='theorem_range', premises=[digest(dict(kind='theorem', data=T)), digest(dict(kind='derived', data=union))],
+               statement=dict(kind='theorem', a=4, terms=3, lo=2, modulus=24, range_hi=300 if more else 200))
+    return derived_verdict(ext, admitted)
 
 
 def saved_rows(record, state_path):
@@ -706,9 +772,30 @@ def main(argv):
     if len(argv) != 2: print(__doc__); return 2
     state = json.loads(Path(argv[1]).read_text(encoding='utf-8'))
     ok, tests = self_test(); rows = []
-    for task, kind, data in claims_of(state, argv[1]):
-        v, detail = verdict(kind, data) if ok else ('UNRESOLVED', 'the verifier failed its own self-test')
-        rows.append(dict(task_id=task[:16], kind=kind, verdict=v, detail=detail))
+    groups = {}
+    for task, kind, data in claims_of(state, argv[1]): groups.setdefault(task, []).append((kind, data))
+    for task, items in groups.items():
+        admitted = {}
+        for kind, data in items:
+            if kind == 'derived': continue
+            v, detail = verdict(kind, data) if ok else ('UNRESOLVED', 'the verifier failed its own self-test')
+            rows.append(dict(task_id=task[:16], kind=kind, verdict=v, detail=detail))
+            if type(data) is dict: admitted[digest(dict(kind=kind, data=data))] = (kind, data, v)
+        # Derivations after the claims they rest on, in passes, so one may rest on another.
+        pending = [data for kind, data in items if kind == 'derived']
+        while pending:
+            rest = []
+            for data in pending:
+                if type(data) is dict and all(i in admitted for i in data.get('premises', [])):
+                    v, detail = derived_verdict(data, admitted) if ok else ('UNRESOLVED', 'the verifier failed its own self-test')
+                    rows.append(dict(task_id=task[:16], kind='derived', verdict=v, detail=detail))
+                    admitted[digest(dict(kind='derived', data=data))] = ('derived', data, v)
+                else: rest.append(data)
+            if len(rest) == len(pending):
+                for data in rest: rows.append(dict(task_id=task[:16], kind='derived', verdict='UNRESOLVED',
+                                                    detail='a premise is not among the saved claims'))
+                break
+            pending = rest
     counts = {k: sum(r['verdict'] == k for r in rows) for k in ('VERIFIED', 'REFUTED', 'UNRESOLVED')}
     bit = 'verified' if rows and counts['VERIFIED'] == len(rows) else 'no, keep thinking'
     walls = [r for r in rows if r['kind'] == 'nofamily']

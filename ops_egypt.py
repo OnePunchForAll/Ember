@@ -37,6 +37,8 @@ LIFT_CAP = 10 ** 7
 LIFT_CLASSES = 60_000
 WALL_CAP = 10 ** 12
 SWEEP_CLASSES = 4000
+RANGE_FRONTIER = 10  # she extends a checked range in chunks of its own size, up to this multiple of verify_to
+BREATH = 64  # an anytime move breathes after this many n
 
 
 def op(name, dirs, consumes, produces, summary):
@@ -80,7 +82,13 @@ def integral(polys):
 
 
 def ansatz(a, m, r, pairs, budget, limit=1):
-    """Families of the divisor ansatz on the class n = m*k + r, in the order of the (s, c) pairs.
+    """Families of the divisor ansatz on the class n = m*k + r, in the order of the (s, c) pairs (see ansatz_steps)."""
+    return L.drive(ansatz_steps(a, m, r, pairs, budget, limit))
+
+
+def ansatz_steps(a, m, r, pairs, budget, limit=1):
+    """Families of the divisor ansatz on the class n = m*k + r, in the order of the (s, c) pairs; an anytime search
+    that breathes after each pair, so a scheduler may suspend it there and resume it later.
 
     Integer values at k = 0..4 prefilter every divisor shape; survivors are built
     as exact polynomials. Degrees are at most four, so five points decide integrality.
@@ -88,7 +96,7 @@ def ansatz(a, m, r, pairs, budget, limit=1):
     ks = range(5); nk = [m * k + r for k in ks]; found = []
     cont_n = gcd(m, r); n_p = [Q(r, cont_n), Q(m, cont_n)]
     for s, c in pairs:
-        budget.use()
+        budget.use(); yield
         if (s * r + c) % a or (s * m) % a: continue
         X0, X1 = (s * r + c) // a, (s * m) // a
         if X0 <= 0: continue
@@ -488,23 +496,25 @@ def egypt_family_identity(rt, fam):
 # ------------------------------------------------------------- family discovery
 
 @op('egypt_divisor_ansatz', 'NWS', ('eclass',), ('ufam', 'residual'),
-    'Base grammar: x = (s*n+c)/a with s < 13 and c < 40, and every divisor shape of N^2; a miss is a residual.')
+    'Base grammar: x = (s*n+c)/a with s < 13 and c < 40, and every divisor shape of N^2; a miss is a residual. An '
+    'anytime move: it breathes after each (s, c) pair.')
 def egypt_divisor_ansatz(rt, cls):
     a, terms, m, r = question_class(cls)
     if terms != 3: return []
-    found = ansatz(a, m, r, [(s, c) for s in BASE_S for c in BASE_C], rt.budget)
+    found = yield from ansatz_steps(a, m, r, [(s, c) for s in BASE_S for c in BASE_C], rt.budget)
     if not found: return [rt.residual(cls, ['base divisor grammar exhausted'], 'ansatz miss')]
     fam = rt.propose('ufam', found[0][0], (cls,))
     return [fam] if rt.check(fam) else []
 
 
 @op('egypt_ansatz_extend', 'NWS', ('eclass',), ('ufam', 'template', 'residual'),
-    'Invent a template outside the base grammar (s < 25, c < 240, polynomial excess); it becomes a reusable move.')
+    'Invent a template outside the base grammar (s < 25, c < 240, polynomial excess); it becomes a reusable move. An '
+    'anytime move: it breathes after each (s, c) pair.')
 def egypt_ansatz_extend(rt, cls):
     a, terms, m, r = question_class(cls)
     if terms != 3: return []
     pairs = [(s, c) for s in EXTENDED_S for c in EXTENDED_C if not (s in BASE_S and c in BASE_C)]
-    found = ansatz(a, m, r, pairs, rt.budget)
+    found = yield from ansatz_steps(a, m, r, pairs, rt.budget)
     if not found: return [rt.residual(cls, ['extended divisor grammar exhausted'], 'extended ansatz miss')]
     fam = rt.propose('ufam', found[0][0], (cls,))
     if not rt.check(fam): return []
@@ -647,7 +657,8 @@ def lemma_holds(rt, a, M):
 
 @op('egypt_classical_sweep', 'NWS', ('esq',), ('ufam', 'residual'),
     'Run the classical generator over the classes of the question modulus that no checked family reaches, many in '
-    'one move: a family for each class it reaches, stated on the coarsest class, and a classical miss for each other.')
+    'one move: a family for each class it reaches, stated on the coarsest class, and a classical miss for each other. '
+    'An anytime move: it breathes after each class.')
 def egypt_classical_sweep(rt, esq):
     d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
     if terms != 3 or M > WALL_CAP: return []
@@ -658,7 +669,7 @@ def egypt_classical_sweep(rt, esq):
         if cls['id'] in missed or reached(index, M, r): continue
         if squares_known and gcd(r, M) == 1 and not local_nonresidues(r, powers): continue  # her lemma settles these
         if done >= SWEEP_CLASSES: break
-        done += 1; found = classical_search(a, M, r, CLASSICAL_BOUND, rt.budget)
+        done += 1; yield; found = classical_search(a, M, r, CLASSICAL_BOUND, rt.budget)
         if not found:
             out.append(rt.residual(cls, ['classical fixed-parameter families exhausted'], 'classical miss')); continue
         fam = rt.propose('ufam', classical_family(a, M, r, found[0]), (cls,))
@@ -880,11 +891,114 @@ def egypt_choose_lift(rt, esq):
 
 @op('egypt_reduction_theorem', 'NS', ('finite',), ('theorem',),
     'State the theorem a checked range and its cover prove together: every n >= min outside the open residue '
-    'classes has a representation; the checker verifies the whole chain, class by class.')
+    'classes has a representation; the checker verifies the whole chain, class by class. Only the range that starts '
+    'lowest states the theorem; a later chunk extends it through a derivation.')
 def egypt_reduction_theorem(rt, finite):
     d = finite['data']
     if finite['status'] != 'checked' or d['cover'] is None: return []
+    if any(o['kind'] == 'finite' and o['status'] == 'checked' and o['data']['a'] == d['a'] and o['data']['terms'] == d['terms']
+           and o['data']['lo'] < d['lo'] for o in rt.objects.values()): return []
     claim = rt.propose('theorem', dict(a=d['a'], terms=d['terms'], lo=d['lo'], finite=d), (finite,))
+    return [claim] if rt.check(claim) else []
+
+
+# ------------------------------------------------------------- ranges beyond the checker's bound: chunks and derivations
+
+def range_statements(rt, a, terms):
+    """Every admitted range of this question, as (lo, hi, object): checked finite claims and derived range statements."""
+    out = []
+    for o in rt.objects.values():
+        if o['status'] != 'checked': continue
+        if o['kind'] == 'finite' and o['data']['a'] == a and o['data']['terms'] == terms:
+            out.append((o['data']['lo'], o['data']['hi'], o))
+        elif o['kind'] == 'derived' and o['data']['statement'].get('kind') == 'range' \
+                and o['data']['statement']['a'] == a and o['data']['statement']['terms'] == terms:
+            out.append((o['data']['statement']['lo'], o['data']['statement']['hi'], o))
+    return out
+
+
+def frontier(ranges, lo):
+    """The largest hi reached from lo by admitted ranges that touch or overlap, and the range object reaching it."""
+    reach, best = lo, None
+    while True:
+        step = max(((hi, o) for l, hi, o in ranges if l <= reach < hi), key=lambda x: x[0], default=None)
+        if step is None: return reach, best
+        reach, best = step
+
+
+def theorem_statements(rt, a, terms):
+    """Every admitted theorem of this question, as (lo, range_hi, modulus, object): theorem claims and derived ones."""
+    out = []
+    for o in rt.objects.values():
+        if o['status'] != 'checked': continue
+        if o['kind'] == 'theorem' and o['data']['a'] == a and o['data']['terms'] == terms:
+            f = o['data']['finite']; out.append((o['data']['lo'], f['hi'], f['cover']['modulus'], o))
+        elif o['kind'] == 'derived' and o['data']['statement'].get('kind') == 'theorem' \
+                and o['data']['statement']['a'] == a and o['data']['statement']['terms'] == terms:
+            s = o['data']['statement']; out.append((s['lo'], s['range_hi'], s['modulus'], o))
+    return out
+
+
+@op('egypt_range_chunk', 'NWS', ('esq',), ('finite', 'residual'),
+    'Verify the next chunk past the admitted range frontier, as long as the base range, up to ten times verify_to: '
+    'cover classes or a witness for each n. An anytime move: it breathes after every 256 n.')
+def egypt_range_chunk(rt, esq):
+    d = esq['data']; a, terms, lo, size = d['a'], d['terms'], d['min'], d['verify_to'] - d['min']
+    start, _ = frontier(range_statements(rt, a, terms), lo)
+    cap = lo + RANGE_FRONTIER * size
+    if start < d['verify_to'] or start >= cap: return []
+    hi = min(start + size, cap)
+    cover = best_cover(rt, a, terms); thresholds = {}
+    for entry in (cover['data']['entries'] if cover else []):
+        f = entry['family']; row = thresholds.setdefault(f['m'], {})
+        row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
+    witnesses, divisors, done, missing = {}, {}, set(), []
+    for n in range(start, hi):
+        if (n - start) % BREATH == 0: yield
+        rt.budget.use(1 + len(thresholds))
+        if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): done.add(n); continue
+        p = next((q for q in sorted(L.factor(n)) if q < n and q in done), None)
+        if p is not None: divisors[str(n)] = p; done.add(n); continue
+        xs = witness(a, n, rt.budget, max_excess=4 * a * 256) if terms == 3 else None
+        if xs is None: missing.append(n); continue
+        witnesses[str(n)] = sorted(xs)[:-1]; done.add(n)
+    if missing: return [rt.residual(esq, missing[:4096], 'no witness found within the search bound past ' + str(start))]
+    claim = rt.propose('finite', dict(a=a, terms=terms, lo=start, hi=hi, witnesses=witnesses, divisors=divisors,
+                                      cover=cover['data'] if cover else None), (esq,) + ((cover,) if cover else ()))
+    return [claim] if rt.check(claim) else []
+
+
+@op('egypt_range_union', 'NS', ('esq',), ('derived',),
+    'Derive the union of the admitted range from min with the chunk that touches its frontier: a derivation the '
+    'checker admits from the two premises by the range_union rule, without verifying either range again.')
+def egypt_range_union(rt, esq):
+    d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
+    ranges = range_statements(rt, a, terms)
+    # The spine is the longest admitted range from min; the chunk touches or overlaps its end and reaches past it.
+    spine = max(((hi, o) for l, hi, o in ranges if l == lo), key=lambda x: x[0], default=None)
+    if spine is None: return []
+    reach, base = spine
+    chunk = max(((hi, o) for l, hi, o in ranges if o is not base and l <= reach < hi), key=lambda x: x[0], default=None)
+    if chunk is None: return []
+    statement = dict(kind='range', a=a, terms=terms, lo=lo, hi=chunk[0])
+    claim = rt.propose('derived', dict(rule='range_union', premises=[base['id'], chunk[1]['id']], statement=statement),
+                       (base, chunk[1]))
+    return [claim] if rt.check(claim) else []
+
+
+@op('egypt_theorem_range', 'NS', ('esq',), ('derived',),
+    'Extend the admitted theorem to the admitted range past its own: a derivation by the theorem_range rule.')
+def egypt_theorem_range(rt, esq):
+    d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
+    theorems = [row for row in theorem_statements(rt, a, terms) if row[0] == lo]
+    if not theorems: return []
+    t_lo, t_hi, modulus, T = max(theorems, key=lambda row: (row[1], row[2]))
+    ranges = range_statements(rt, a, terms)
+    beyond = max(((hi, o) for l, hi, o in ranges if t_lo <= l <= t_hi < hi), key=lambda x: x[0], default=None)
+    if beyond is None: return []
+    statement = dict(kind='theorem', a=a, terms=terms, lo=t_lo, modulus=modulus, range_hi=beyond[0])
+    claim = rt.propose('derived', dict(rule='theorem_range', premises=[T['id'], beyond[1]['id']], statement=statement),
+                       (T, beyond[1]))
     return [claim] if rt.check(claim) else []
 
 
@@ -898,7 +1012,8 @@ def egypt_density(rt, cover):
 
 
 @op('egypt_finite_verify', 'NWS', ('esq',), ('finite', 'residual'),
-    'Verify every n in [min, verify_to): cover classes, a checked prime divisor scaled up, or a new witness.')
+    'Verify every n in [min, verify_to): cover classes, a checked prime divisor scaled up, or a new witness. An '
+    'anytime move: it breathes after every 256 n.')
 def egypt_finite_verify(rt, esq):
     d = esq['data']; a, terms, lo, hi = d['a'], d['terms'], d['min'], d['verify_to']
     cover = best_cover(rt, a, terms)
@@ -908,6 +1023,7 @@ def egypt_finite_verify(rt, esq):
         row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
     witnesses, divisors, done, missing = {}, {}, set(), []
     for n in range(lo, hi):
+        if (n - lo) % BREATH == 0: yield  # a breath: the scheduler may suspend the move here
         rt.budget.use(1 + len(thresholds))
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): done.add(n); continue
         p = next((q for q in sorted(L.factor(n)) if q < n and q in done), None)
@@ -1012,12 +1128,35 @@ def _sweep_level(rt):
 
 def _walled_level(rt):
     """The same level after a sweep: the classical misses are ready to be certified as walls in one claim."""
-    esq = _sweep_level(rt)[0]; egypt_classical_sweep(rt, esq)
+    esq = _sweep_level(rt)[0]; L.drive(egypt_classical_sweep(rt, esq))
     return [esq]
 
 
 def _sieved_range(rt):
-    _sieved_cover(rt); return egypt_finite_verify(rt, _esq(rt, 120, verify_to=400))
+    _sieved_cover(rt); return L.drive(egypt_finite_verify(rt, _esq(rt, 120, verify_to=400)))
+
+
+def _ranged_level(rt, verify_to=400):
+    """A level with a classical cover and its base range checked: the frontier a chunk extends."""
+    esq = _esq(rt, 24, verify_to=verify_to); _classical_cover(rt, 24); L.drive(egypt_finite_verify(rt, esq)); return [esq]
+
+
+def _chunked_level(rt):
+    esq = _ranged_level(rt)[0]; L.drive(egypt_range_chunk(rt, esq)); return [esq]
+
+
+def _theorem_level(rt):
+    esq = _chunked_level(rt)[0]
+    base = next(o for o in rt.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked' and o['data']['lo'] == 2)
+    egypt_reduction_theorem(rt, base); egypt_range_union(rt, esq); return [esq]
+
+
+def _four_term_level(rt):
+    """A four-term question whose base range is checked by hand; the chunk past it finds no witness (a residual)."""
+    esq = rt.given('esq', dict(a=4, terms=4, min=2, modulus=24, verify_to=5))
+    _checked(rt, 'finite', dict(a=4, terms=4, lo=2, hi=5, witnesses={'2': [1, 2, 4], '3': [1, 6, 12], '4': [2, 4, 8]}, divisors={},
+                                cover=None))
+    return [esq]
 
 
 FIXTURES = {
@@ -1057,7 +1196,10 @@ FIXTURES = {
     'egypt_wall_sweep': [_walled_level],
     'egypt_signature_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_local_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
-    'egypt_reduction_theorem': [lambda rt: egypt_finite_verify(rt, _esq(rt, 24, verify_to=400))
+    'egypt_reduction_theorem': [lambda rt: L.drive(egypt_finite_verify(rt, _esq(rt, 24, verify_to=400)))
                                 if _classical_cover(rt, 24) else [], _sieved_range],
+    'egypt_range_chunk': [_ranged_level, _four_term_level],
+    'egypt_range_union': [_chunked_level],
+    'egypt_theorem_range': [_theorem_level],
     'egypt_choose_lift': [_lift_inputs],
 }

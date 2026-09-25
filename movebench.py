@@ -10,8 +10,10 @@ checker call, its argument and output kinds match its signature, and nothing
 raised. The per-direction counts therefore count only executed, observed moves.
 """
 import importlib.util
+from inspect import isgeneratorfunction
 from pathlib import Path
 import time
+from types import GeneratorType
 
 FIXTURE_WORK = 20_000_000
 
@@ -36,7 +38,7 @@ def run(names=None):
     rows = []; started = time.perf_counter_ns()
     for name, spec in registry.items():
         if name.startswith('_') or (names and name not in names): continue
-        observed, problems, outputs, work = set(), [], 0, 0
+        observed, problems, outputs, work, breaths = set(), [], 0, 0, 0
         cases = fixtures.get(name, [])
         if not cases: problems.append('no fixture')
         for build in cases:
@@ -47,6 +49,11 @@ def run(names=None):
                     problems.append('fixture kinds ' + ','.join(a['kind'] for a in args)); continue
                 rt.events = []
                 out = spec['fn'](rt, *args)
+                if isinstance(out, GeneratorType):
+                    # An anytime move: the bench runs it whole and counts its breaths (points a scheduler may suspend it).
+                    while True:
+                        try: next(out); breaths += 1
+                        except StopIteration as done: out = done.value or []; break
             except Exception as exc:  # the bench reports failures instead of stopping
                 problems.append(type(exc).__name__ + ': ' + str(exc)[:160]); continue
             work += rt.budget.work; outputs += len(out)
@@ -55,17 +62,22 @@ def run(names=None):
             for o in out:
                 if o['kind'] not in spec['produces']: problems.append('unexpected output kind ' + o['kind'])
                 if o['status'] == 'checked':
-                    try: checker.check(o['kind'], o['data'], Budget(FIXTURE_WORK))
+                    # A derivation is rechecked against the premises of its own runtime; every other claim stands alone.
+                    try:
+                        if o['kind'] == 'derived': checker.check(o['kind'], o['data'], Budget(FIXTURE_WORK), rt.admitted)
+                        else: checker.check(o['kind'], o['data'], Budget(FIXTURE_WORK))
                     except checker.Invalid as exc: problems.append('fresh recheck failed: ' + str(exc)[:120])
         declared = set(spec['dirs'])
         if observed != declared:
             problems.append('declared ' + spec['dirs'] + ' but observed ' + ''.join(d for d in 'NWSE' if d in observed))
         rows.append(dict(name=name, module=spec['module'], entry=spec['entry'], dirs=spec['dirs'],
                          observed=''.join(d for d in 'NWSE' if d in observed), fixtures=len(cases), outputs=outputs,
-                         work=work, ok=not problems, problems=problems, summary=spec['summary']))
+                         work=work, anytime=isgeneratorfunction(spec['fn']), breaths=breaths, ok=not problems,
+                         problems=problems, summary=spec['summary']))
     counts = {d: sum(d in row['dirs'] for row in rows if row['ok']) for d in 'NWSE'}
     return dict(status='MOVE_BENCH', ok=all(row['ok'] for row in rows), operators=len(rows),
                 passed=sum(row['ok'] for row in rows), counts=counts, rows=rows,
+                anytime=sum(1 for row in rows if row['anytime']), breaths=sum(row['breaths'] for row in rows),
                 elapsed_ns=time.perf_counter_ns() - started,
                 limits='Directions are observed on fixtures, not proved for every input; a passing operator can still '
                        'miss on other inputs, and only the checker admits a claim.')

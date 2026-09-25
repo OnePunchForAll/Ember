@@ -193,6 +193,9 @@ def _widened(tool, family, params):
     return p
 
 
+WIDEN = _widened  # her scan reads this rule to propose a settled window's widening as her own next problem
+
+
 @op('window_widen', 'NSE', ('value',), ('value',),
     'Restate a checked window with larger bounds and compute it: a new question derived from a checked answer.')
 def window_widen(rt, claim):

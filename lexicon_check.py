@@ -1038,6 +1038,65 @@ def class_thresholds(cover, budget):
     return least
 
 
+# ------------------------------------------------------------- derivations: claims that follow from admitted claims
+
+DERIVATION_RULES = ('range_union', 'theorem_range')
+MAX_PREMISES = 8
+
+
+def statement_of(kind, data):
+    """What an admitted claim states, in the form derivations compose: a range of represented n, or a theorem."""
+    if kind == 'finite':
+        return dict(kind='range', a=data['a'], terms=data['terms'], lo=data['lo'], hi=data['hi'])
+    if kind == 'theorem':
+        f = data['finite']
+        return dict(kind='theorem', a=data['a'], terms=data['terms'], lo=data['lo'], modulus=f['cover']['modulus'],
+                    range_hi=f['hi'])
+    if kind == 'derived': return data['statement']
+    raise Invalid('a ' + str(kind) + ' claim is not a premise a derivation rule composes')
+
+
+def check_derived(data, budget, admitted=None):
+    """A claim that follows from admitted premises by a named rule. The premises are named by identity (the digest of
+    their kind and data); admitted() gives an admitted claim's kind and data, or None. The checker verifies the rule,
+    never the premises again: a derivation is sound only in a workspace whose admissions are sound."""
+    need(set(data) == {'rule', 'premises', 'statement'}, 'derivation fields')
+    need(admitted is not None, 'a derivation is checked only where its premises can be looked up')
+    ids = data['premises']
+    need(type(ids) is list and 1 <= len(ids) <= MAX_PREMISES and all(type(i) is str and len(i) == 64 for i in ids)
+         and len(set(ids)) == len(ids), 'premise identities')
+    rule, s = data['rule'], data['statement']
+    need(rule in DERIVATION_RULES, 'unknown derivation rule')
+    need(type(s) is dict, 'derived statement')
+    premises = []
+    for i in ids:
+        row = admitted(i); budget.use()
+        need(row is not None, 'premise ' + i[:12] + ' is not an admitted claim here')
+        premises.append(statement_of(*row))
+    if rule == 'range_union':
+        need(len(premises) == 2 and all(q['kind'] == 'range' for q in premises), 'range_union takes two ranges')
+        first, second = sorted(premises, key=lambda q: (q['lo'], q['hi']))
+        need(first['a'] == second['a'] and first['terms'] == second['terms'], 'ranges of one question')
+        need(second['lo'] <= first['hi'], 'the ranges leave a gap')
+        need(s == dict(kind='range', a=first['a'], terms=first['terms'], lo=first['lo'], hi=max(first['hi'], second['hi'])),
+             'the union is not the stated range')
+        return dict(ok=True, kind='derived', rule=rule, lo=s['lo'], hi=s['hi'],
+                    scope='Every integer n with lo <= n < hi has a representation of a/n with the stated number of terms.',
+                    proof='Each n in the union lies in one of the two admitted ranges, which touch or overlap.')
+    need(len(premises) == 2, 'theorem_range takes a theorem and a range')
+    T = next((q for q in premises if q['kind'] == 'theorem'), None); R = next((q for q in premises if q['kind'] == 'range'), None)
+    need(T is not None and R is not None, 'theorem_range takes a theorem and a range')
+    need(T['a'] == R['a'] and T['terms'] == R['terms'], 'a theorem and a range of one question')
+    need(T['lo'] <= R['lo'] <= T['range_hi'] < R['hi'], 'the range must start inside the theorem range and reach past it')
+    need(s == dict(T, range_hi=R['hi']), 'the stated theorem differs from the premise beyond its range')
+    return dict(ok=True, kind='derived', rule=rule, modulus=T['modulus'], lo=T['lo'], range_hi=R['hi'],
+                scope='For every integer n >= lo whose residue modulo the cover modulus is covered by the cover of the '
+                      'premise theorem, a/n is a sum of the stated number of unit fractions; and every n in [lo, range_hi) '
+                      'is, whatever its residue.',
+                proof='Members of covered classes below the old range bound are represented by the theorem, above it '
+                      'by its families; every n up to the new bound lies in the theorem range or in the admitted range.')
+
+
 def check_reduction(data, budget):
     need(data == dict(a=data.get('a'), terms=data.get('terms'), rule='multiples'), 'reduction fields')
     integer(data['a'], 1, 64); integer(data['terms'], 2, 6)
@@ -1654,6 +1713,9 @@ def question(kind, data):
     if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem'):
         body = data.get('cover', data) if kind == 'density' else data
         return digest(dict(q='esq', a=body.get('a'), terms=body.get('terms')))
+    if kind == 'derived':
+        s = data.get('statement'); need(type(s) is dict, 'derived statement')
+        return digest(dict(q='esq', a=s.get('a'), terms=s.get('terms')))
     if kind in ('countval', 'count'):
         return digest(dict(q='count', m=data.get('matrix'), u=data.get('initial'), v=data.get('terminal'), h=data.get('horizon')))
     if kind in ('divis',): return digest(dict(q='divis', expr=data.get('expr')))
@@ -1698,9 +1760,14 @@ def window_compute(tool, name, params, budget):
         raise Invalid('malformed window: ' + type(exc).__name__) from exc
 
 
-def check(kind, data, budget):
-    """Admit a claim of the given kind, or raise Invalid; question kinds are not claims."""
+def check(kind, data, budget, admitted=None):
+    """Admit a claim of the given kind, or raise Invalid; question kinds are not claims. A derivation ('derived') is
+    checked against the premises that admitted() names as already admitted."""
     need(type(data) is dict, 'object data')
+    if kind == 'derived':
+        try: return check_derived(data, budget, admitted)
+        except (KeyError, TypeError, IndexError, ZeroDivisionError) as exc:
+            raise Invalid('malformed derived: ' + type(exc).__name__) from exc
     if kind == 'invariant':
         check_invariant(data, budget)
         return dict(ok=True, kind='invariant', scope='P(F(x)) = P(x) as polynomials.', proof='Exact expansion.')

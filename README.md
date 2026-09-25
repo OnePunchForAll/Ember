@@ -9,7 +9,7 @@ API key, downloaded weights, third-party package or source archive. Python itsel
 is an external prerequisite and is **not** included. Generations through
 `ember-pyramid-15` were tested on Windows with Python 3.14.6. Generation
 `ember-pyramid-16` added the apex layer; this generation, `ember-pyramid-17`,
-adds a typed operator language (now 212 executed operators), a move bench, an
+adds a typed operator language (now 215 executed operators), a move bench, an
 autonomous research agent, an open-problem library and 29 window tools that give
 her a finite exact view of 125 catalogued open problems. Both were verified on Linux x86_64 with Python 3.11.15
 only; they have not been rerun on the Windows host. Other Python versions,
@@ -629,10 +629,10 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 369 implemented moves across
+`--pyramid` prints the map. Its base is a catalog of 372 implemented moves across
 34 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 212 operators of the typed language described below. The
-base holds 166 moves with an N component, 117 with W, 310 with S and 105 with E.
+or replay work) and the 215 operators of the typed language described below. The
+base holds 169 moves with an N component, 118 with W, 313 with S and 105 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
 fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
@@ -869,13 +869,14 @@ linear recurrence for every index, a rational generating function, a closed form
 a period modulo m, a polynomial identity, an invariant or semi-invariant, an orbit
 exclusion, a unit-fraction family polynomial in the class parameter, a
 residue-class cover, a checked finite range, a modular root or its absence, a
-descent certificate, a cycle, and a window's value, witness or proof).
+descent certificate, a cycle, a window's value, witness or proof, and a
+derivation: a claim that follows from admitted claims by a named rule).
 `lexicon_check.py` is the only way a claim becomes checked. It imports no operator
 code, has its own exact arithmetic (its window checkers live in `window_check.py`,
 `window_real.py` and `window_discrete.py`), and binds every claim to the question
 stated in its own data.
 
-212 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+215 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
 `ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`, `ops_wnum`, `ops_wdisc`)
 consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
@@ -900,11 +901,35 @@ The move bench runs every operator on its fixtures in a fresh runtime. It counts
 only the events that produced the objects the operator returned. An operator
 passes when its declared directions equal the union observed over its fixtures,
 every returned checked object is admitted again by a fresh checker call, and its
-argument and output kinds match its signature. All 212 pass: 111 have an N
-component, 52 W, 204 S and 79 E. Together with the subreasoner moves, every
+argument and output kinds match its signature. All 215 pass: 114 have an N
+component, 53 W, 207 S and 79 E. Together with the subreasoner moves, every
 direction of the pyramid now has more than one hundred moves. A package check
 changes one operator's declared directions and requires the bench to fail.
-Directions are observed on fixtures, not proved for every input.
+Directions are observed on fixtures, not proved for every input. Five operators
+are anytime moves (below); the bench runs them whole and counts their breaths.
+
+### Derivations
+
+A `derived` claim names a rule, the identities of its premises (the digest of
+each premise's kind and data) and the statement that follows. The checker takes
+one more thing for this kind only: a way to look up an admitted claim by its
+identity, which the runtime supplies from its own workspace. The checker never
+verifies the premises again; it verifies that the statement is exactly what the
+rule gives from what the premises state. Two rules exist. `range_union`: two
+admitted ranges of one question that touch or overlap give the range from the
+lower start to the further end. `theorem_range`: a theorem whose range ends at
+h, and an admitted range that starts at or before h and reaches past it, give
+the same theorem with the further range end. A derivation is sound in a
+workspace whose admissions are sound; on a resume every derivation is admitted
+again after its premises, and one whose premise is gone is refused.
+
+The rules let her verified range grow past the checker's bound on one claim
+(2,000,000 numbers). `egypt_range_chunk` verifies the next chunk past the
+admitted frontier, as long as the base range and up to ten times `verify_to`;
+`egypt_range_union` joins it to the spine from the least n; `egypt_theorem_range`
+extends her theorem over it. Each is tried once per state of what it reads.
+The independent verdict checks derivations with its own reading of the rules,
+after the claims they rest on.
 
 ## Autonomous research agent
 
@@ -1050,6 +1075,34 @@ their cover, are proposals until the checker admits them again on resume. If a s
 refused, the scheduling memory built on it is discarded and the search is redone.
 The report lists only checked results, residuals, invented moves, the scheduler's
 ranking and the directions observed.
+
+### Moves she can leave and come back to
+
+Five operators are anytime moves: the base and extended divisor searches, the
+classical sweep, the range verification and the range chunk. Each is written
+as a generator that breathes at natural points (after a parameter pair, a
+class, or 64 numbers). A move runs in slices: at the first breath past the
+slice (half its work bound, at most 4,000,000 units) it waits with its own
+budget and its place in the search. Each step she chooses again between the
+best fresh move of the first open target and the waiting moves, by the same
+doctrine score, a waiting move's divided by one plus the slices it has run
+without progress. So a long search that keeps producing keeps its place, a
+search that stalls yields to other moves and resumes when nothing better is
+left, and she can switch at any breath. At most eight moves wait; with the
+table full she resumes one rather than starting another, so every search she
+starts runs to its end within the call. Moves still waiting when the call ends
+are closed and start over if chosen again. The report counts slices, resumes
+and switches.
+
+### What counts as attempted
+
+Her memory of tried moves is bounded (6,000 keys per problem), and a resume
+can forget attempts. A residual is now the record of an attempt: the runtime
+stamps every residual with the move that left it, restored refinement trees
+stamp theirs with the generator whose miss they record, and a deterministic
+one-argument move is never proposed again on an object that carries its
+residual. Her Collatz search at 2^20 stalled on exactly this before the rule
+existed (see `CAMPAIGNS.md`).
 
 ## Launch: two open problems
 
@@ -1255,13 +1308,24 @@ round on it. Her choice reads only each stated problem's id, status and
 task, together with her own records in the instance state. Titles,
 statements, known results, sources and the catalog are for people, and a
 package check rewrites them to confirm they change nothing. The rule is the
-doctrine score over her own rounds on each problem: a round with new checked
-results is a success, and its seconds are its cost. An untried problem
-scores p = 1/2 over m = 0.01, so every problem gets a first round. After
-that, the problems where her rounds keep producing checked results cheaply
-come first. Ties go to open problems, then windows, then closed problems, then
-to the problem type her strategy library has the most successes with, then to
-the id.
+doctrine score over her last four rounds on each problem: a round that gained
+g new checked results is a success of weight g / (g + 64) and a failure of
+the remaining weight, and its seconds are its cost, so a round that gains
+little counts little and a problem whose recent rounds gain nothing falls
+back. An untried problem scores p = 1/2 over m = 0.01, so every problem gets a
+first round. After that, the problems where her rounds keep producing checked
+results cheaply come first. Ties go to open problems, then windows, then closed
+problems, then to the problem type her strategy library has the most successes
+with, then to the id.
+
+She also proposes problems of her own. A settled window is offered again with
+larger bounds (the widening rule of its family, the one `window_widen` uses),
+up to three times over, each level only once the level below it is settled.
+A widening is ranked by the rounds of the window it widens until it has its
+own, keeps its rounds in the ledger under its own task like any problem, and
+appears in the scan's ranking with `proposed_by: ember`. So her frontier on a
+catalog problem grows as far as her rounds keep succeeding, without a new
+library entry.
 
 Her rounds are kept in one ledger record per instance state: for each problem,
 the generation, status, checked results gained, moves and seconds of each round.

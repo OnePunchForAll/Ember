@@ -1484,8 +1484,13 @@ class Budget:
     def use(self, n=1):
         self.work += n
         if self.work > 50000000: raise RuntimeError('standalone replay work limit')
-print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
-                  for row in json.loads((root / 'evidence.json').read_text(encoding='utf-8'))]))
+# A derivation is checked against the claims replayed before it (its premises), still by the checker alone.
+admitted = {}; kinds = []
+for row in json.loads((root / 'evidence.json').read_text(encoding='utf-8')):
+    if row['kind'] == 'derived': kinds.append(checker['check'](row['kind'], row['data'], Budget(), admitted.get)['kind'])
+    else: kinds.append(checker['check'](row['kind'], row['data'], Budget())['kind'])
+    admitted[checker['digest'](dict(kind=row['kind'], data=row['data']))] = (row['kind'], row['data'])
+print(json.dumps(kinds))
 '''
         began = time.perf_counter_ns()
         lexicon_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', lexicon_code], cwd=standalone_lexicon,
@@ -1495,7 +1500,7 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
                                    'elapsed_ns': time.perf_counter_ns() - began, 'stderr': lexicon_run.stderr})
         replayed_kinds = json.loads(lexicon_run.stdout) if lexicon_run.returncode == 0 else []
         check('agent_saved_evidence_replays_with_checker_only', lexicon_run.returncode == 0 and not lexicon_run.stderr
-              and {'cover', 'finite', 'pattern', 'theorem'} <= set(replayed_kinds)
+              and {'cover', 'finite', 'pattern', 'theorem', 'derived'} <= set(replayed_kinds)
               and bool({'nofamily', 'obstruction'} & set(replayed_kinds)))
         collatz = cli('agent_collatz', 'examples/agent_collatz.json', ['--work', '2000000000'], expected_code=3)
 
@@ -1699,6 +1704,72 @@ c7 = next(o for o in rt5.objects.values() if o['kind'] == 'cclass' and o['data']
 c15 = rt5.given('cclass', dict(map=cmap, modulus=16, residue=15)); dg.update(rt5)
 not_retried = (not dg.allowed('collatz_affine_descent', c7, rt5) and dg.allowed('collatz_affine_descent', c15, rt5)
                and c15['id'] not in dg.residual)
+# Anytime moves: with a small move bound the searches breathe, wait and resume, and she switches between them; the
+# range is still verified and the theorem still stated. With no room for a breath before the bound, nothing waits.
+agent_host = types.SimpleNamespace(**{k: ember[k] for k in ('Refused', 'Exhausted', 'Budget', 'STATE_LIMIT', 'local_module',
+                                                             'read_state', 'load_json', 'canonical', 'digest')})
+small = dict(type='unit_fraction_cover', a=4, terms=3, min=2, modulus=24, lifts=[5], verify_to=3000)
+sliced = A.run(dict(query='autonomous_research', problem=small, moves=600, move_work=20000), None, 900_000_000, agent_host)
+whole = A.run(dict(query='autonomous_research', problem=small, moves=600, move_work=20_000_000), None, 900_000_000, agent_host)
+anytime = (sliced['anytime']['slices'] > 0 and sliced['anytime']['resumes'] > 0 and sliced['anytime']['switches'] > 0
+           and sliced['anytime']['waiting_at_end'] == 0 and 'theorem' in sliced['checked_objects']
+           and whole['anytime']['slices'] == 0 and 'theorem' in whole['checked_objects']
+           and any(r.get('waiting') for r in sliced['log']))
+# Derivations: chunks past the base range unite with it and extend the theorem, by rules the checker admits from the
+# admitted premises; a forged union, a union with a missing premise and a wider theorem are refused, and the verdict
+# tells the same true from false with its own rules.
+E2 = registry['egypt_range_chunk']['fn'].__globals__
+rt6 = L.Runtime(C, ember['Budget'](10 ** 9)); esq6 = E2['_theorem_level'](rt6)[0]
+E2['egypt_theorem_range'](rt6, esq6)
+derived = [o for o in rt6.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
+union = next(o for o in derived if o['data']['rule'] == 'range_union'); ext = next(o for o in derived if o['data']['rule'] == 'theorem_range')
+forged_union = rt6.propose('derived', dict(union['data'], statement=dict(union['data']['statement'], hi=900)))
+missing = rt6.propose('derived', dict(union['data'], premises=[union['data']['premises'][0], 'f' * 64]))
+wider = rt6.propose('derived', dict(ext['data'], statement=dict(ext['data']['statement'], range_hi=900)))
+admitted6 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt6.objects.values() if o['status'] == 'checked'}
+derivations = (union['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
+               and ext['data']['statement']['range_hi'] == 798 and ext['data']['statement']['modulus'] == 24
+               and not rt6.check(forged_union) and not rt6.check(missing) and not rt6.check(wider)
+               and V.derived_verdict(union['data'], admitted6)[0] == 'VERIFIED'
+               and V.derived_verdict(ext['data'], admitted6)[0] == 'VERIFIED'
+               and V.derived_verdict(forged_union['data'], admitted6)[0] == 'REFUTED'
+               and V.derived_verdict(wider['data'], admitted6)[0] == 'REFUTED'
+               and V.derived_verdict(missing['data'], admitted6)[0] == 'UNRESOLVED')
+# A residual records the attempt: a deterministic one-argument move that left one on an object is not proposed
+# again there, however little of the tried-move memory a resume kept.
+rt7 = L.Runtime(C, ember['Budget'](10 ** 9))
+goal7 = A.CoverGoal(dict(type='unit_fraction_cover', a=4, terms=3, min=2, modulus=840, lifts=[], verify_to=100), L); goal7.init(rt7)
+agent7 = A.Agent(agent_host, L, C, registry, goal7, rt7, 10 ** 7, [], [], set(), 0)
+cls7 = rt7.given('eclass', dict(a=4, terms=3, m=840, r=1)); agent7.index(); table7, by_kind7 = agent7.strategies()
+names_before = {c[0] for c in agent7.candidates(cls7, table7, by_kind7)}
+agent7.execute(cls7, goal7.context(cls7), 'egypt_divisor_ansatz', [cls7], 'probe-key', 10 ** 7)
+left = [o for o in rt7.objects.values() if o['kind'] == 'residual' and o['data']['of'] == cls7['id']]
+agent7.tried = set(); agent7.attempts = {}; agent7.index()
+names_after = {c[0] for c in agent7.candidates(cls7, table7, by_kind7)}
+attempt_recorded = ('egypt_divisor_ansatz' in names_before and len(left) == 1 and left[0]['data'].get('by') == 'egypt_divisor_ansatz'
+                    and 'egypt_divisor_ansatz' not in names_after and 'egypt_classical_family' in names_after)
+# Her choice among problems weighs the size of a gain over her last four rounds: a problem whose recent rounds gained
+# little ranks below one whose single round gained much, and her own widening of a settled window inherits the
+# window's rounds until it has its own.
+def stated(i, task): return dict(id=i, status='open', task=task)
+tA = dict(type='unit_fraction_cover', a=4, terms=3, min=2, modulus=840, lifts=[], verify_to=100)
+tB = dict(tA, a=5)
+tW = dict(type='explore', objects=[dict(kind='census_q', data=dict(family='tally', params=dict(pred=['prime', 'n'], lo=2, bounds=[100])))],
+          goals=['window'])
+kA, kB, kW = (A.digest(dict(query='autonomous_research', problem=x)) for x in (tA, tB, tW))
+def rnd(g, s, status='UNKNOWN'): return dict(generation='0' * 16, status=status, reason='move allowance used', settled=None, new_checked=g, moves=1, seconds=s)
+ledger8 = {kA: [rnd(3506, 260)], kB: [rnd(796, 150), rnd(405, 150), rnd(151, 150), rnd(21, 150), rnd(2, 150)],
+           kW: [rnd(1, 2, 'CHECKED_RESEARCH')]}
+state8 = dict(observations=[dict(task_id=A.LEDGER_ID, kind='problem_rounds', entries=ledger8)])
+widened = A.proposed_windows([dict(id='w', status='window', window_of='x', task=tW)], ledger8, registry['_widen'], lambda task: True)
+ranked = A.choose([stated('A', tA), stated('B', tB), dict(id='w', status='window', window_of='x', task=tW)] + widened, state8, 'f' * 64)
+order = [r['id'] for r in ranked if r['eligible']]
+choice = (order.index('A') < order.index('B') and len(widened) == 1 and widened[0]['id'] == 'w@2'
+          and widened[0]['task']['objects'][0]['data']['params']['bounds'] == [100, 1000]
+          and next(r for r in ranked if r['id'] == 'w@2')['why'].startswith('her own widening of w')
+          and A.proposed_windows([dict(id='v', status='window', window_of='x',
+                                       task=dict(tW, objects=[dict(kind='census_q', data=dict(family='pascal', params=dict(hi=50)))]))],
+                                 {}, registry['_widen'], lambda task: True) == [])
 # Her library's legacy contexts (no numerator in the name) are read as this numerator only for a one-numerator state.
 lib = [dict(context='unit_fraction_cover:eclass:coprime:square', strategy='egypt_ansatz_extend', successes=0, failures=100,
             seconds=1.0),
@@ -1750,7 +1821,8 @@ members = list(V.claims_of(dict(observations=[dict(kind='autonomous_research', t
 batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == written
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
-                      obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, priors=priors, implied=implied, lift=lift,
+                      obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, anytime=anytime,
+                      derivations=derivations, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -1771,6 +1843,10 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('state_bound_spills_other_evidence_beside_the_state', sieve_result.get('spilled') is True)
         check('record_bound_keeps_evicted_evidence_on_file', sieve_result.get('archived') is True)
         check('collatz_descent_not_retried_on_a_residual_class', sieve_result.get('not_retried') is True)
+        check('anytime_moves_wait_resume_and_switch_under_a_small_bound', sieve_result.get('anytime') is True)
+        check('derivations_admit_unions_and_extensions_and_refuse_forgeries', sieve_result.get('derivations') is True)
+        check('residual_records_the_attempt_of_a_deterministic_move', sieve_result.get('attempt_recorded') is True)
+        check('problem_choice_weighs_gains_and_inherits_widened_windows', sieve_result.get('choice') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)
         check('lemma_implies_only_square_class_walls', sieve_result.get('implied') is True)
         check('prime_choice_counts_lifts_exactly', sieve_result.get('lift') is True)

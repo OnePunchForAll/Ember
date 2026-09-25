@@ -24,6 +24,7 @@ import importlib.util
 import json
 from math import gcd
 from pathlib import Path
+from types import GeneratorType
 
 Q = Fraction
 OP_MODULES = ('ops_seq', 'ops_poly', 'ops_orbit', 'ops_egypt', 'ops_arith', 'ops_word', 'ops_matrix', 'ops_collatz',
@@ -654,6 +655,15 @@ def binomial(n, k):
 
 # ------------------------------------------------------------- runtime
 
+def drive(result):
+    """Run an operator's result to completion: an anytime operator returns a generator that yields at each breath
+    (a point where a scheduler may suspend it) and returns its objects; a plain operator returns them directly."""
+    if not isinstance(result, GeneratorType): return result
+    while True:
+        try: next(result)
+        except StopIteration as done: return done.value or []
+
+
 class Runtime:
     """Creates objects through checkable events and keeps the per-call event log."""
 
@@ -663,6 +673,13 @@ class Runtime:
         self.events = []
         # Identities in order of creation, so readers can index only what is new (a removed object is skipped).
         self.order = list(self.objects)
+        # The move being executed, when a scheduler names it: a residual it leaves records the attempt.
+        self.current_move = None
+
+    def admitted(self, identity):
+        """The kind and data of an admitted claim, for a derivation naming it as a premise; None otherwise."""
+        o = self.objects.get(identity)
+        return (o['kind'], o['data']) if o is not None and o['status'] == 'checked' else None
 
     def _make(self, kind, data, parents, status):
         data = json.loads(canonical(data))
@@ -698,9 +715,12 @@ class Runtime:
         return obj
 
     def check(self, obj):
-        """S: admit a claim through the separate checker; returns True only on admission."""
+        """S: admit a claim through the separate checker; returns True only on admission. A derivation is checked
+        against the premises this workspace has admitted, which the checker reads through admitted()."""
         if obj['status'] == 'checked': return True
-        try: result = self.checker.check(obj['kind'], obj['data'], self.budget)
+        try:
+            result = (self.checker.check(obj['kind'], obj['data'], self.budget, self.admitted) if obj['kind'] == 'derived'
+                      else self.checker.check(obj['kind'], obj['data'], self.budget))
         except self.checker.Invalid as exc:
             obj.setdefault('rejections', []).append(str(exc)[:200]); return False
         obj['status'] = 'checked'; obj['evidence'] = result
@@ -720,10 +740,13 @@ class Runtime:
         self.events.append(('W', obj['id'])); self.events.append(('S', obj['id']))
         return obj
 
-    def residual(self, of, items, note):
-        """W: name the open part of a question; a residual is bookkeeping, never a claim."""
-        obj, fresh = self._make('residual', dict(of=of['id'], question=of['question'], items=items, note=note),
-                                (of,), 'open')
+    def residual(self, of, items, note, by=None):
+        """W: name the open part of a question; a residual is bookkeeping, never a claim. It records the move that
+        left it (by, or the move being executed), so that a deterministic move is not proposed again on the object."""
+        data = dict(of=of['id'], question=of['question'], items=items, note=note)
+        by = by or self.current_move
+        if by: data['by'] = by
+        obj, fresh = self._make('residual', data, (of,), 'open')
         if fresh: self.events.append(('W', obj['id']))
         return obj
 
@@ -739,6 +762,7 @@ def load_ops():
             registry[spec_row['name']] = dict(spec_row, module=name + '.py')
         fixtures.update(getattr(module, 'FIXTURES', {}))
         for key, value in getattr(module, 'GOALS', {}).items(): registry.setdefault('_goals', {})[key] = value
+        if hasattr(module, 'WIDEN'): registry['_widen'] = module.WIDEN  # the widening rule of a checked window
     return registry, fixtures
 
 
