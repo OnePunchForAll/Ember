@@ -1003,6 +1003,32 @@ and none of n + h, hn + 1 (h <= 6) and an + 1 has a divisor in the family's
 class. By the usual sieve estimate that is a set of density zero among the
 primes; her language does not state that, and nothing here proves it.
 
+The third tier of families is the `pair` shape, the Type II solutions with a
+common factor h: a h n + 1 = q q' with q, q' = -1 (mod a), e = (q + 1)/a,
+f = (q' + 1)/a, h | ef, and a/n = 1/(ne) + 1/(nf) + h/(ef). With `plus`,
+`times` and `pair` the one-divisor grammar of Type I solutions is complete: for
+f | e^2 the condition q | ne + f is always a divisibility of n + h, hn + 1 or
+ahn + 1 by some q = -1 modulo a or ah. She states plus, times and pair for h
+up to 6 and the square, and then extends a shape kind one step at a time while
+its last two steps each carried at least sixteen numbers in her admitted
+proofs: a family that pays earns its successor, up to the checker's bound of
+64. Base ranges use the families as the chunks do (a `finite` claim may carry a
+family table, verified the same way), so a base range verified again with a
+finer cover no longer witnesses tens of thousands of numbers one by one.
+
+Two more derivation rules compose what she has. `theorem_families` takes a
+theorem and admitted divisor families of its question and states the theorem
+with the list of families: an unresolved n lies in an open class of the cover,
+is at or past the range end, and meets none of the families' divisor
+conditions. `composite_range` takes an admitted range [lo, hi) and states that
+every n below hi^2 with a divisor in [lo, hi) is represented (a/(td) is a sum
+of unit fractions whenever a/d is); for a question from 2 that is every
+composite below hi^2, so a range verified to two million settles the
+composites to four million million. `egypt_theorem_families` derives the
+first again when the families grow; `egypt_range_square` the second when the
+range grows. A theorem composed with its families is terminal: it is not
+extended, closed or composed again.
+
 ## Autonomous research agent
 
 ```text
@@ -1164,8 +1190,14 @@ left, and she can switch at any breath. At most eight moves wait; with the
 table full she resumes one rather than starting another, so every search she
 starts runs to its end within the call or to its work bound, which is four
 times its allocation over all its slices (what an escalated plain move gets).
-Moves still waiting when the call ends are closed and start over if chosen
-again. The report counts slices, resumes and switches.
+A move still waiting when the call ends no longer starts over. The scheduler
+asks it to finish with what it has: at its next breath the operator receives
+the word `checkpoint` and states the part it verified (a base range or a chunk
+states its prefix, a sweep the classes swept, a divisor search nothing and no
+miss), with a quarter of its allocation to state it, and the checker admits
+the part like any other claim. The same happens to a move that reaches its
+total work bound. The report counts slices, resumes, switches, the moves
+settled this way and the objects they stated.
 
 ### What counts as attempted
 
@@ -1414,11 +1446,24 @@ problem reads its evidence back when the digest matches, the independent verdict
 does the same with its own code, and a missing or altered file is refused: the
 problem's search is then simply done again. Files the state no longer names are
 removed after it is written. A problem she settled, or left with no
-untried move, waits until her code changes, and a new fingerprint makes it
-eligible again. A window settles when every one of its objects has a checked
+untried move, waits until her code changes: not any change, but a change of
+what a round on it can depend on. Each round records, beside the whole
+fingerprint, the fingerprint of the core (scheduler, runtime, checker) and of
+the operator modules whose moves can apply to the problem, found by closure
+over the language's signatures from the problem's own object kinds (a window's
+question kinds bring the window tools). A change to the Collatz operators
+leaves a unit-fraction problem's rounds valid, and it is not checked again. A window settles when every one of its objects has a checked
 answer. `"run": false` returns her ranking and her choice without running. When
 nothing is left, the scan returns `UNKNOWN` with the backlog, which now also
 counts, for each missing kind, how many of its catalog problems have a window.
+When the record bound is reached she forgets the records of settled problems
+first (their evidence stays on file and their problem waits for new
+instruments), then the oldest of the rest, so an open problem's record stays
+as long as it can. She runs her own loop: `--calls N` runs the task N times in
+one process, each call reading and writing the state as a separate call would,
+`--out DIR` writes each call's result, the seconds and a log line to the files
+a shell loop would write, and `--seconds S` stops starting calls after S wall
+seconds; a scan that finds every problem waiting for new instruments stops.
 The library's statuses and prose are not evidence, and she never reads them.
 
 Her first scan of the whole library took 202 calls on one instance state.

@@ -209,8 +209,23 @@ def unit_square_count(M):
     return total
 
 
+def family_rows(families):
+    """This tool's reading of a proof's family part: (shapes, table), or a refusal reason."""
+    if families is None: return [], {}, None
+    if type(families) is not dict or set(families) != {'shapes', 'table'} or type(families['table']) is not dict: return None, None, 'family table'
+    shapes = []
+    for row in families['shapes']:
+        if type(row) is not list or len(row) != 2 or row[0] not in ('plus', 'times', 'square', 'pair') or type(row[1]) is not int:
+            return None, None, 'family shape'
+        shapes.append((row[0], row[1]))
+    return shapes, families['table'], None
+
+
 def finite_verdict(d):
     a, terms, lo, hi = d['a'], d['terms'], d['lo'], d['hi']; rows = {}
+    shapes, table, problem = family_rows(d.get('families'))
+    if problem: return 'REFUTED', problem
+    if shapes and terms != 3: return 'REFUTED', 'divisor families give three unit fractions'
     if d['cover'] is not None:
         verdict, detail = cover_verdict(d['cover'])
         if verdict != 'VERIFIED': return verdict, 'cover: ' + detail
@@ -230,6 +245,13 @@ def finite_verdict(d):
                 return 'REFUTED', 'family value wrong at n=' + str(n)
             done.add(n); continue
         key = str(n)
+        fam = table.get(key)
+        if fam is not None:
+            if type(fam) is not list or len(fam) != 2 or type(fam[0]) is not int or not 0 <= fam[0] < len(shapes) or type(fam[1]) is not int:
+                return 'REFUTED', 'family entry at n=' + key
+            xs = dfam_denominators(a, shapes[fam[0]][0], shapes[fam[0]][1], n, fam[1])
+            if xs is None or min(xs) < 1 or sum(F(1, x) for x in xs) != F(a, n): return 'REFUTED', 'family divisor fails at n=' + key
+            done.add(n); continue
         if key in d['witnesses']:
             xs = d['witnesses'][key]; rest = F(a, n) - sum(F(1, x) for x in xs)
             if len(xs) != terms - 1 or rest <= 0 or rest.numerator != 1: return 'REFUTED', 'witness fails at n=' + key
@@ -560,6 +582,13 @@ def dfam_denominators(a, shape, h, n, q):
     with x = n e, e = (q + 1)/a, q = a e - 1, y = (n e + f)/q and z = n e y/f, f = h e, e/h or e^2 by shape."""
     if q < 1 or (q + 1) % a: return None
     e = (q + 1) // a
+    if shape == 'pair':
+        # Type II with the common factor h: a h n + 1 = q q', f = (q' + 1)/a, h | e f; x = ne, y = nf, z = ef/h
+        if h < 2 or (a * h * n + 1) % q: return None
+        qq = (a * h * n + 1) // q
+        if (qq + 1) % a: return None
+        f = (qq + 1) // a
+        return (n * e, n * f, e * f // h) if (e * f) % h == 0 else None
     f = h * e if shape == 'plus' else (e // h if shape == 'times' and e % h == 0 else (e * e if shape == 'square' else None))
     if f is None or (n * e + f) % q: return None
     y = (n * e + f) // q
@@ -574,20 +603,32 @@ def dfam_verdict(d):
     if set(d) != {'a', 'terms', 'shape', 'h'} or d['terms'] != 3: return 'REFUTED', 'divisor family fields'
     a, shape, h = d['a'], d['shape'], d['h']
     if type(a) is not int or not 2 <= a <= 64 or type(h) is not int or not 1 <= h <= 64: return 'REFUTED', 'parameters out of range'
-    if shape not in ('plus', 'times', 'square') or (shape == 'times' and h < 2) or (shape == 'square' and h != 1):
+    if shape not in ('plus', 'times', 'square', 'pair') or (shape in ('times', 'pair') and h < 2) or (shape == 'square' and h != 1):
         return 'REFUTED', 'not a family shape this tool knows'
-    alpha, beta, t = (1, h, a * h) if shape == 'plus' else ((h, 1, a * h) if shape == 'times' else (a, 1, a))
+    alpha, beta, t = (1, h, a * h) if shape == 'plus' else ((h, 1, a * h) if shape == 'times' else ((a * h, 1, a) if shape == 'pair' else (a, 1, a)))
     for n in range(1, 10):
         for q in range(1, 10):
-            e = F(q + 1, a); f = h * e if shape == 'plus' else (e / h if shape == 'times' else e * e)
-            x = n * e; y = (n * e + f) / q; z = n * e * y / f
+            e = F(q + 1, a)
+            if shape == 'pair':
+                f = ((a * h * n + 1) / F(q) + 1) / a; x, y, z = n * e, n * f, e * f / h
+            else:
+                f = h * e if shape == 'plus' else (e / h if shape == 'times' else e * e)
+                x = n * e; y = (n * e + f) / q; z = n * e * y / f
             if 1 / x + 1 / y + 1 / z != F(a, n): return 'REFUTED', 'the identity fails at n = %d, q = %d' % (n, q)
+    instances = 0
     for k in range(1, 7):
-        q = t * k - 1; n = next((n for n in range(1, q + 1) if (alpha * n + beta) % q == 0), None)
-        if n is None: return 'REFUTED', 'no n has a divisor ' + str(q)
+        q = t * k - 1
+        if shape == 'pair':
+            n = next((n for n in range(1, 4 * q * h + 1) if dfam_denominators(a, shape, h, n, q) is not None), None)
+            if n is None: continue
+        else:
+            n = next((n for n in range(1, q + 1) if (alpha * n + beta) % q == 0), None)
+            if n is None: return 'REFUTED', 'no n has a divisor ' + str(q)
         xs = dfam_denominators(a, shape, h, n, q)
         if xs is None or min(xs) < 1 or sum(F(1, x) for x in xs) != F(a, n): return 'REFUTED', 'instance fails at n = ' + str(n)
-    return 'VERIFIED', 'identity on a grid, integrality by the divisor condition, six instances exact'
+        instances += 1
+    if not instances: return 'REFUTED', 'no instance of the family'
+    return 'VERIFIED', 'identity on a grid, integrality by the divisor condition, instances exact'
 
 
 def extension_verdict(a, terms, lo, h, hi, cover, witnesses, families=None):
@@ -600,7 +641,7 @@ def extension_verdict(a, terms, lo, h, hi, cover, witnesses, families=None):
         if type(families) is not dict or set(families) != {'shapes', 'table'} or type(families['table']) is not dict:
             return 'REFUTED', 'family table'
         for row in families['shapes']:
-            if type(row) is not list or len(row) != 2 or row[0] not in ('plus', 'times', 'square') or type(row[1]) is not int:
+            if type(row) is not list or len(row) != 2 or row[0] not in ('plus', 'times', 'square', 'pair') or type(row[1]) is not int:
                 return 'REFUTED', 'family shape'
             shapes.append((row[0], row[1]))
         if shapes and terms != 3: return 'REFUTED', 'divisor families give three unit fractions'
@@ -703,6 +744,21 @@ def derived_verdict(d, admitted):
         opened = closure_count(row[1], T['lo'], T['range_hi'])
         expected = dict(T, closure='multiples', closed_at=T['range_hi'], open_residues=opened[0], open_coprime=opened[1])
         return ('VERIFIED', 'closure recounted') if s == expected else ('REFUTED', 'the open counts are not those of the closure')
+    if d['rule'] == 'theorem_families':
+        T = [q for q in premises if q['kind'] == 'theorem']; fams = [q for q in premises if q['kind'] == 'dfam']
+        if len(T) != 1 or not fams or len(fams) + 1 != len(premises): return 'REFUTED', 'theorem_families takes a theorem and divisor families'
+        T = T[0]
+        if 'families' in T: return 'REFUTED', 'the theorem already names its families'
+        if any(f['a'] != T['a'] or f['terms'] != T['terms'] for f in fams): return 'REFUTED', 'families of another question'
+        shapes = sorted([f['shape'], f['h']] for f in fams)
+        if len({tuple(x) for x in shapes}) != len(shapes): return 'REFUTED', 'a family named twice'
+        return ('VERIFIED', 'the disjunction of admitted claims') if s == dict(T, families=shapes) else ('REFUTED', 'the statement differs from the premise beyond its families')
+    if d['rule'] == 'composite_range':
+        if len(premises) != 1 or premises[0]['kind'] != 'range': return 'REFUTED', 'composite_range takes one range'
+        R = premises[0]
+        if not R['hi'] > R['lo'] >= 1: return 'REFUTED', 'not a range'
+        expected = dict(kind='composites', a=R['a'], terms=R['terms'], lo=R['lo'], hi=R['hi'], reach=R['hi'] * R['hi'])
+        return ('VERIFIED', 'closure under multiples over the range') if s == expected else ('REFUTED', 'the stated composites are not those of the range')
     if d['rule'] == 'range_union':
         if len(premises) != 2 or any(q['kind'] != 'range' for q in premises): return 'REFUTED', 'range_union takes two ranges'
         first, second = sorted(premises, key=lambda q: (q['lo'], q['hi']))
@@ -795,6 +851,14 @@ def self_test():
         'theorem closure again at a wider range verifies': multiples_case(again=True)[0] == 'VERIFIED',
         'theorem closure repeated at its own range refuted': multiples_case(stale=True)[0] == 'REFUTED',
         'divisor family verifies': dfam_verdict(dict(a=4, terms=3, shape='plus', h=1))[0] == 'VERIFIED',
+        'pair family verifies': dfam_verdict(dict(a=4, terms=3, shape='pair', h=2))[0] == 'VERIFIED',
+        'pair 1 refuted': dfam_verdict(dict(a=4, terms=3, shape='pair', h=1))[0] == 'REFUTED',
+        'base range with family entries verifies': base_family_case()[0] == 'VERIFIED',
+        'base range with a wrong family entry refuted': base_family_case(bad=True)[0] == 'REFUTED',
+        'theorem with families verifies': composition_case()[0] == 'VERIFIED',
+        'theorem with a family named twice refuted': composition_case(twice=True)[0] == 'REFUTED',
+        'composites of a range verify': composites_case()[0] == 'VERIFIED',
+        'composites claiming past the square refuted': composites_case(more=True)[0] == 'REFUTED',
         'divisor family of a misnamed shape refuted': dfam_verdict(dict(a=4, terms=3, shape='times', h=1))[0] == 'REFUTED',
         'range extension by family divisors verifies': extension_case(family=True)[0] == 'VERIFIED',
         'range extension with a wrong family divisor refuted': extension_case(family=True, bad=True)[0] == 'REFUTED',
@@ -841,6 +905,34 @@ def multiples_case(bad=False, again=False, stale=False):
     admitted = {digest(dict(kind='cover', data=cover)): ('cover', cover, 'VERIFIED'), 'T' * 64: ('derived', dict(statement=T), 'VERIFIED')}
     s = dict(T, closure='multiples', closed_at=400, open_residues=6 if bad else 5, open_coprime=2)
     return derived_verdict(dict(rule='theorem_multiples', premises=['T' * 64, T['cover_id']], statement=s), admitted)
+
+
+def base_family_case(bad=False):
+    """The range [2, 12) of 4/n as a base claim: 5 and 11 by the family plus 1 with the divisor 3 (3 | 5 + 1 and
+    3 | 11 + 1, q = 3 = -1 mod 4), the rest by witnesses; a wrong divisor for 11 is refuted."""
+    fam = dict(shapes=[['plus', 1]], table={'5': [0, 3], '11': [0, 3 if not bad else 5]})
+    data = dict(a=4, terms=3, lo=2, hi=12, cover=None, families=fam, divisors={},
+                witnesses={'2': [1, 2], '3': [1, 4], '4': [2, 4], '6': [2, 12], '7': [2, 28], '8': [4, 8], '9': [3, 18], '10': [5, 10]})
+    return finite_verdict(data)
+
+
+def composition_case(twice=False):
+    T = dict(kind='theorem', a=4, terms=3, lo=2, modulus=24, range_hi=400, cover_id='c' * 64)
+    fams = [dict(kind='dfam', a=4, terms=3, shape='plus', h=1), dict(kind='dfam', a=4, terms=3, shape='pair', h=2)]
+    if twice: fams[1] = dict(fams[0])
+    admitted = {'T' * 64: ('derived', dict(statement=T), 'VERIFIED')}
+    ids = []
+    for i, f in enumerate(fams):
+        k = str(i) * 64; ids.append(k); admitted[k] = ('dfam', {k2: v for k2, v in f.items() if k2 != 'kind'}, 'VERIFIED')
+    s = dict(T, families=sorted([f['shape'], f['h']] for f in fams))
+    return derived_verdict(dict(rule='theorem_families', premises=['T' * 64] + ids, statement=s), admitted)
+
+
+def composites_case(more=False):
+    base = dict(a=4, terms=3, lo=2, hi=100, witnesses={}, divisors={}, cover=None)
+    admitted = {digest(dict(kind='finite', data=base)): ('finite', base, 'VERIFIED')}
+    s = dict(kind='composites', a=4, terms=3, lo=2, hi=100, reach=10001 if more else 10000)
+    return derived_verdict(dict(rule='composite_range', premises=list(admitted), statement=s), admitted)
 
 
 def extension_case(bad=False, family=False):

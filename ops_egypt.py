@@ -37,7 +37,7 @@ LIFT_CAP = 10 ** 7
 LIFT_CLASSES = 60_000
 WALL_CAP = 10 ** 12
 SWEEP_CLASSES = 4000
-RANGE_FRONTIER = 20  # she extends a checked range in chunks of its own size, up to this multiple of verify_to
+RANGE_FRONTIER = 30  # she extends a checked range in chunks of its own size, up to this multiple of verify_to
 # Work units on the prover's side are priced at about a microsecond of this machine (the witness search's price):
 # the cover loop one unit a number plus one per ten moduli, a factor check half the bit length, a family step half
 # the bit length of its linear form; measured 2026-09-25 (CAMPAIGNS.md, consolidation), the checker's charges unchanged.
@@ -99,7 +99,8 @@ def ansatz_steps(a, m, r, pairs, budget, limit=1):
     ks = range(5); nk = [m * k + r for k in ks]; found = []
     cont_n = gcd(m, r); n_p = [Q(r, cont_n), Q(m, cont_n)]
     for s, c in pairs:
-        budget.use(); yield
+        budget.use()
+        if (yield) == 'checkpoint': return 'checkpoint'  # the call ends: no miss is recorded
         if (s * r + c) % a or (s * m) % a: continue
         X0, X1 = (s * r + c) // a, (s * m) // a
         if X0 <= 0: continue
@@ -505,6 +506,7 @@ def egypt_divisor_ansatz(rt, cls):
     a, terms, m, r = question_class(cls)
     if terms != 3: return []
     found = yield from ansatz_steps(a, m, r, [(s, c) for s in BASE_S for c in BASE_C], rt.budget)
+    if found == 'checkpoint': return []
     if not found: return [rt.residual(cls, ['base divisor grammar exhausted'], 'ansatz miss')]
     fam = rt.propose('ufam', found[0][0], (cls,))
     return [fam] if rt.check(fam) else []
@@ -518,6 +520,7 @@ def egypt_ansatz_extend(rt, cls):
     if terms != 3: return []
     pairs = [(s, c) for s in EXTENDED_S for c in EXTENDED_C if not (s in BASE_S and c in BASE_C)]
     found = yield from ansatz_steps(a, m, r, pairs, rt.budget)
+    if found == 'checkpoint': return []
     if not found: return [rt.residual(cls, ['extended divisor grammar exhausted'], 'extended ansatz miss')]
     fam = rt.propose('ufam', found[0][0], (cls,))
     if not rt.check(fam): return []
@@ -672,7 +675,9 @@ def egypt_classical_sweep(rt, esq):
         if cls['id'] in missed or reached(index, M, r): continue
         if squares_known and gcd(r, M) == 1 and not local_nonresidues(r, powers): continue  # her lemma settles these
         if done >= SWEEP_CLASSES: break
-        done += 1; yield; found = classical_search(a, M, r, CLASSICAL_BOUND, rt.budget)
+        done += 1
+        if (yield) == 'checkpoint': break  # the call ends: the classes swept so far are the result
+        found = classical_search(a, M, r, CLASSICAL_BOUND, rt.budget)
         if not found:
             out.append(rt.residual(cls, ['classical fixed-parameter families exhausted'], 'classical miss')); continue
         fam = rt.propose('ufam', classical_family(a, M, r, found[0]), (cls,))
@@ -960,9 +965,10 @@ def egypt_range_chunk(rt, esq):
         f = entry['family']; row = thresholds.setdefault(f['m'], {})
         row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
     witnesses, table, missing = {}, {}, []
-    shapes = divisor_families(rt, a, terms)
+    shapes = divisor_families(rt, a, terms); end = hi
     for n in range(start, hi):
-        if (n - start) % BREATH == 0: yield  # a breath: the scheduler may suspend the move here
+        if (n - start) % BREATH == 0 and (yield) == 'checkpoint':
+            end = n; break  # the call ends: the part verified so far is the chunk
         rt.budget.use(1 + len(thresholds) // 10)
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): continue
         rt.budget.use(max(4, n.bit_length() // 2)); p = L.factor(n); p = min(p) if p else n
@@ -974,19 +980,53 @@ def egypt_range_chunk(rt, esq):
         if xs is None: missing.append(n); continue
         witnesses[str(n)] = sorted(xs)[:-1]
     if missing: return [rt.residual(esq, missing[:4096], 'no witness found within the search bound past ' + str(start))]
+    if end <= start: return []
     proof = dict(cover=cover['data'] if cover else None, witnesses=witnesses)
     if shapes: proof['families'] = dict(shapes=[[shape, h] for shape, h in shapes], table=table)
     claim = rt.propose('derived', dict(rule='range_extend', premises=[base['id']],
-                                       statement=dict(kind='range', a=a, terms=terms, lo=lo, hi=hi), proof=proof),
+                                       statement=dict(kind='range', a=a, terms=terms, lo=lo, hi=end), proof=proof),
                        (esq, base) + ((cover,) if cover else ()))
     return [claim] if rt.check(claim) else []
 
 
-DFAM_H = 6  # the divisor families she states: plus 1..6, times 2..6 and square
+DFAM_H = 6  # the divisor families she states first: plus 1..6, times 2..6, pair 2..6 and square
+YIELD_MIN = 16  # numbers a family's last two steps must each have carried in her proofs for the next step to be stated
 
 
 def dfam_list():
-    return [('plus', h) for h in range(1, DFAM_H + 1)] + [('times', h) for h in range(2, DFAM_H + 1)] + [('square', 1)]
+    return ([('plus', h) for h in range(1, DFAM_H + 1)] + [('times', h) for h in range(2, DFAM_H + 1)]
+            + [('pair', h) for h in range(2, DFAM_H + 1)] + [('square', 1)])
+
+
+def family_yield(rt, a, terms):
+    """Numbers each (shape, h) carried in the family tables of her admitted base ranges and chunks of the question."""
+    counts = {}
+    for o in rt.objects.values():
+        if o['status'] != 'checked': continue
+        if o['kind'] == 'finite' and o['data']['a'] == a and o['data']['terms'] == terms: fam = o['data'].get('families')
+        elif o['kind'] == 'derived' and o['data']['rule'] == 'range_extend' and o['data']['statement']['a'] == a \
+                and o['data']['statement']['terms'] == terms: fam = o['data']['proof'].get('families')
+        else: continue
+        if not fam: continue
+        for i, q in fam['table'].values():
+            key = tuple(fam['shapes'][i]); counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def dfam_wanted(rt, a, terms):
+    """The families to state: the first list, and one step past the largest h of a shape kind whose last two steps each
+    carried at least YIELD_MIN numbers in her admitted proofs. A family that pays earns its successor; the bound is the
+    checker's MAX_DFAM_H."""
+    have = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values()
+            if o['kind'] == 'dfam' and o['status'] == 'checked' and o['data']['a'] == a}
+    wanted = [r for r in dfam_list() if r not in have]
+    counts = family_yield(rt, a, terms)
+    for kind in ('plus', 'times', 'pair'):
+        top = max([h for s, h in have if s == kind], default=0)
+        if DFAM_H <= top < rt.checker.MAX_DFAM_H and counts.get((kind, top), 0) >= YIELD_MIN \
+                and counts.get((kind, top - 1), 0) >= YIELD_MIN and (kind, top + 1) not in wanted:
+            wanted.append((kind, top + 1))
+    return wanted
 
 
 def divisor_families(rt, a, terms):
@@ -997,33 +1037,70 @@ def divisor_families(rt, a, terms):
 
 
 def dfam_divisor(rt, a, shape, h, n):
-    """A divisor q = -1 (mod t) of the family's linear form at n, from the prime factorization of that value (one
-    divisor kept per residue class, which decides every reachable residue), or None."""
+    """A divisor q = -1 (mod t) of the family's linear form at n that gives n the family's three denominators, by the
+    checker's own conditions (a pair also needs h | e f, which the divisor's class does not decide), or None. The
+    divisors are built from the prime factorization of the value; the first that the checker accepts is kept."""
     alpha, beta, t = rt.checker.dfam_form(a, shape, h)
-    value = alpha * n + beta; rt.budget.use(max(4, value.bit_length() // 2)); found = {1: 1}
+    value = alpha * n + beta; rt.budget.use(max(4, value.bit_length() // 2)); divisors = {1}
     for p, k in L.factor(value).items():
-        for res, d in list(found.items()):
-            for j in range(1, k + 1):
-                dj = d * p ** j
-                if dj % t not in found or dj < found[dj % t]: found[dj % t] = dj
-    return found.get((-1) % t)
+        divisors |= {d * p ** j for d in divisors for j in range(1, k + 1)}
+    for q in sorted(d for d in divisors if d % t == (-1) % t):
+        try: rt.checker.dfam_terms(a, shape, h, n, q); return q
+        except rt.checker.Invalid: continue
+    return None
 
 
 @op('egypt_divisor_families', 'NS', ('esq',), ('dfam',),
     'State the divisor families of the question: Type I solutions with the parameter free, one family for every '
-    'divisor q = -1 (mod a h) of n + h or of h n + 1 (h up to 6), and for every divisor q = -1 (mod a) of a n + 1. The '
-    'checker verifies each identity; the range chunk then represents a number by a divisor of its linear form.')
+    'divisor q = -1 (mod a h) of n + h or of h n + 1, the pairs (a h n + 1 = q q\', Type II with the common factor h) '
+    'and the square (a n + 1); h up to 6 first, then one step further for a shape whose last steps still carried '
+    'numbers in her proofs. The checker verifies each identity; her ranges then use them before any search.')
 def egypt_divisor_families(rt, esq):
     d = esq['data']; a, terms = d['a'], d['terms']
     if terms != 3: return []
-    have = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values()
-            if o['kind'] == 'dfam' and o['status'] == 'checked' and o['data']['a'] == a}
     out = []
-    for shape, h in dfam_list():
-        if (shape, h) in have: continue
+    for shape, h in dfam_wanted(rt, a, terms):
         claim = rt.propose('dfam', dict(a=a, terms=3, shape=shape, h=h), (esq,))
         if rt.check(claim): out.append(claim)
     return out
+
+
+@op('egypt_theorem_families', 'NS', ('esq',), ('derived',),
+    'Compose her theorem with its admitted divisor families: a theorem_families derivation stating that an unresolved '
+    'n lies in an open class and meets no family\'s divisor condition. Derived again when the families grow.')
+def egypt_theorem_families(rt, esq):
+    d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
+    fams = sorted((o for o in rt.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked'
+                   and o['data']['a'] == a and o['data']['terms'] == terms), key=lambda o: (o['data']['shape'], o['data']['h']))
+    if not fams: return []
+    fams = fams[:rt.checker.MAX_PREMISES - 1]
+    shapes = sorted([o['data']['shape'], o['data']['h']] for o in fams)
+    rows = [(row[3], rt_statement(row[3])) for row in theorem_statements(rt, a, terms) if row[0] == lo]
+    plain = [(o, s) for o, s in rows if 'families' not in s]
+    if not plain: return []
+    T, s = max(plain, key=lambda x: (x[1].get('closed_at', 0), 'closure' in x[1], x[1]['range_hi'], -open_count(*x)))
+    statement = dict(s, families=shapes)
+    if any(u == statement for o, u in rows): return []  # composed with these families at this theorem already
+    claim = rt.propose('derived', dict(rule='theorem_families', premises=[T['id']] + [o['id'] for o in fams], statement=statement),
+                       (T,) + tuple(fams))
+    return [claim] if rt.check(claim) else []
+
+
+@op('egypt_range_square', 'NS', ('esq',), ('derived',),
+    'State what closure under multiples gives from the admitted range from min: every n below its end squared with a '
+    'divisor in the range is represented (for min 2, every composite below the square). A composite_range derivation.')
+def egypt_range_square(rt, esq):
+    d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
+    ranges = range_statements(rt, a, terms)
+    spine = max(((hi, o) for l, hi, o in ranges if l == lo), key=lambda x: x[0], default=None)
+    if spine is None: return []
+    hi, base = spine
+    if any(o['kind'] == 'derived' and o['status'] == 'checked' and o['data']['rule'] == 'composite_range'
+           and o['data']['statement']['a'] == a and o['data']['statement']['terms'] == terms
+           and o['data']['statement']['hi'] >= hi for o in rt.objects.values()): return []
+    statement = dict(kind='composites', a=a, terms=terms, lo=lo, hi=hi, reach=hi * hi)
+    claim = rt.propose('derived', dict(rule='composite_range', premises=[base['id']], statement=statement), (base,))
+    return [claim] if rt.check(claim) else []
 
 
 @op('egypt_range_union', 'NS', ('esq',), ('derived',),
@@ -1068,7 +1145,7 @@ def theorem_object(rt, a, terms, lo):
     """The admitted theorem of the question from lo whose closure under multiples is due, its statement and the admitted
     cover object it names, or None. A closure is due for a theorem that names its cover while no theorem on that cover
     is closed at its range: the widest range first, then the fewest open residues."""
-    rows = [(row[3], rt_statement(row[3])) for row in theorem_statements(rt, a, terms) if row[0] == lo]
+    rows = [(row[3], rt_statement(row[3])) for row in theorem_statements(rt, a, terms) if row[0] == lo and 'families' not in rt_statement(row[3])]
     closed = {(theorem_key(s), s['range_hi']) for o, s in rows if s.get('closed_at') == s['range_hi']}
     due = [(o, s) for o, s in rows if 'cover_id' in s and (theorem_key(s), s['range_hi']) not in closed]
     for T, s in sorted(due, key=lambda x: (x[1]['range_hi'], -open_count(*x), 'closure' in x[1]), reverse=True):
@@ -1108,7 +1185,7 @@ def dominates(u, us, T, s, reach):
     'Extend the admitted theorem to the admitted range past its own: a derivation by the theorem_range rule.')
 def egypt_theorem_range(rt, esq):
     d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
-    rows = [(row[3], rt_statement(row[3])) for row in theorem_statements(rt, a, terms) if row[0] == lo]
+    rows = [(row[3], rt_statement(row[3])) for row in theorem_statements(rt, a, terms) if row[0] == lo and 'families' not in rt_statement(row[3])]
     ranges = range_statements(rt, a, terms); due = []
     for T, s in rows:
         beyond = max(((hi, o) for l, hi, o in ranges if s['lo'] <= l <= s['range_hi'] < hi), key=lambda x: x[0], default=None)
@@ -1142,19 +1219,31 @@ def egypt_finite_verify(rt, esq):
     for entry in (cover['data']['entries'] if cover else []):
         f = entry['family']; row = thresholds.setdefault(f['m'], {})
         row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
-    witnesses, divisors, done, missing = {}, {}, set(), []
-    for n in range(lo, hi):
-        if (n - lo) % BREATH == 0: yield  # a breath: the scheduler may suspend the move here
+    # A part already admitted from min is not verified again: the claim starts where the spine ends. A divisor of an
+    # earlier number in the part is written down; a divisor in the spine is found by the checker of a later chunk, so
+    # the part past the spine relies on families and witnesses for numbers whose divisors all lie in the spine.
+    start = max((h for l, h, o in range_statements(rt, a, terms) if l == lo), default=lo)
+    if start >= hi: return []
+    shapes = divisor_families(rt, a, terms)
+    witnesses, divisors, table, done, missing = {}, {}, {}, set(), []
+    end = hi
+    for n in range(start, hi):
+        if (n - start) % BREATH == 0 and (yield) == 'checkpoint':
+            end = n; break  # the call ends: the part verified so far is the claim
         rt.budget.use(1 + len(thresholds) // 10)
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): done.add(n); continue
         rt.budget.use(max(4, n.bit_length() // 2)); p = next((q for q in sorted(L.factor(n)) if q < n and q in done), None)
         if p is not None: divisors[str(n)] = p; done.add(n); continue
+        hit = next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [dfam_divisor(rt, a, shape, h, n)] if q is not None), None)
+        if hit is not None: table[str(n)] = [hit[0], hit[1]]; done.add(n); continue
         xs = witness(a, n, rt.budget, max_excess=4 * a * 256) if terms == 3 else None
         if xs is None: missing.append(n); continue
         witnesses[str(n)] = sorted(xs)[:-1]; done.add(n)
     if missing: return [rt.residual(esq, missing[:4096], 'no witness found within the search bound')]
-    claim = rt.propose('finite', dict(a=a, terms=terms, lo=lo, hi=hi, witnesses=witnesses, divisors=divisors,
-                                      cover=cover['data'] if cover else None), (esq,) + ((cover,) if cover else ()))
+    if end <= start: return []
+    data = dict(a=a, terms=terms, lo=start, hi=end, witnesses=witnesses, divisors=divisors, cover=cover['data'] if cover else None)
+    if shapes: data['families'] = dict(shapes=[[shape, h] for shape, h in shapes], table=table)
+    claim = rt.propose('finite', data, (esq,) + ((cover,) if cover else ()))
     return [claim] if rt.check(claim) else []
 
 
@@ -1299,6 +1388,11 @@ def _families_level(rt):
     esq = _ranged_level(rt)[0]; egypt_divisor_families(rt, esq); return [esq]
 
 
+def _composed_level(rt):
+    """A level with its theorem, families and a chunk: what the composition and the square derive from."""
+    esq = _theorem_level(rt)[0]; egypt_divisor_families(rt, esq); return [esq]
+
+
 def _four_term_level(rt):
     """A four-term question whose base range is checked by hand; the chunk past it finds no witness (a residual)."""
     esq = rt.given('esq', dict(a=4, terms=4, min=2, modulus=24, verify_to=5))
@@ -1348,6 +1442,8 @@ FIXTURES = {
                                 if _classical_cover(rt, 24) else [], _sieved_range],
     'egypt_range_chunk': [_ranged_level, _four_term_level, _families_level],
     'egypt_divisor_families': [_ranged_level, lambda rt: [_esq(rt, 24, terms=4, verify_to=5)]],
+    'egypt_theorem_families': [_composed_level],
+    'egypt_range_square': [_composed_level, _ranged_level],
     'egypt_range_union': [_two_ranges_level],
     'egypt_theorem_multiples': [_multiples_level, _extended_closure_level],
     'egypt_theorem_range': [_theorem_level],

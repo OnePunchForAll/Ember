@@ -1772,12 +1772,57 @@ admitted9 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt9.objects.va
 table9 = chunk9['data']['proof']['families']['table'] if chunk9 else {}
 wrong9 = rt9.propose('derived', dict(chunk9['data'], proof=dict(chunk9['data']['proof'], families=dict(
     chunk9['data']['proof']['families'], table={k: [v[0], v[1] + 1] for k, v in table9.items()})))) if table9 else None
-families = (len(dfams9) == 12 and not rt9.check(bad_dfam) and V.verdict('dfam', dfams9[0]['data'])[0] == 'VERIFIED'
+families = (len(dfams9) == 17 and not rt9.check(bad_dfam) and V.verdict('dfam', dfams9[0]['data'])[0] == 'VERIFIED'
             and V.verdict('dfam', bad_dfam['data'])[0] == 'REFUTED' and chunk9 is not None and chunk9['status'] == 'checked'
             and chunk9['evidence']['via_family'] > 0 and chunk9['evidence']['via_family'] + chunk9['evidence']['via_witness'] == grown['evidence']['via_witness']
             and chunk9['evidence']['via_witness'] < grown['evidence']['via_witness']
             and V.derived_verdict(chunk9['data'], admitted9)[0] == 'VERIFIED'
             and wrong9 is not None and not rt9.check(wrong9) and V.derived_verdict(wrong9['data'], admitted9)[0] == 'REFUTED')
+# The third tier and the compositions: the pair families (Type II with a common factor) are stated with the rest and a
+# pair with h = 1 is refused; the theorem composed with its families derives once and refuses a family named twice;
+# the square of the admitted range derives and a reach past the square is refused; a base range verified after the
+# families are stated carries family entries the verdict recomputes, and a wrong entry is refused.
+pairs9 = [o for o in dfams9 if o['data']['shape'] == 'pair']
+pair1 = rt9.propose('dfam', dict(a=4, terms=3, shape='pair', h=1))
+rt10 = L.Runtime(C, ember['Budget'](10 ** 9)); esq10 = E2['_composed_level'](rt10)[0]
+composed = E2['egypt_theorem_families'](rt10, esq10); composed = composed[0] if composed else None
+twice = rt10.propose('derived', dict(composed['data'], premises=composed['data']['premises'][:2] + [composed['data']['premises'][1]])) if composed else None
+squared = E2['egypt_range_square'](rt10, esq10); squared = squared[0] if squared else None
+wide = rt10.propose('derived', dict(squared['data'], statement=dict(squared['data']['statement'], reach=squared['data']['statement']['reach'] + 1))) if squared else None
+admitted10 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt10.objects.values() if o['status'] == 'checked'}
+rt11 = L.Runtime(C, ember['Budget'](10 ** 9)); esq11 = E2['_esq'](rt11, 24, verify_to=400); E2['_classical_cover'](rt11, 24)
+E2['egypt_divisor_families'](rt11, esq11); L.drive(E2['egypt_finite_verify'](rt11, esq11))
+base11 = next((o for o in rt11.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked'), None)
+table11 = base11['data'].get('families', {}).get('table', {}) if base11 else {}
+wrong11 = rt11.propose('finite', dict(base11['data'], families=dict(base11['data']['families'], table={k: [v[0], v[1] + 1] for k, v in table11.items()}))) if table11 else None
+third_tier = (len(pairs9) == 5 and not rt9.check(pair1) and V.verdict('dfam', pairs9[0]['data'])[0] == 'VERIFIED'
+              and V.verdict('dfam', pair1['data'])[0] == 'REFUTED'
+              and composed is not None and composed['status'] == 'checked' and len(composed['data']['statement']['families']) == 17
+              and not rt10.check(twice) and V.derived_verdict(composed['data'], admitted10)[0] == 'VERIFIED'
+              and V.derived_verdict(twice['data'], admitted10)[0] == 'REFUTED'
+              and squared is not None and squared['status'] == 'checked' and squared['data']['statement']['reach'] == 798 * 798
+              and not rt10.check(wide) and V.derived_verdict(squared['data'], admitted10)[0] == 'VERIFIED'
+              and V.derived_verdict(wide['data'], admitted10)[0] == 'REFUTED'
+              and base11 is not None and base11['evidence']['via_family'] > 0 and base11['evidence']['via_witness'] < grown['evidence']['via_witness'] + 1
+              and V.verdict('finite', base11['data'])[0] == 'VERIFIED' and wrong11 is not None and not rt11.check(wrong11)
+              and V.verdict('finite', wrong11['data'])[0] == 'REFUTED')
+# Checkpoints: a breathing move asked to finish at a breath states the part it has verified; the checker admits it and
+# the verdict verifies it. Her fingerprint of what a round can depend on differs by problem kind, and what she forgets
+# first at the record bound is a settled record.
+rt12 = L.Runtime(C, ember['Budget'](10 ** 9)); esq12 = E2['_esq'](rt12, 24, verify_to=3000); E2['_classical_cover'](rt12, 24)
+gen12 = E2['egypt_finite_verify'](rt12, esq12)
+for _ in range(5): next(gen12)
+try:
+    gen12.send('checkpoint'); part12 = None
+except StopIteration as done: part12 = (done.value or [None])[0]
+registry_ops = registry
+rel_unit = A.relevant_generation(dict(type='unit_fraction_cover', a=4, terms=3, min=2), registry_ops)
+rel_desc = A.relevant_generation(dict(type='descent_cover', map=dict(d=2, a=[1, 3], b=[0, 1]), depth=4), registry_ops)
+order = A.forget_first([dict(task_id='old-open', status='UNKNOWN'), dict(task_id='newer-settled', status='CHECKED_RESEARCH'), dict(task_id='newest-open', status='UNKNOWN')])
+checkpoints = (part12 is not None and part12['kind'] == 'finite' and part12['status'] == 'checked' and 2 < part12['data']['hi'] < 3000
+               and V.verdict('finite', part12['data'])[0] == 'VERIFIED' and sliced['anytime'].get('settled', 0) >= 0
+               and rel_unit != rel_desc and rel_unit != A.generation() and len(rel_unit) == 64
+               and [o['task_id'] for o in order] == ['newer-settled', 'old-open', 'newest-open'])
 derivations = (multiples and reclosed_ok and grown['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
                and grown['evidence']['via_divisor'] > 0 and grown['evidence']['via_witness'] > 0
                and ext['data']['statement']['range_hi'] == 798 and ext['data']['statement']['modulus'] == 24
@@ -1877,7 +1922,7 @@ batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == wri
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
                       obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, anytime=anytime,
-                      derivations=derivations, families=families, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
+                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -1888,6 +1933,28 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
                                    'elapsed_ns': time.perf_counter_ns() - began, 'stderr': sieve_run.stderr})
         sieve_result = json.loads(sieve_run.stdout) if sieve_run.returncode == 0 else {}
         receipt['sieve_work'] = sieve_result.get('work')
+        # Her own loop: several calls of one task in one process write the files a shell loop would, and the second
+        # call resumes the first's record.
+        small_task = root / 'campaign-small.json'
+        small_task.write_text(json.dumps(dict(query='autonomous_research', problem=dict(type='unit_fraction_cover', a=4, terms=3, min=2, modulus=24, lifts=[5], verify_to=3000),
+                                              moves=200, move_work=20_000_000)), encoding='utf-8')
+        began = time.perf_counter_ns()
+        campaign_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', 'ember.py', 'campaign-small.json', '--state', 'campaign-state.json',
+                                       '--work', '900000000', '--calls', '2', '--out', 'campaign-out'], cwd=root, capture_output=True,
+                                      text=True, encoding='utf-8', timeout=300, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'campaign_mode_two_calls', 'returncode': campaign_run.returncode,
+                                    'elapsed_ns': time.perf_counter_ns() - began, 'stderr': campaign_run.stderr})
+        out_dir = root / 'campaign-out'
+        campaign_ok = False
+        try:
+            summary = json.loads(campaign_run.stdout)
+            first = json.loads((out_dir / 's.1.json').read_text(encoding='utf-8')); second = json.loads((out_dir / 's.2.json').read_text(encoding='utf-8'))
+            calls = (out_dir / 's.calls.txt').read_text(encoding='utf-8').splitlines(); log = (out_dir / 's.log.txt').read_text(encoding='utf-8').splitlines()
+            campaign_ok = (summary.get('status') == 'CAMPAIGN' and summary.get('calls') == 2 and first['status'] != 'REFUSED'
+                           and second.get('replayed_objects', 0) > 0 and len(calls) == 2 and calls[0].startswith('scan 1 exit')
+                           and log[-1] == 'finished' and len(log) == 3)
+        except (OSError, ValueError, KeyError, IndexError): campaign_ok = False
+        check('campaign_mode_runs_calls_in_one_process_and_resumes', campaign_ok)
         check('sieved_cover_matches_enumeration_and_verdict', sieve_result.get('sieve') is True)
         check('theorem_chain_is_checked_class_by_class', sieve_result.get('theorem') is True)
         check('pruned_wall_search_matches_unpruned_search', sieve_result.get('walls') is True)
@@ -1901,6 +1968,8 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('anytime_moves_wait_resume_and_switch_under_a_small_bound', sieve_result.get('anytime') is True)
         check('derivations_admit_unions_and_extensions_and_refuse_forgeries', sieve_result.get('derivations') is True)
         check('divisor_families_verify_and_carry_a_chunk', sieve_result.get('families') is True)
+        check('pair_families_compositions_squares_and_family_base_ranges', sieve_result.get('third_tier') is True)
+        check('checkpoints_relevant_fingerprints_and_forgetting_settled_first', sieve_result.get('checkpoints') is True)
         check('residual_records_the_attempt_of_a_deterministic_move', sieve_result.get('attempt_recorded') is True)
         check('problem_choice_weighs_gains_and_inherits_widened_windows', sieve_result.get('choice') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)

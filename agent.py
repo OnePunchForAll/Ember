@@ -42,9 +42,11 @@ COMPANIONS = 4
 # Operators that read the workspace: an attempt is new whenever the goal's progress has changed since.
 READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift',
                              'egypt_classical_sweep', 'egypt_wall_sweep', 'egypt_range_chunk', 'egypt_range_union',
-                             'egypt_theorem_range', 'egypt_theorem_multiples'))
+                             'egypt_theorem_range', 'egypt_theorem_multiples', 'egypt_divisor_families',
+                             'egypt_theorem_families', 'egypt_range_square'))
 # Moves tried once per state of what they read, not once per target and call: each chunk, union or extension is new.
-REPEATABLE = frozenset(('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples'))
+REPEATABLE = frozenset(('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples',
+                        'egypt_divisor_families', 'egypt_theorem_families', 'egypt_range_square'))
 MACRO_STEPS = 4
 PROPOSE_EVERY = 25
 # A move that fails only for lack of work is retried once with this many times the allocation.
@@ -93,6 +95,32 @@ def generation():
     return hashlib.sha256(b''.join((root / name).read_bytes() for name in names)).hexdigest()
 
 
+# The object kinds a problem starts from, by type; a window's own objects name theirs.
+PROBLEM_KINDS = {'unit_fraction_cover': ('esq', 'eclass', 'en', 'ufam', 'cover'), 'descent_cover': ('cproblem', 'cclass', 'descent')}
+CORE_FILES = ('agent.py', 'lexicon.py', 'lexicon_check.py')
+WINDOW_FILES = ('window_check.py', 'window_real.py', 'window_discrete.py')
+
+
+def relevant_generation(problem, registry):
+    """The fingerprint of what a round on this problem can depend on: the core (this scheduler, the runtime, the
+    checker) and the operator modules whose moves can apply, found by closure over the language's signatures from the
+    problem's own kinds; a window's question kinds bring the window tools. A change of her code elsewhere leaves the
+    problem's rounds valid, so only what the change can touch is checked again."""
+    kinds = set(PROBLEM_KINDS.get(problem.get('type')) or [o.get('kind') for o in problem.get('objects', []) if type(o) is dict])
+    modules = set(); grown = True
+    while grown:
+        grown = False
+        for spec in registry.values():
+            if type(spec) is not dict or 'consumes' not in spec: continue
+            if set(spec['consumes']) & kinds:
+                new = set(spec['produces']) - kinds
+                if spec['module'] not in modules or new: modules.add(spec['module']); kinds |= new; grown = True
+    files = list(CORE_FILES) + sorted(m if m.endswith('.py') else m + '.py' for m in modules)
+    if any(str(k).endswith('_q') or k in ('value', 'witness', 'proof') for k in kinds): files += list(WINDOW_FILES)
+    root = Path(__file__).resolve().parent
+    return hashlib.sha256(b''.join((root / name).read_bytes() for name in files if (root / name).exists())).hexdigest()
+
+
 # ------------------------------------------------------------- doctrine scheduling
 
 def doctrine_score(samples, context, strategy):
@@ -123,6 +151,14 @@ def saved_cover(cover, best, heads=()):
     for head in ([best] if best is not None else []) + list(heads):
         if head is not None and head['data'] == cover: return head
     return None
+
+
+def forget_first(records):
+    """What to forget first when the record bound is reached: records of settled problems (their evidence is on file
+    and their problem waits for new instruments), then the oldest of the rest in their order; an open problem's record
+    stays as long as it can."""
+    settled = [o for o in records if o.get('status') == 'CHECKED_RESEARCH']
+    return settled + [o for o in records if o.get('status') != 'CHECKED_RESEARCH']
 
 
 def compact_proof(L, obj, best, heads=()):
@@ -575,7 +611,8 @@ class CoverGoal(Goal):
         if strategy in ('egypt_classical_sweep', 'egypt_wall_sweep'):
             return (self.fam_count, len(self.classical_miss), len(self.classes), len(self.lemmas),
                     sum(len(v) for v in self.walled.values()))
-        if strategy in ('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples'):
+        if strategy in ('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples',
+                        'egypt_divisor_families', 'egypt_theorem_families', 'egypt_range_square'):
             # The range moves depend on the admitted ranges, derivations, theorems and covers.
             return tuple(sum(1 for o in self.results if o['kind'] == k and o['status'] == 'checked')
                          for k in ('finite', 'derived', 'theorem', 'cover', 'dfam'))
@@ -1225,7 +1262,7 @@ class Agent:
         self.retired = {}; goal.retired = self.retired; self.retire_tally = {}; self.priors = set(); self.retired_in = {}
         self.pooled = set(); self.quiet = set(); self.quiet_key = None
         # Anytime moves waiting at a breath, by move key; and (object, move) pairs whose residual records an attempt.
-        self.suspended = {}; self.attempted_by = set(); self.switches = 0; self.resumes = 0; self.slices = 0
+        self.suspended = {}; self.attempted_by = set(); self.switches = 0; self.resumes = 0; self.slices = 0; self.settled = 0; self.settled_objects = 0
         self.abandoned = 0; self.last_key = None
 
     def index(self):
@@ -1459,6 +1496,16 @@ class Agent:
             allocation = min(allocation * ESCALATION, max(allocation, (remaining or allocation) // 2))
         return self.execute(target, context, name, args, key, allocation)
 
+    def settle(self, gen, budget, allowance):
+        """Ask a waiting move to finish with what it has: 'checkpoint' at its breath, and this much work to state it
+        (a base range or a chunk states the part verified so far; a sweep the classes swept). A move that ignores the
+        signal runs on until the allowance is spent."""
+        budget.limit = budget.work + allowance
+        try:
+            gen.send('checkpoint')
+            while True: gen.send('checkpoint')
+        except StopIteration as done: return done.value or []
+
     def breathe(self, gen, budget, stop_at):
         """Advance an anytime move until it returns its objects, or until a breath finds the slice used (None)."""
         while True:
@@ -1483,13 +1530,17 @@ class Agent:
                                      work=rec['budget'].work, outputs=[], dropped=why, slices=rec['slices'])])[-MAX_LOG:]
 
     def close(self):
-        """End of the call: moves still waiting are closed; they start over if chosen in a later call."""
+        """End of the call: each move still waiting is asked to finish with what it has (a checkpoint at its next breath,
+        with a quarter of its allocation to state it), and what it states is admitted like any other result; the rest
+        of its search starts over if it is chosen in a later call."""
         waiting = len(self.suspended)
+        for rec in list(self.suspended.values()):
+            self.execute(rec['target'], rec['context'], rec['name'], rec['args'], rec['key'], rec['allocation'], resume=rec, settle=True)
         for rec in list(self.suspended.values()): rec['gen'].close()
         self.suspended.clear()
         return waiting
 
-    def execute(self, target, context, name, args, key, allocation, resume=None):
+    def execute(self, target, context, name, args, key, allocation, resume=None, settle=False):
         """Run a move for one slice. A plain move runs to its end or its work bound. An anytime move runs until it
         breathes with its slice used, and then waits with its own budget for a later step (resume); its outcome is
         recorded when it ends. The move being run is named to the runtime, so a residual it leaves records it."""
@@ -1511,7 +1562,9 @@ class Agent:
                 if isinstance(out, GeneratorType): gen, out = out, None
             # The slice ends at the first breath past half the move's work bound (or SLICE_WORK), so a breath comes
             # before the bound even when the bound is small.
-            if gen is not None: out = self.breathe(gen, budget, began_work + min(max(allocation // 2, 1), SLICE_WORK))
+            if gen is not None and settle:
+                out = self.settle(gen, budget, max(allocation // 4, 1)); gen = None; self.settled += 1; self.settled_objects += len(out)
+            elif gen is not None: out = self.breathe(gen, budget, began_work + min(max(allocation // 2, 1), SLICE_WORK))
         except (host.Exhausted, RuntimeError, self.checker.Limit) as exc: reason = 'limit: ' + str(exc)[:120]; gen = None
         except (ValueError, KeyError, TypeError, IndexError, ZeroDivisionError) as exc:
             reason = 'operator error: ' + type(exc).__name__ + ': ' + str(exc)[:120]; gen = None
@@ -1522,12 +1575,16 @@ class Agent:
         self.moves += 1; self.last_key = key; slice_progress = self.goal.progress(self.rt) != before
         progressed = progressed or slice_progress
         if out is None and reason is None and gen is not None and budget.work >= allocation * ESCALATION:
-            # The move has had the work an escalated move gets, over all its slices: it ends at its bound.
-            gen.close(); gen = None; reason = 'limit: anytime move work bound'; self.escalated.setdefault(key, allocation)
+            # The move has had the work an escalated move gets, over all its slices: it ends at its bound, keeping
+            # what it can state at its next breath.
+            try: out = self.settle(gen, budget, max(allocation // 4, 1)); self.settled += 1; self.settled_objects += len(out)
+            except (host.Exhausted, RuntimeError, self.checker.Limit, ValueError, KeyError, TypeError, IndexError, ZeroDivisionError): out = None
+            gen = None
+            if not out: out = None; reason = 'limit: anytime move work bound'; self.escalated.setdefault(key, allocation)
         if out is None and reason is None and gen is not None:
             # Waiting at a breath with the slice used: the move keeps its budget and its place.
             self.slices += 1
-            self.suspend(dict(gen=gen, budget=budget, target=target, context=context, name=name, args=args, key=key,
+            self.suspend(dict(gen=gen, budget=budget, target=target, context=context, name=name, args=args, key=key, allocation=allocation,
                               slices=slices + 1, idle=0 if slice_progress else (resume['idle'] + 1 if resume else 1),
                               seconds=seconds, progressed=progressed, existing=existing, objects_before=objects_before))
             row = dict(move=self.moves, target=target['kind'], strategy=name, success=slice_progress, work=budget.work - began_work,
@@ -1728,7 +1785,7 @@ def save(host, state, state_path, record, library=None, carried=(), ledger=None)
     where (see load_archive); files no longer named by the state are removed once it is written."""
     if state_path is None: return 0
     ids = {record['task_id']} | ({library['task_id']} if library else set()) | ({ledger['task_id']} if ledger else set())
-    others = [o for o in state['observations'] if o['task_id'] not in ids]
+    others = forget_first([o for o in state['observations'] if o['task_id'] not in ids])
     rows = others + ([library] if library else []) + ([ledger] if ledger else []) + [record]
     state['observations'] = rows[-MAX_RECORDS:]
     if ledger is not None:
@@ -1807,7 +1864,7 @@ def run(task, state_path, limit, host):
     started = time.perf_counter_ns(); budget = host.Budget(limit)
     L = host.local_module('lexicon'); checker = host.local_module('lexicon_check')
     problem, moves, per, reports, identity = bind(task, host, L)
-    registry, _ = L.load_ops(); gen = generation()
+    registry, _ = L.load_ops(); gen = generation(); rel = relevant_generation(problem, registry)
     state = host.read_state(state_path)
     old = next((o for o in state['observations'] if o.get('task_id') == identity and o.get('kind') == 'autonomous_research'), None)
     archive = load_archive(state)
@@ -1820,7 +1877,9 @@ def run(task, state_path, limit, host):
     agent = None; baseline = 0; status = 'UNKNOWN'; reason = 'move allowance used'
     try:
         if old is not None:
-            if old.get('generation') == gen:
+            # The record's scheduling memory is reused when nothing a round on this problem can depend on has changed
+            # (older records name only the whole fingerprint).
+            if old.get('relevant', old.get('generation')) == (rel if 'relevant' in old else gen):
                 samples = [s for s in old.get('samples', []) if type(s) is dict] + samples
                 tried = set(x for x in old.get('tried', []) if type(x) is str)
                 # Moves that read the workspace or summarize a cover are re-derivable after a resume.
@@ -1860,9 +1919,9 @@ def run(task, state_path, limit, host):
     gained = max(0, sum(1 for o in rt.objects.values() if o['status'] == 'checked') - baseline) if agent else 0
     ledger = load_ledger(state)
     rounds = (ledger.get(identity) or [r for r in (old or {}).get('rounds', []) if type(r) is dict])[-(MAX_ROUNDS - 1):]
-    rounds.append(dict(generation=gen[:16], status=status, reason=reason, settled=settled, new_checked=gained,
+    rounds.append(dict(generation=gen[:16], relevant=rel[:16], status=status, reason=reason, settled=settled, new_checked=gained,
                        moves=agent.moves if agent else 0, seconds=round((time.perf_counter_ns() - started) / 1e9, 3)))
-    record = dict(task_id=identity, kind='autonomous_research', generation=gen, problem=problem, status=status,
+    record = dict(task_id=identity, kind='autonomous_research', generation=gen, relevant=rel, problem=problem, status=status,
                   reason=reason, settled=settled, rounds=rounds,
                   objects=[compact(o) for o in goal.persisted(rt)], macros=agent.macros if agent else macros,
                   samples=[s for s in (agent.samples if agent else samples) if s.get('source') == 'local'],
@@ -1892,7 +1951,7 @@ def run(task, state_path, limit, host):
     return dict(status=status, reason=reason, settled=settled, task_id=identity, problem=problem, generation=gen,
                 new_checked=gained, rounds=len(rounds), moves_executed=agent.moves if agent else 0, work=budget.work,
                 anytime=dict(slices=agent.slices, resumes=agent.resumes, switches=agent.switches, abandoned=agent.abandoned,
-                             waiting_at_end=waiting) if agent else {},
+                             waiting_at_end=waiting, settled=agent.settled, settled_objects=agent.settled_objects) if agent else {},
                 elapsed_ns=time.perf_counter_ns() - started, replayed_objects=replayed, invalidated_objects=invalid,
                 dropped_objects=dropped, carried_objects=dict(admitted=carried[0], refused=carried[1]),
                 carried_later=goal.carry_report(),
@@ -1998,7 +2057,7 @@ def load_problems(host, L):
     return problems, catalog, needs
 
 
-def choose(problems, state, gen):
+def choose(problems, state, gen, registry=None):
     """Her ranking of the stated problems, read from her own records only. A problem settled at this generation, or
     left with no untried move, waits for new instruments. The rest are ranked by CHOICE_RULE: every problem gets a first
     round, and after that the ones where her rounds keep producing checked results cheaply come first. A scheduling
@@ -2016,7 +2075,9 @@ def choose(problems, state, gen):
         history = ledger[e['parent_key']] if inherited else rounds
         samples = round_samples(history, e['id'])
         score = doctrine_score(samples, 'problem', e['id'])
-        here = [r for r in rounds if r.get('generation') == gen[:16]]
+        rel = relevant_generation(e['task'], registry)[:16] if registry else None
+        # Rounds at the code a round on this problem can depend on; older rounds are compared by the whole fingerprint.
+        here = [r for r in rounds if (r.get('relevant') == rel if 'relevant' in r and rel else r.get('generation') == gen[:16])]
         last = here[-1] if here else {}
         recent = history[-RECENT_ROUNDS:]
         if last.get('status') == 'CHECKED_RESEARCH':
@@ -2058,7 +2119,7 @@ def scan(task, state_path, limit, host):
         try: bind(dict(query='autonomous_research', problem=problem), host, L); return True
         except host.Refused: return False
     proposed = proposed_windows(problems, load_ledger(state), L.load_ops()[0].get('_widen'), valid)
-    ranking = choose(problems + proposed, state, gen)
+    ranking = choose(problems + proposed, state, gen, L.load_ops()[0])
     tally = {}; windowed = {e['window_of'] for e in problems if e['status'] == 'window'}
     for e in catalog:
         for n in e['needs']: tally.setdefault(n, []).append(e['id'])
@@ -2099,9 +2160,13 @@ def visible_results(checked):
     extensions = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_range']
     closures = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_multiples']
     dfams = [o for o in rows if o['kind'] == 'dfam']  # one row stands for the family list; the count is in checked_objects
+    composed = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_families']
+    squares = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'composite_range']
     keep = {id(o) for o in (max(unions, key=lambda o: o['data']['statement']['hi'], default=None),
                             max(extensions, key=lambda o: ('closure' in o['data']['statement'], o['data']['statement']['range_hi']), default=None),
-                            min(closures, key=lambda o: (o['data']['statement']['open_residues'], -o['data']['statement']['closed_at']), default=None)) if o is not None}
+                            min(closures, key=lambda o: (o['data']['statement']['open_residues'], -o['data']['statement']['closed_at']), default=None),
+                            max(composed, key=lambda o: (len(o['data']['statement']['families']), o['data']['statement']['range_hi']), default=None),
+                            max(squares, key=lambda o: o['data']['statement']['reach'], default=None)) if o is not None}
     base_lo = min((o['data']['lo'] for o in rows if o['kind'] == 'finite'), default=None)
     shown = [o for o in rows if not (o['kind'] == 'finite' and o['data']['lo'] != base_lo)
              and not (o['kind'] == 'derived' and id(o) not in keep) and not (o['kind'] == 'dfam' and o is not dfams[0])]

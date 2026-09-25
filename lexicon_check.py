@@ -942,7 +942,8 @@ def cover_residues(data):
 
 
 def check_finite(data, budget):
-    need(set(data) == {'a', 'terms', 'lo', 'hi', 'witnesses', 'divisors', 'cover'}, 'finite range fields')
+    need(set(data) in ({'a', 'terms', 'lo', 'hi', 'witnesses', 'divisors', 'cover'},
+                       {'a', 'terms', 'lo', 'hi', 'witnesses', 'divisors', 'cover', 'families'}), 'finite range fields')
     a = integer(data['a'], 1, 64); terms = integer(data['terms'], 2, 6)
     lo = integer(data['lo'], 1); hi = integer(data['hi'], lo); need(hi - lo <= MAX_RANGE, 'finite range bound')
     witnesses, divisors, cover = data['witnesses'], data['divisors'], data['cover']
@@ -954,12 +955,18 @@ def check_finite(data, budget):
         for entry in cover['entries']:
             f = entry['family']; row = thresholds.setdefault(f['m'], {})
             row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
-    done = set(); via_cover = via_witness = via_divisor = 0
+    shapes, table = family_table(data.get('families'), terms)
+    done = set(); via_cover = via_witness = via_divisor = via_family = 0
     for n in range(lo, hi):
         budget.use(1 + len(thresholds))
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()):
             via_cover += 1; done.add(n); continue
         key = str(n)
+        fam = table.get(key)
+        if fam is not None:
+            x, y, z = family_terms(a, shapes, n, fam, budget)
+            need(Q(1, x) + Q(1, y) + Q(1, z) == Q(a, n), 'family divisor at ' + key + ' gives no representation')
+            via_family += 1; done.add(n); continue
         if key in witnesses:
             xs = witnesses[key]
             need(type(xs) is list and len(xs) == terms - 1 and all(type(x) is int and x >= 1 for x in xs), 'witness shape')
@@ -970,10 +977,11 @@ def check_finite(data, budget):
         need(type(d) is int and 1 < d < n and n % d == 0 and d in done, 'no checked representation for ' + key)
         via_divisor += 1; done.add(n)
     return dict(ok=True, kind='finite', count=hi - lo, via_cover=via_cover, via_witness=via_witness,
-                via_divisor=via_divisor,
+                via_divisor=via_divisor, via_family=via_family,
                 scope='Every integer n with lo <= n < hi has a representation of a/n with the stated number of terms.',
-                proof='A checked family whose class contains n at or above its own threshold, an exact witness with a '
-                      'unit remainder, or a checked divisor d of n scaled by n/d.')
+                proof='A checked family whose class contains n at or above its own threshold, a divisor family (its '
+                      'denominators computed and summed exactly), an exact witness with a unit remainder, or a checked '
+                      'divisor d of n scaled by n/d.')
 
 
 def check_theorem(data, budget):
@@ -1040,9 +1048,9 @@ def class_thresholds(cover, budget):
 
 # ------------------------------------------------------------- derivations: claims that follow from admitted claims
 
-DERIVATION_RULES = ('range_union', 'theorem_range', 'range_extend', 'theorem_multiples')
+DERIVATION_RULES = ('range_union', 'theorem_range', 'range_extend', 'theorem_multiples', 'theorem_families', 'composite_range')
 CLOSURE_RESIDUES = 40_000_000  # residues a closure statement may enumerate
-MAX_PREMISES = 8
+MAX_PREMISES = 24  # a theorem composed with its families names each family
 # ------------------------------------------------------------- divisor families
 # A Type I solution of a/n = 1/x + 1/y + 1/z with n | x: x = n e, q = a e - 1, y = (n e + f)/q, z = n e y/f for any
 # f | e^2, and (1 + q)/(n e) = a/n for every e, f and q = a e - 1. Her classical families fix e and f; a divisor family
@@ -1050,7 +1058,9 @@ MAX_PREMISES = 8
 #   plus h:   q | n + h,   q = -1 (mod a h): f = h e    (x, y, z) = (n e, e (n + h)/q, n (e/h) (n + h)/q)
 #   times h:  q | h n + 1, q = -1 (mod a h): f = e/h    (x, y, z) = (n e, (e/h) (h n + 1)/q, n e (h n + 1)/q)
 #   square:   q | a n + 1, q = -1 (mod a):   f = e^2    (x, y, z) = (n e, e (n + e)/q, n (n + e)/q)
-DFAM_SHAPES = ('plus', 'times', 'square')
+# and the Type II solutions with a common factor h (x = n e, y = n f, z = e f/h with a e f = h n + e + f), which is
+# the pair family: q | a h n + 1 with q = -1 (mod a), q' = (a h n + 1)/q, e = (q + 1)/a, f = (q' + 1)/a, h | e f.
+DFAM_SHAPES = ('plus', 'times', 'square', 'pair')
 MAX_DFAM_H = 64
 MAX_DFAM_SHAPES = 24
 
@@ -1059,6 +1069,7 @@ def dfam_form(a, shape, h):
     """The linear form and divisor class of a divisor family: q | alpha n + beta with q = -1 (mod t)."""
     if shape == 'plus': return 1, h, a * h
     if shape == 'times': return h, 1, a * h
+    if shape == 'pair': return a * h, 1, a
     return a, 1, a
 
 
@@ -1074,6 +1085,11 @@ def dfam_terms(a, shape, h, n, q):
     if shape == 'times':
         need((h * n + 1) % q == 0 and e % h == 0, 'family divisor condition')
         return n * e, (e // h) * (h * n + 1) // q, n * e * (h * n + 1) // q
+    if shape == 'pair':
+        need((a * h * n + 1) % q == 0, 'family divisor condition'); qq = (a * h * n + 1) // q
+        need((qq + 1) % a == 0, 'family divisor class'); f = (qq + 1) // a
+        need((e * f) % h == 0, 'family divisor condition')
+        return n * e, n * f, e * f // h
     need((a * n + 1) % q == 0 and (n + e) % q == 0, 'family divisor condition')
     return n * e, e * (n + e) // q, n * (n + e) // q
 
@@ -1083,7 +1099,32 @@ def dfam_rational(a, shape, h, n, q):
     e = Q(q + 1, a)
     if shape == 'plus': return n * e, e * (n + h) / q, n * (e / h) * (n + h) / q
     if shape == 'times': return n * e, (e / h) * (h * n + 1) / q, n * e * (h * n + 1) / q
+    if shape == 'pair':
+        f = ((a * h * n + 1) / q + 1) / a
+        return n * e, n * f, e * f / h
     return n * e, e * (n + e) / q, n * (n + e) / q
+
+
+def family_table(families, terms):
+    """The shapes and the per-number table a proof's family part carries, checked for shape, or empty lists."""
+    if families is None: return [], {}
+    need(type(families) is dict and set(families) == {'shapes', 'table'} and type(families['shapes']) is list
+         and len(families['shapes']) <= MAX_DFAM_SHAPES and type(families['table']) is dict, 'family table')
+    shapes = []
+    for row in families['shapes']:
+        need(type(row) is list and len(row) == 2 and row[0] in DFAM_SHAPES and type(row[1]) is int
+             and 1 <= row[1] <= MAX_DFAM_H, 'family shape')
+        shapes.append((row[0], row[1]))
+    need(not shapes or terms == 3, 'divisor families give three unit fractions')
+    return shapes, families['table']
+
+
+def family_terms(a, shapes, n, entry, budget):
+    """The three denominators a family entry [shape index, divisor] gives n, positive integers, or Invalid."""
+    need(type(entry) is list and len(entry) == 2 and type(entry[0]) is int and 0 <= entry[0] < len(shapes), 'family entry')
+    x, y, z = dfam_terms(a, shapes[entry[0]][0], shapes[entry[0]][1], n, entry[1]); budget.use(7)
+    need(min(x, y, z) >= 1, 'family denominators must be positive')
+    return x, y, z
 
 
 def check_dfam(data, budget):
@@ -1095,6 +1136,7 @@ def check_dfam(data, budget):
     a = integer(data['a'], 2, 64); need(data['terms'] == 3, 'three unit fractions'); shape = data['shape']
     need(shape in DFAM_SHAPES, 'divisor family shape'); h = integer(data['h'], 1, MAX_DFAM_H)
     need(shape != 'times' or h >= 2, 'times 1 is plus 1'); need(shape != 'square' or h == 1, 'square takes no h')
+    need(shape != 'pair' or h >= 2, 'pair 1 is square')
     alpha, beta, t = dfam_form(a, shape, h)
     for n in range(1, 9):
         for q in range(1, 9):
@@ -1103,10 +1145,17 @@ def check_dfam(data, budget):
     instances = 0
     for k in range(1, 7):
         q = t * k - 1; budget.use(q)
-        n = next(n for n in range(1, q + 1) if (alpha * n + beta) % q == 0)  # gcd(alpha, q) = 1: some n works
+        if shape == 'pair':
+            # h | e f is a condition, not a consequence: the least n in the class that meets it, if any below 4 q h
+            budget.use(4 * q * h)
+            n = next((n for n in range(1, 4 * q * h + 1) if (alpha * n + beta) % q == 0
+                      and (((q + 1) // a) * (((alpha * n + beta) // q + 1) // a)) % h == 0), None)
+            if n is None: continue
+        else: n = next(n for n in range(1, q + 1) if (alpha * n + beta) % q == 0)  # gcd(alpha, q) = 1: some n works
         x, y, z = dfam_terms(a, shape, h, n, q)
         need(min(x, y, z) >= 1 and Q(1, x) + Q(1, y) + Q(1, z) == Q(a, n), 'family instance fails at n = ' + str(n))
         instances += 1
+    need(instances >= 1, 'no instance of the family')
     return dict(ok=True, kind='dfam', shape=shape, h=h, form=[alpha, beta, t], instances=instances,
                 scope='For every n >= 1 and every divisor q of %d n + %d with q = -1 (mod %d), a/n = 1/x + 1/y + 1/z '
                       'with the denominators the shape gives (x = n e, e = (q + 1)/a).' % (alpha, beta, t),
@@ -1172,15 +1221,7 @@ def check_derived(data, budget, admitted=None):
         cover, witnesses = proof['cover'], proof['witnesses']; need(type(witnesses) is dict, 'witness table')
         # A number may also be represented by a divisor family: the proof names the shapes it uses and, per number,
         # the shape and the divisor; the checker computes the denominators and verifies the sum exactly.
-        families = proof.get('families') or dict(shapes=[], table={})
-        need(type(families) is dict and set(families) == {'shapes', 'table'} and type(families['shapes']) is list
-             and len(families['shapes']) <= MAX_DFAM_SHAPES and type(families['table']) is dict, 'family table')
-        shapes = []
-        for row in families['shapes']:
-            need(type(row) is list and len(row) == 2 and row[0] in DFAM_SHAPES and type(row[1]) is int
-                 and 1 <= row[1] <= MAX_DFAM_H, 'family shape')
-            shapes.append((row[0], row[1]))
-        need(not shapes or terms == 3, 'divisor families give three unit fractions')
+        shapes, table = family_table(proof.get('families'), terms)
         thresholds = {}
         if cover is not None:
             check_cover(cover, budget); need(cover['a'] == a and cover['terms'] == terms, 'cover belongs to another question')
@@ -1191,11 +1232,10 @@ def check_derived(data, budget, admitted=None):
         for n in range(h, s['hi']):
             budget.use(1 + len(thresholds))
             if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): via_cover += 1; continue
-            fam = families['table'].get(str(n))
+            fam = table.get(str(n))
             if fam is not None:
-                need(type(fam) is list and len(fam) == 2 and type(fam[0]) is int and 0 <= fam[0] < len(shapes), 'family entry')
-                x, y, z = dfam_terms(a, shapes[fam[0]][0], shapes[fam[0]][1], n, fam[1]); budget.use(terms + 4)
-                need(min(x, y, z) >= 1 and Q(1, x) + Q(1, y) + Q(1, z) == Q(a, n), 'family divisor at ' + str(n) + ' gives no representation')
+                x, y, z = family_terms(a, shapes, n, fam, budget)
+                need(Q(1, x) + Q(1, y) + Q(1, z) == Q(a, n), 'family divisor at ' + str(n) + ' gives no representation')
                 via_family += 1; continue
             xs = witnesses.get(str(n))
             if xs is not None:
@@ -1243,6 +1283,34 @@ def check_derived(data, budget, admitted=None):
         return dict(ok=True, kind='derived', rule=rule, lo=s['lo'], hi=s['hi'],
                     scope='Every integer n with lo <= n < hi has a representation of a/n with the stated number of terms.',
                     proof='Each n in the union lies in one of the two admitted ranges, which touch or overlap.')
+    if rule == 'theorem_families':
+        # The theorem composed with divisor families, each an admitted universal claim: an n >= lo that is unresolved
+        # lies in an open class of the theorem's cover and meets none of the families' divisor conditions.
+        T = [q for q in premises if q['kind'] == 'theorem']; fams = [q for q in premises if q['kind'] == 'dfam']
+        need(len(T) == 1 and fams and len(fams) + 1 == len(premises), 'theorem_families takes a theorem and divisor families')
+        T = T[0]; need('families' not in T, 'the theorem already names its families')
+        need(all(f['a'] == T['a'] and f['terms'] == T['terms'] for f in fams), 'families of another question')
+        shapes = sorted([f['shape'], f['h']] for f in fams)
+        need(len({tuple(x) for x in shapes}) == len(shapes), 'a family named twice')
+        need(s == dict(T, families=shapes), 'the stated theorem differs from the premise beyond its families')
+        return dict(ok=True, kind='derived', rule=rule, families=len(shapes), modulus=T['modulus'], lo=T['lo'], range_hi=T['range_hi'],
+                    scope='For every integer n >= lo, a/n is a sum of the stated number of unit fractions when n lies in a '
+                          'covered class of the theorem, when n < range_hi, or when the linear form of one of the named '
+                          'families has a divisor in that family\'s class; an unresolved n satisfies none of these.',
+                    proof='The theorem and each family are admitted claims about every n; the composition states their disjunction.')
+    if rule == 'composite_range':
+        # Closure under multiples over an admitted range: a/(t d) = sum 1/(t x_i) whenever a/d = sum 1/x_i, so every
+        # n with a divisor d in [lo, hi) is represented; below hi^2 that includes every composite whose least prime
+        # factor is at least lo (it is below sqrt(n) < hi), so for lo = 2 every composite.
+        need(len(premises) == 1 and premises[0]['kind'] == 'range', 'composite_range takes one range')
+        R = premises[0]; need(R['hi'] > R['lo'] >= 1, 'a range')
+        need(s == dict(kind='composites', a=R['a'], terms=R['terms'], lo=R['lo'], hi=R['hi'], reach=R['hi'] * R['hi']),
+             'the stated composites are not those of the range')
+        return dict(ok=True, kind='derived', rule=rule, lo=R['lo'], hi=R['hi'], reach=s['reach'],
+                    scope='Every integer n with lo <= n < reach that has a divisor d with lo <= d < hi is represented with '
+                          'the stated number of terms; for lo = 2 that is every composite n below reach.',
+                    proof='n = t d with a/d = sum 1/x_i gives a/n = sum 1/(t x_i); a composite n below hi^2 has a prime '
+                          'factor p <= sqrt(n) < hi, which is such a divisor whenever p >= lo (always when lo = 2).')
     need(len(premises) == 2, 'theorem_range takes a theorem and a range')
     T = next((q for q in premises if q['kind'] == 'theorem'), None); R = next((q for q in premises if q['kind'] == 'range'), None)
     need(T is not None and R is not None, 'theorem_range takes a theorem and a range')

@@ -748,6 +748,9 @@ def main():
     parser.add_argument('--recursive-steps',type=int,default=4)
     parser.add_argument('--source-policy',choices=['native_isolated','graph_isolated','fixed_bridge','gap_bridge'],default='gap_bridge')
     parser.add_argument('--source-steps',type=int,default=8)
+    parser.add_argument('--calls',type=int,default=1,help='run the task this many times in one process: a campaign of library scans or rounds, each call reading and writing the state as a separate call would')
+    parser.add_argument('--out',type=Path,help='with --calls: write each call\'s result to OUT/s.<i>.json, the wall seconds to OUT/s.calls.txt and a line per call to OUT/s.log.txt')
+    parser.add_argument('--seconds',type=float,help='with --calls: stop starting new calls once this many wall seconds have passed')
     parser.add_argument('--layer',choices=['direct','apex'],default='direct')
     parser.add_argument('--pyramid',action='store_true')
     parser.add_argument('--move-bench',action='store_true')
@@ -767,10 +770,45 @@ def main():
         if args.layer=='apex' and not (type(task) is dict and task.get('query')=='apex_research'):
             # The higher layer receives the original unchanged as its only obligation.
             task={'query':'apex_research','problems':[task]}
+        if args.calls>1: return campaign(task,args)
         result=solve(task,args.state,args.work,args.strategy,args.guard_policy,args.proof_policy,invariant_policy=args.invariant_policy,obligation_steps=args.obligation_steps,recursive_policy=args.recursive_policy,recursive_steps=args.recursive_steps,source_policy=args.source_policy,source_steps=args.source_steps)
     except (Refused,ValueError,KeyError,TypeError) as e:
         result={'status':'REFUSED','reason':str(e)}
     print(json.dumps(result,indent=2))
     return 3 if result['status']=='UNKNOWN' else 2 if result['status']=='REFUSED' else 0
+
+def campaign(task,args):
+    """Several calls of one task in one process: her own scan loop. Each call reads the state file afresh and writes
+    it back, as a separate process would (the code's fingerprint is the same for every call). Calls stop early when a
+    scan reports that every stated problem waits for new instruments, or when the wall budget is spent. Outputs go to
+    the files a shell loop would write, so the same watchers read them."""
+    import time as _time
+    out=args.out; started=_time.time(); last=None; codes=[]
+    if out is not None: out.mkdir(parents=True,exist_ok=True)
+    for i in range(1,args.calls+1):
+        if args.seconds is not None and _time.time()-started>=args.seconds: break
+        began=_time.time()
+        try:
+            result=solve(task,args.state,args.work,args.strategy,args.guard_policy,args.proof_policy,invariant_policy=args.invariant_policy,obligation_steps=args.obligation_steps,recursive_policy=args.recursive_policy,recursive_steps=args.recursive_steps,source_policy=args.source_policy,source_steps=args.source_steps)
+        except (Refused,ValueError,KeyError,TypeError) as e:
+            result={'status':'REFUSED','reason':str(e)}
+        code=3 if result['status']=='UNKNOWN' else 2 if result['status']=='REFUSED' else 0; codes.append(code); last=result
+        seconds=_time.time()-began
+        if out is not None:
+            (out/('s.%d.json'%i)).write_text(json.dumps(result,indent=2),encoding='utf-8')
+            with open(out/'s.calls.txt','a',encoding='utf-8') as f: f.write('scan %d exit %d seconds %.6f\n'%(i,code,seconds))
+            c=result.get('choice') or {}
+            with open(out/'s.log.txt','a',encoding='utf-8') as f:
+                f.write('scan %d %s | %s | %s %s | %s | new %s moves %s dropped %s\n'%(i,c.get('id'),c.get('why'),result['status'],result.get('settled'),str(result.get('reason',''))[:60],result.get('new_checked'),result.get('moves_executed'),result.get('dropped_objects')))
+        else: print(json.dumps(dict(call=i,status=result['status'],choice=(result.get('choice') or {}).get('id'),reason=str(result.get('reason',''))[:80],new_checked=result.get('new_checked'),seconds=round(seconds,1))))
+        if code==3 and 'every stated problem' in str(result.get('reason','')):
+            if out is not None:
+                with open(out/'s.log.txt','a',encoding='utf-8') as f: f.write('nothing left\n')
+            break
+    if out is not None:
+        with open(out/'s.log.txt','a',encoding='utf-8') as f: f.write('finished\n')
+    summary=dict(status='CAMPAIGN',calls=len(codes),seconds=round(_time.time()-started,1),outcomes={str(c):codes.count(c) for c in sorted(set(codes))},last=(last or {}).get('status'))
+    print(json.dumps(summary,indent=2)); return 3 if codes and codes[-1]==3 else (2 if codes and codes[-1]==2 else 0)
+
 
 if __name__=='__main__': raise SystemExit(main())
