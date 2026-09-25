@@ -1036,3 +1036,138 @@ request was to build the tools she needs "in order to at least see them".
   restriction, Bochner-Riesz, hot spots, invariant subspaces, Navier-Stokes).
   A window's size is fixed in the library; `window_widen` can enlarge one, but
   she has not yet been run on widened windows.
+
+## Her scans over the whole library, and the walls they exposed (fingerprints 4ca544c6 and c6eb5099)
+
+With the windows her library holds 148 stated problems: 18 open, 5 closed and
+125 windows. She scanned it with `open_problems` calls on one instance state,
+started fresh, each call choosing by her own records (10,000 moves and a work
+bound of 4·10^9 per call).
+
+- **Calls 1-18: the open problems.** Untried problems tie at the top score and
+  open ones rank first: Collatz, Erdős-Straus at 4/n, Schinzel's a/n for a = 6
+  to 19 and 21, and Sierpiński's 5/n. Every round ended at its move allowance or
+  with no untried move, and none settled its problem (2,020 s, 146,635 moves,
+  39,153 new checked results).
+- **Calls 19-69: windows**, in library order from abc to the happy ending
+  problem. All 51 settled by checked results, in 1 to 4 moves (73 in all) and
+  3.1 to 23.1 s a call (258 s in all). A window alone takes about half a second
+  (see the previous section); the rest is reading and writing her nearly full
+  8 MiB state.
+- **The first wall: the byte bound.** Twice the save dropped one object of the
+  round's own evidence (calls 10 and 16, Schinzel's 17/n and 8/n). Both times it
+  was the checked range that the round's theorem rests on, the largest object;
+  the smaller objects behind it were put back. Both theorems are therefore saved
+  without their support. After call 69 the state held 8,377,480 of its
+  8,388,608 bytes, and a window record takes 1-2 KB, so the next windows would
+  have lost their own answers. The run was stopped there.
+- **The verdict on her state after call 69:** 32,784 claims VERIFIED (22,071 of
+  them walls), none refuted, 11 UNRESOLVED: the two theorems cut from their
+  ranges ("no saved range has the referenced digest") and nine window values in
+  families that have no independent rule yet. All other 51 window claims
+  verified (38 values, 12 witnesses, 1 proof). 226 s.
+- **Instrument 1: evidence spill.** When the state would exceed its bound, the
+  save now moves evidence into files beside the state: first the evidence of
+  her largest other records, then the round's own if needed. The files live in
+  `<state>.evidence/`, one per record, each named by its content's digest and
+  bounded like a state; the record keeps the file's name, SHA-256 and object
+  count. A resume reads a file back only when the digest and the task id match,
+  and the independent verdict does the same with its own code. A missing or
+  altered file gives no evidence: the verdict answers UNRESOLVED for that
+  record, and a resume searches again. Only evidence beyond one file's bound
+  (the state's) is dropped, from the least valuable end, so a spilled theorem
+  always keeps its range. A new problem now takes carried-over rows only from
+  records of its own problem type, so it does not open every spilled file;
+  only the unit-fraction goal carries rows over, and it reads only its own
+  kinds, so no transfer changes.
+- **A trial of the spill** on a copy of her state after call 13, before the
+  second instrument existed, over four rounds she chose (Schinzel's 6/n to
+  9/n): the third round overflowed the bound and spilled one record (13/n,
+  1,470,306 bytes of evidence); nothing was dropped. Resuming 13/n from its
+  file replayed 302 checked objects with none refused, the same 302 as from the
+  record's inline evidence. The verdict on the trial state read the file back:
+  26,301 claims VERIFIED, none refuted, 1 UNRESOLVED (the 17/n theorem already
+  cut from its range), 113 s.
+- **The second wall: the record bound.** An instance state holds at most 128
+  records, and the host refuses a larger one. With 148 problems, one record
+  each, the save would have evicted her oldest records first, and those were
+  her open-problem rounds: the costliest evidence she has, lost to make room
+  for 2 KB window records. Her rounds ledger kept her memory of trying them,
+  but not what they proved.
+- **Instrument 2: the archive.** An evicted record's evidence now moves to its
+  file, and her rounds ledger, which is never evicted, keeps the file's name,
+  digest and object count (up to 1,024 records). A later round on that problem
+  reads the evidence back and takes it out of the archive; the verdict reads
+  archived evidence as well. After the state is written, files it no longer
+  names are removed. The 128-record bound is unchanged.
+- **A third cost: saving at the bound.** A continuation at the right work
+  bound (below) slowed from 5 s to 70 s a call over 42 calls. With the state
+  pinned just under its bound, every save re-serialized the whole 8 MiB state
+  once per record while it looked for scheduling memory to clear. Record
+  lengths are now cached and only a changed record is serialized again. On her
+  real state the old and new saves wrote byte-identical states and files, in
+  42.6 s and 1.05 s (90.3 s and 1.13 s for a save that spills).
+- **The state cap, raised on request from 8 MiB to 24 MiB** (25,165,824
+  bytes). The spill and the archive now act only past that bound. Three
+  checkpoint messages that still named the old 1 MiB cap now name the state
+  bound.
+- **Package checks.** `state_bound_spills_other_evidence_beside_the_state`: an
+  old record's evidence spills intact, the new record keeps all of its own, the
+  agent and the verdict both read the file back, and both refuse it after a
+  one-character change. `record_bound_keeps_evicted_evidence_on_file`: saving a
+  record into a full state evicts the three oldest, whose evidence the ledger
+  names and both the agent and the verdict read back; a later round on one of
+  them takes its evidence back, and its file is removed. The package passes
+  665 checks (commit 648ecac).
+- **Calls 70-202 at fingerprint c6eb5099** (commit 648ecac, 24 MiB cap),
+  continuing the state after call 69: 595 s in all, and no object dropped.
+  - Calls 70-148: the 79 problems still untried. All 74 remaining windows
+    settled (126 moves, at most 5 a window; 0.3 to 16.9 s a call, 254 s in
+    all), so every one of the 125 windows settled in its first round. The
+    closed calibrations came out as in her first scans: 3/n and the halving
+    map proved, the 3n - 1 and 5n + 1 maps refuted by checked cycles, and the
+    Collatz sieve to 2^18 cut at its move allowance.
+  - From call 127 on, the record bound evicted her oldest records: the 18 open
+    problems' first, then 4 windows'. Their evidence moved to files named in
+    her ledger, and the state fell from 8.4 MB to 1.5 MB.
+  - Calls 149-199: her ranking at work. The new fingerprint made her 51
+    windows from calls 19-69 eligible again, and their short successful
+    rounds ranked first. Each replayed its saved answers through her checker
+    (60 objects, none refused) and settled without a move (80 s in all); four
+    of them (abc, the amicable numbers, Andrews-Curtis and Andrica) came back
+    from the archive. A re-check gains no new result, so it counts against a
+    problem's score, and the windows then fell behind her open problems.
+  - Calls 200-202: Collatz, the Collatz sieve and Schinzel's 19/n. Collatz and
+    19/n came back from the archive (796 and 1,068 checked objects replayed,
+    none refused), and the rounds added 131 and 2,070 new checked results; the
+    19/n round derived its range and theorem again. The sieve added 391. None
+    settled.
+  - Her final state: 128 records in 3,375,790 bytes, plus 22 evicted records'
+    evidence in 22 files (7,865,199 bytes, 1,101 objects). Her ledger holds
+    the rounds of all 148 problems.
+- **The verdict on her final state**, archive included (claims from all 148
+  problems): 33,890 VERIFIED (22,119 of them walls), none refuted, 23
+  UNRESOLVED, in 337 s. The 23 are the two theorems cut from their ranges
+  before the spill existed, and 21 window values in the 15 families without an
+  independent rule. Her 158 window claims give the same split as the
+  fresh-state runs of the previous section: 137 VERIFIED, 21 UNRESOLVED.
+- **Three discarded continuations.** Two were started with a work bound of
+  4·10^5 instead of 4·10^9, a runner error; under it 12 of the first 28
+  windows ended UNKNOWN (work budget exhausted, or no untried move once the
+  compute move had failed), and none made a false claim. The third, at the
+  right bound, settled all 42 windows it reached and exposed the slow save.
+  All three ran code that was later changed, so the calls above were run
+  again from the state after call 69 at the committed code.
+- **Also corrected.** The `packing` family's statement claimed density bounds
+  its checker does not compute. It now says what is computed: the least
+  squared norm over the coefficient box and the absolute determinant. The Rota
+  window's note now says the n = 3 case is proved (Chan, 1995) and names the
+  asymptotic versions (Pokrovskiy, 2020; Montgomery and Sauermann, 2025).
+- **Open obligations.** The 17/n and 8/n theorems stay unsupported until later
+  rounds on those problems derive their ranges again. When the save trims a
+  record whose claims were carried over, it can still keep a claim whose
+  support it dropped; that is harmless there, since the claims live on in the
+  new record. The evidence files are bounded only through the 128 live and
+  1,024 archived records, at most 24 MiB each. A resume after a save that
+  dropped evidence can still retire some of her generators (noted after her
+  first 24 scans).

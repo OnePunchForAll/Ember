@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 64483,
+      "bytes": 73922,
       "path": "CAMPAIGNS.md",
-      "sha256": "fa94934f16c55279ab682288bd06973e3e6eaf5a5c720dab5fdb330f7dfb201d"
+      "sha256": "d3aed1d062daf32ef92c02edc0f0b14bda8482497b6d21c58c4162a40553c9cb"
     },
     {
       "bytes": 10538,
@@ -16,9 +16,9 @@
       "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
     },
     {
-      "bytes": 97954,
+      "bytes": 98572,
       "path": "README.md",
-      "sha256": "62584dbbe979749ea011afa81a8111e079518f01b6c1cd2bcb4cf317d211b48e"
+      "sha256": "4bd04a74551e9049eb453bee3aff4317fa6619cb0bae635a8871fdb4bef71e1b"
     },
     {
       "bytes": 1633,

@@ -1283,6 +1283,15 @@ nothing is left, the scan returns `UNKNOWN` with the backlog, which now also
 counts, for each missing kind, how many of its catalog problems have a window.
 The library's statuses and prose are not evidence, and she never reads them.
 
+Her first scan of the whole library took 202 calls on one instance state.
+Every problem got a first round, the open ones first. All 125 windows settled
+in their first round, and the closed calibrations came out as known. No open
+problem was settled. The independent verdict, archived evidence included, found
+33,890 of her saved claims VERIFIED, none refuted and 23 UNRESOLVED (21 window
+values in families it has no rule for, and two theorems an older save had cut
+from their ranges). The scan exposed the byte bound, the record bound and a
+slow save at the bound; CAMPAIGNS.md records each wall and its instrument.
+
 The library grows by editing `problems.json`. A stated problem needs a
 unique id, a status (`open`, `closed` or `window`) and a task that
 `autonomous_research` accepts; a window also names its catalog problem
