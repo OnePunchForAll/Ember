@@ -1601,3 +1601,101 @@ two million to measure on.
   with a common factor give further divisor conditions (on agn + 1 with
   constraints on g); h stops at 6; the density-zero estimate for the residual
   is not a claim she can make.
+
+## Consolidation after the second contest (commits 4847840 and a415650, fingerprint f2f22639)
+
+- **Both verdicts are in her state.** `tools/ingest_verdict.py` records a
+  verdict's bit, counts, digest and the state's own digest in the rounds
+  ledger record, which her calls now carry forward (no new record: a state at
+  its bound would evict a research record for bookkeeping). The wave's seed
+  state, a copy of her state after call 1,269, carries the verdict on the
+  fourteen family rounds (119,764 VERIFIED, none refuted, 27 unresolved) and
+  the verdict on her final state (124,455 VERIFIED, none refuted, 27
+  unresolved), both "no, keep thinking".
+- **The transfer is frozen.** The manifest is rebuilt at the consolidated
+  source (commit 4847840, 671 checks, archive sha256
+  f627b0aa25a8248caa540d66b2e457c34ea9587949391308af70a5e7532c0ea2, 100
+  members); the divisor families are what commit 1d618fc made them.
+- **Work units re-priced.** Measured on this machine: the witness search costs
+  0.94 microseconds a unit, the family step 0.36, the cover loop 0.09, and the
+  factor check ten microseconds a number at no charge. The prover's charges now
+  price a unit at about a microsecond: the cover loop one unit a number plus
+  one per ten moduli (was one per modulus), a factor check half the bit length
+  of the number (was free), a family step half the bit length of its linear
+  form (was the full length plus one per prime power). The checker's charges,
+  which bound what a claim may cost to admit, are unchanged. The bench and the
+  pyramid were regenerated at the new prices: 217 operators pass (116 N, 53 W,
+  209 S, 79 E; 5 anytime, 5,912 breaths); the pyramid binds 374 moves (171 N,
+  118 W, 315 S, 105 E). Her rounds' scores use elapsed seconds, so the
+  re-pricing changes what a move may spend, not how problems rank.
+- **The closure wave.** Her final state holds nine theorem problems live; the
+  other six (4/n, 7/n, 12/n, 18/n, 19/n, 5/n) had been evicted to the archive
+  by the record bound (each self-widened window is a record). One round on each
+  from the seeded state, at the consolidated fingerprint: 648 s in all, every
+  record restored from its archive file (5,617 to 15,760 objects replayed,
+  none dropped, none refused), the twelve families stated in each, ten chunks
+  added in each (nine with a family table), the range doubled and the theorem
+  closed again at the new range: 4/n to 1,999,962 (207 numbers by a family
+  divisor, 4 by a witness; closure 26,262, all coprime), 7/n to 1,999,943
+  (11 and 0; 798 open, 792 coprime), 12/n to 1,767,402 (6,082 and 743;
+  48,586), 18/n to 1,329,642 (12,023 and 2,819; 41,980), 19/n to 1,993,274
+  (52,499 and 2,173; 27,261), and 5/n to 1,999,962 (no open-class prime below
+  two million, so no family entry; its modulus, 8,031,343,320, is past the
+  closure bound, so no closure). The ledger record carried both verdicts
+  through all six calls. All fifteen theorem problems are live again, the
+  state at its 128-record bound. The wave's state is the seed of the staged
+  scan.
+- **The third contest, opened as a stub: the pair families.** Type II
+  solutions with a common factor: a/n = 1/(ne) + 1/(nf) + 1/z needs
+  z = nef/(aef - e - f); for prime n the divisor aef - e - f is g n with
+  g | ef, so a g n + 1 = (ae - 1)(af - 1) = q q' with q, q' = -1 (mod a),
+  e = (q + 1)/a, f = (q' + 1)/a, and a/n = 1/(ne) + 1/(nf) + g/(ef). The shape
+  `pair g`: q | a g n + 1 with q = -1 (mod a) and g | e f; g = 1 is the tier-2
+  `square`. Baseline with my own code (compete3/tier3.py) on the state of the
+  fourteen family rounds, over the residual the twelve tier-2 families leave:
+
+| a | primes in open classes, verified range | left after tier 2 | left after pair g = 2..8 | in the next million: open, after tier 2, after pairs |
+|---|---|---|---|---|
+| 4 | 489 | 7 | 0 | 242, 3, 0 |
+| 7 | 19 | 0 | 0 | 8, 0, 0 |
+| 8 | 7,810 | 172 | 67 | 3,583, 43, 14 |
+| 10 | 7,950 | 444 | 232 | 3,677, 137, 53 |
+| 11 | 423 | 20 | 9 | 204, 8, 4 |
+| 12 | 9,538 | 1,184 | 659 | 4,998, 425, 219 |
+| 13 | 111,320 | 1,789 | 935 | 50,902, 510, 215 |
+| 14 | 4,619 | 622 | 373 | 2,113, 200, 100 |
+| 15 | 8,607 | 1,012 | 636 | 5,008, 447, 235 |
+| 16 | 23,440 | 1,755 | 1,184 | 64,021, 3,552, 2,113 |
+| 17 | 145,905 | 4,758 | 2,927 | 67,921, 1,507, 793 |
+| 18 | 15,688 | 3,472 | 2,479 | 11,040, 1,856, 1,177 |
+| 19 | 128,552 | 6,694 | 4,333 | 58,846, 2,032, 1,122 |
+| 21 | 14,966 | 2,869 | 2,048 | 7,917, 1,116, 702 |
+
+  Of 479,326 open-class primes in the verified ranges, tier 2 leaves 24,798
+  and the pairs g = 2..8 take 8,916 of those (g = 2: 3,871; 4: 3,354; 3:
+  2,571; 8: 1,450; 5: 1,297; 7: 789; 6: 673), leaving 15,882; in the next
+  million 11,836 becomes 6,747. For Erdős–Straus nothing is left below three
+  million. Every solution the formulas gave was checked exactly (13,027).
+  Nothing of this is transferred yet.
+- **Preregistered schedule for the third tier.** Before any transfer: (1) the
+  shapes are `pair g` for g = 2..8, stated as a claim kind with the same three
+  guards as `dfam` (grid identity, integrality lemma, instances exact); (2) the
+  measurement is fourteen rounds, one per theorem problem, in the order 11,
+  13, 16, 19, 14, 17, 8, 10, 12, 21, 15, 18, 7, 4 (the order of the first
+  contest's table), each from a fresh copy of the state the closure wave
+  leaves, at the fingerprint the transfer produces, with the move allowance
+  and work bound of the library task (10,000 moves, 4·10^9 work); (3) what is
+  recorded per round: seconds, chunks added, numbers by pair, by tier-2
+  family, by witness, the range and the closure reached; (4) the result to
+  compare against is this baseline: her pair entries per problem should equal
+  my counts on the same interval, and every entry must verify by the
+  verdict's own denominators; (5) a round whose counts differ from mine by
+  more than the difference of intervals is a defect to root-cause, not a
+  result; (6) the transfer is written only after the fourteen rounds and their
+  verdict.
+- **The next scan is staged, not started.** `scan10/run10.sh` continues the
+  state the wave leaves at fingerprint f2f22639; `scan10/watch10.sh` measures,
+  after each call, the family use of every theorem-problem round (family
+  entries against witnesses, range, closure) into `measure.txt`, so the
+  twelve shapes are measured in her own rounds before the third tier is
+  transferred.
