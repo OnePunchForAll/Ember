@@ -1437,6 +1437,17 @@ verdict found 92,316 claims VERIFIED, none refuted, and only the 21 window
 values unresolved. It also exposed a Collatz stall: her rounds re-tried failures
 they had forgotten. A saved residual now counts as the record of an attempt.
 
+An independent verdict's result can be recorded in her state with
+`tools/ingest_verdict.py <state> <verdict.json>`: the bit, the counts, the
+verdict's digest and the state's go into the rounds ledger record, which her
+calls carry forward. That is the one bit that goes back, kept where it can be
+inspected beside her rounds; she never reads the counts. Work units on the
+prover's side are priced at about a microsecond of the machine they were
+measured on (the witness search's price): a cover-loop step costs one unit a
+number plus one per ten moduli, a factor check half the bit length of the
+number, a family step half the bit length of its linear form. The checker's
+charges are its own and unchanged.
+
 Her later scans (calls 232 to 1,269, at five fingerprints) ran with the
 instruments of the sections above: anytime moves, derivations, attempt records,
 gain-weighted choice, self-widened windows, the closure of a theorem under
