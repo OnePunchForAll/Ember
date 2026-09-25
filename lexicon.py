@@ -26,7 +26,8 @@ from math import gcd
 from pathlib import Path
 
 Q = Fraction
-OP_MODULES = ('ops_seq', 'ops_poly', 'ops_orbit', 'ops_egypt', 'ops_arith', 'ops_word', 'ops_matrix', 'ops_collatz')
+OP_MODULES = ('ops_seq', 'ops_poly', 'ops_orbit', 'ops_egypt', 'ops_arith', 'ops_word', 'ops_matrix', 'ops_collatz',
+              'ops_wnum', 'ops_wdisc')
 DIRECTIONS = ('N', 'W', 'S', 'E')
 # Checked objects of these kinds refute an existence or reachability claim.
 EVIDENCE_KINDS = ('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle', 'nofamily', 'obstruction')

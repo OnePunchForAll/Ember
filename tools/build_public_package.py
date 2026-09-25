@@ -22,7 +22,8 @@ RUNTIME = ('ember.py', 'algebra.py', 'algebra_check.py', 'word_series.py',
            'invariant.py', 'invariant_check.py', 'invariant_map.py', 'obligations.py',
            'recursive.py', 'recursive_check.py', 'source_episode.py', 'apex.py', 'apex_check.py',
            'pyramid.py', 'lexicon.py', 'lexicon_check.py', 'movebench.py', 'agent.py', 'ops_seq.py', 'ops_poly.py',
-           'ops_orbit.py', 'ops_egypt.py', 'ops_arith.py', 'ops_word.py', 'ops_matrix.py', 'ops_collatz.py')
+           'ops_orbit.py', 'ops_egypt.py', 'ops_arith.py', 'ops_word.py', 'ops_matrix.py', 'ops_collatz.py',
+           'ops_wnum.py', 'ops_wdisc.py', 'window_check.py', 'window_real.py', 'window_discrete.py')
 EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'polynomial_consequence.json', 'discover_algebra_guards.json',
             'discover_affine_guards.json', 'word_identity.json', 'word_shortcut.json',
@@ -94,6 +95,7 @@ def collect(root):
     paths.update({'LICENSE': 'LICENSE', 'THIRD_PARTY_NOTICES.md': 'THIRD_PARTY_NOTICES.md',
                   'tools/build_public_package.py': 'tools/build_public_package.py',
                   'tools/helper_client.py': 'tools/helper_client.py', 'tools/verdict.py': 'tools/verdict.py',
+                  'tools/verdict_windows.py': 'tools/verdict_windows.py',
                   'CAMPAIGNS.md': 'CAMPAIGNS.md', 'problems.json': 'problems.json'})
     files = {name: (root / source).read_bytes() for name, source in paths.items()}
     readme = root / 'PUBLIC_README.md'
@@ -1449,7 +1451,7 @@ print(json.dumps(answers))
         check('agent_forged_saved_cover_refused', forged_run['invalidated_objects'] >= 1
               and [row['covered'] for row in forged_run['goal']['levels']] == [row['covered'] for row in small['goal']['levels']])
         standalone_lexicon = root / 'lexicon-standalone'; standalone_lexicon.mkdir()
-        for name in ('lexicon_check.py', 'recurrence_check.py'):
+        for name in ('lexicon_check.py', 'recurrence_check.py', 'window_check.py', 'window_real.py', 'window_discrete.py'):
             (standalone_lexicon / name).write_bytes(files[name])
         saved_objects = [row for row in json.loads((root / 'agent-small.json').read_bytes())['observations']
                          if row.get('kind') == 'autonomous_research'][0]['objects']
@@ -1739,12 +1741,38 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
 root = pathlib.Path.cwd()
 ember = runpy.run_path(str(root / 'ember.py'))
 L = ember['local_module']('lexicon'); A = ember['local_module']('agent')
-host = types.SimpleNamespace(Refused=ember['Refused'], load_json=ember['load_json'])
+host = types.SimpleNamespace(Refused=ember['Refused'], load_json=ember['load_json'], local_module=ember['local_module'])
 problems, catalog, needs = A.load_problems(host, L)
 gen = A.generation(); ident = lambda e: A.digest(dict(query='autonomous_research', problem=e['task']))
 tags = {n for c in catalog for n in c['needs']}
-shape = (len(problems) >= 10 and {e['status'] for e in problems} == {'open', 'closed'} and len(catalog) >= 100
+shape = (len(problems) >= 10 and {e['status'] for e in problems} == {'open', 'closed', 'window'} and len(catalog) >= 100
          and tags <= set(needs) and len({e['id'] for e in problems + catalog}) == len(problems) + len(catalog))
+# Windows: each names a catalog problem, is an explore task with the goal 'window', and the catalog points back to it.
+data = json.loads((root / 'problems.json').read_text(encoding='utf-8'))
+wins = [e for e in problems if e['status'] == 'window']; ids = {c['id'] for c in catalog}
+windows = (len(wins) >= 100 and all(e['window_of'] in ids and e['task']['type'] == 'explore'
+                                    and e['task']['goals'] == ['window'] for e in wins)
+           and {c['window'] for c in catalog if 'window' in c} == {e['id'] for e in wins}
+           and all(c.get('window') == 'window-' + c['id'] for c in catalog if 'window' in c)
+           and set(data['tools']) >= {k for e in wins for k in {o['kind'] for o in e['task']['objects']}}
+           and {n for t in data['tools'].values() for n in t['needs']} == set(needs)
+           and not {r['id'] for r in data['resolved']} & ids)
+# The window tools: 29 question kinds, each with families; regressions found while building them stay fixed.
+ck = ember['local_module']('lexicon_check'); W = ck._windows
+budget = types.SimpleNamespace(work=0); budget.use = lambda n=1: None
+tools = len(W.TOOLS) == 29 and all(any(t == tool for t, _ in W.FAMILIES) for tool in W.TOOLS)
+trefoil = ck.window_compute('knot_q', 'jones', dict(pd=[[1, 5, 2, 4], [3, 1, 4, 6], [5, 3, 6, 2]]), budget)
+eight = ck.window_compute('knot_q', 'jones', dict(pd=[[4, 2, 5, 1], [8, 6, 1, 5], [6, 3, 7, 4], [2, 7, 3, 8]]), budget)
+jones = (trefoil == dict(lowest_power=1, coefficients=[1, 0, 1, -1])
+         and eight == dict(lowest_power=-2, coefficients=[1, -1, 1, -1, 1]))
+rp = W.riesel_prime
+# 3 2^94 - 1 is prime and 3 2^83 - 1 and 3 2^95 - 1 are not (beyond the Miller-Rabin range the N+1 test decides).
+def some_p(k, n):
+    N = k * 2 ** n - 1
+    return any(W.jacobi((P * P - 4) % N, N) == -1 and rp(k, n, P, budget) for P in range(3, 60))
+riesel = some_p(3, 94) and not some_p(3, 83) and not some_p(3, 95)
+# A clause with a repeated literal must not hide its other literal from unit propagation.
+rup = W.FAMILIES[('sat_q', 'unsat')]['fn'].__globals__['rup_check'](2, [[1, 1, 2], [-1], [-2]], [[]], budget) == 1
 # Prose never steers her: rewriting every field but id, status and task leaves her ranking unchanged.
 rewrite = lambda e: dict({k: (v if k in ('id', 'status', 'task') else 'rewritten') for k, v in e.items()}, extra='noise')
 fresh = dict(observations=[])
@@ -1764,17 +1792,22 @@ state = dict(observations=[record(by[a], A.EXHAUSTED), record(by[b], 'goal settl
 rows = {r['id']: r for r in A.choose(problems, state, gen)}
 waits = (not rows[a]['eligible'] and not rows[b]['eligible'] and rows[c]['eligible'] and rows[d]['eligible']
          and rows[c]['score'] < 50 and rows[d]['score'] < 50)
-# A state where only the halving calibration is left: the scan must run it, and afterwards report the backlog.
-rest = [record(e, A.EXHAUSTED) for e in problems if e['id'] != 'halving-map']
-(root / 'scan-state.json').write_text(json.dumps(dict(version=ember['VERSION'], observations=rest)))
+# A state where only the halving calibration is left: the scan must run it, and afterwards report the backlog. The
+# rounds of every problem sit in her ledger, which the state bound never evicts.
+rest = {ident(e): record(e, A.EXHAUSTED)['rounds'] for e in problems if e['id'] != 'halving-map'}
+(root / 'scan-state.json').write_text(json.dumps(dict(version=ember['VERSION'], observations=[
+    dict(task_id=A.LEDGER_ID, kind='problem_rounds', entries=rest)])))
 (root / 'scan.json').write_text(json.dumps(dict(query='open_problems', moves=500)))
 (root / 'scan-dry.json').write_text(json.dumps(dict(query='open_problems', run=False)))
 for e in problems:
-    if e['id'] in ('three-over-n', 'halving-map', 'map-3n-minus-1', 'map-5n-plus-1'):
+    if e['id'] in ('three-over-n', 'halving-map', 'map-3n-minus-1', 'map-5n-plus-1', 'window-burnside-b25',
+                   'window-andrews-curtis', 'window-schur-s6', 'window-riesel-smallest', 'window-twin-primes'):
         (root / ('calibration-' + e['id'] + '.json')).write_text(
-            json.dumps(dict(query='autonomous_research', problem=e['task'], moves=2000)))
+            json.dumps(dict(query='autonomous_research', problem=e['task'], moves=200 if e['status'] == 'window' else 2000,
+                            move_work=50_000_000)))
 print(json.dumps(dict(shape=shape, prose=prose, fresh=fresh_order, waits=waits, first=first[0]['id'],
-                      tags={n: sum(n in c['needs'] for c in catalog) for n in tags})))
+                      tags={n: sum(n in c['needs'] for c in catalog) for n in tags}, windows=windows, tools=tools,
+                      jones=jones, riesel=riesel, rup=rup)))
 """
         began = time.perf_counter_ns()
         library_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', library_code], cwd=root, capture_output=True,
@@ -1787,6 +1820,11 @@ print(json.dumps(dict(shape=shape, prose=prose, fresh=fresh_order, waits=waits, 
         check('library_choice_reads_only_ids_statuses_and_tasks', library.get('prose') is True)
         check('library_fresh_state_tries_every_open_problem_first', library.get('fresh') is True)
         check('library_waits_on_settled_and_exhausted_until_a_new_generation', library.get('waits') is True)
+        check('library_windows_name_catalog_problems_and_tools', library.get('windows') is True)
+        check('window_tools_29_kinds_each_with_families', library.get('tools') is True)
+        check('window_jones_polynomial_writhe_sign', library.get('jones') is True)
+        check('window_riesel_n_plus_1_test_accepts_prime_refuses_composites', library.get('riesel') is True)
+        check('window_rup_check_sees_past_repeated_literals', library.get('rup') is True)
         dry = cli('library_scan_dry_run', 'scan-dry.json', ['--state', 'scan-fresh.json'])
         check('library_scan_names_her_choice_without_running', dry['status'] == 'SCANNED'
               and dry['choice']['id'] == library.get('first') and not (root / 'scan-fresh.json').exists()
@@ -1804,6 +1842,27 @@ print(json.dumps(dict(shape=shape, prose=prose, fresh=fresh_order, waits=waits, 
                         ('three-over-n', 'halving-map', 'map-3n-minus-1', 'map-5n-plus-1')]
         check('agent_settles_closed_calibrations', [(r['status'], r['settled']) for r in calibrations]
               == [('CHECKED_RESEARCH', 'proved')] * 2 + [('CHECKED_RESEARCH', 'refuted')] * 2)
+        seen = {name: cli('window_' + name, 'calibration-window-' + name + '.json',
+                          ['--work', '2000000000', '--state', 'window-' + name + '.json'])
+                for name in ('burnside-b25', 'andrews-curtis', 'schur-s6', 'riesel-smallest', 'twin-primes')}
+        answers = {name: [row.get('answer') for row in r['results']] for name, r in seen.items()}
+        check('agent_sees_through_windows', all(r['status'] == 'CHECKED_RESEARCH' and r['settled'] == 'found'
+                                                for r in seen.values())
+              and answers['burnside-b25'] == [27] and answers['twin-primes'] == [[35, 205, 1224, 8169]]
+              and answers['riesel-smallest'][-1] == dict(resolved=101, unresolved=1)
+              and answers['andrews-curtis'][0]['moves'] > 0 and answers['schur-s6'][-1]['lemmas'] > 0)
+        # The independent verdict recomputes window values and rechecks window witnesses and proofs with its own code.
+        window_verdicts = {name: verdict_run('verdict_window_' + name, 'window-' + name + '.json')
+                           for name in ('schur-s6', 'twin-primes', 'riesel-smallest')}
+        check('verdict_verifies_window_claims', all(code == 0 and v['bit'] == 'verified' and v['counts']['VERIFIED'] >= 1
+                                                    for code, v in window_verdicts.values()))
+        forged_window = json.loads((root / 'window-twin-primes.json').read_bytes())
+        for record in forged_window['observations']:
+            for row in record.get('objects', []):
+                if row.get('kind') == 'value': row['data']['value'][-1] += 1
+        (root / 'window-forged.json').write_bytes(encoded(forged_window))
+        code, forged_verdict = verdict_run('verdict_forged_window', 'window-forged.json')
+        check('verdict_refutes_a_forged_window_value', code == 3 and forged_verdict['counts']['REFUTED'] == 1)
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',

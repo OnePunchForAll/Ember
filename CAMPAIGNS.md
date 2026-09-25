@@ -54,6 +54,9 @@ These are the director's standing instructions for how Ember is developed.
 - Keep a library of open problems: stated in her language where it can
   state them, and otherwise catalogued with what her language lacks. She
   scans it and chooses which problem to work on herself.
+- Build the tools her language needs to at least see every catalogued
+  problem: a finite exact window on each, checked like any other claim. A
+  window settles nothing about its problem.
 
 ## Campaign 1: which residue classes do identities reach? (Erdős–Straus)
 
@@ -889,3 +892,137 @@ shorter, then the bounds were raised.
   8,031,343,320 (6,061 families) takes 392,806 bytes, her state 1.66 MB,
   and her theorem now stands at that level.
 
+## The open-problem library: her first 24 scans (commit 2709dd2, fingerprint 0979c09b)
+
+The library gave her 16 stated problems. Twenty-four `open_problems` calls on one
+instance state (24 calls, 3,355 s in all, the longest 645 s), each choosing by her
+own records:
+
+- **Calls 1-16: a first round on every problem.** Untried problems tie at the
+  top score, so she took them in order: the eleven open ones first, then the
+  five closed ones. The open rounds ended by move allowance or with no untried
+  move and settled nothing. The four calibrations settled in their first round:
+  3/n proved (17 moves), the halving map proved (4 moves), and the 3n - 1 and
+  5n + 1 maps refuted by checked cycles (101 and 236 moves). The Collatz sieve
+  to 2^18 ran out of its move allowance, as its size predicts.
+- **Calls 17-24: her ranking at work.** With every problem tried, the doctrine
+  score over her own rounds ordered them. Every round so far had gained new
+  checked results, so the score favoured the problems whose rounds were
+  shortest: she returned to the Collatz sieve and the Collatz conjecture, then
+  to Schinzel's 9/n (one round of 105 s, score 0.0127, just above Collatz at
+  0.0124 after three rounds of 258 s in all) and 6/n. No open problem was
+  settled.
+- **What the scans exposed.** After 16 problems her state held 7,986,276 bytes
+  of its 8 MiB bound, and the 128-record bound would have evicted the records of
+  the oldest problems, and with them her memory of having tried them. Her rounds
+  now live in one ledger record per state that neither bound evicts (see the
+  next section). A resume after a save that dropped evidence also retired some
+  of her generators; that remains open.
+
+## The 30 window tools (fingerprint 4ca544c6)
+
+The catalog named 30 kinds of mathematics her language lacked (`needs`). The
+request was to build the tools she needs "in order to at least see them".
+
+- **What was built.** Twenty-nine window question kinds, one per kind of view,
+  and wider statement bounds for unit-fraction problems (numerators up to 64,
+  least n up to 100,000). A window names a family and its parameters; its answer
+  is a value the checker recomputes, a witness it verifies or a proof it replays.
+  120 families: 81 value, 37 witness, 2 proof (`window_check.py`,
+  `window_real.py` with rigorous interval arithmetic, `window_discrete.py`).
+  47 operators propose answers (`ops_wnum.py`, `ops_wdisc.py`): a compute move
+  per tool, search moves with her own code, a widen move and a refute move. The
+  move bench passes all 212 operators; the pyramid audit binds 369 moves in 34
+  modules.
+- **The windows.** 125 catalog problems have one. Each ran as an explore task
+  with the goal `window` on a fresh state: all 125 settled, in 182 s altogether
+  (median 0.5 s, 119 under 5 s, the longest 23 s for the pebbling numbers of
+  P3 x P3), with 199 moves in all and at most 5 per window.
+- **Agreement with published values** (every such comparison made): twin prime
+  pairs below 10^3..10^6: 35, 205, 1224, 8169 (OEIS A007508); Sophie Germain
+  primes: 37, 190, 1171, 7746 (A092816); prime quadruplets: 5, 12, 38, 166
+  (A050258); n with n^2 + 1 prime below 10^3..10^5: 112, 841, 6656 (A083844);
+  the 22 maximal prime gaps below 10^7, ending with 154 after 4,652,353
+  (A002386, A005250); Mersenne exponents below 3000; F_0 to F_4 the only
+  Fermat primes up to F_13; Wieferich primes 1093 and 3511; no Wall-Sun-Sun
+  prime below 10^6; the least Goldbach prime record 601 at 1,077,422 (A025018)
+  and every even number below 2·10^6 a sum of two primes; ten sign changes of
+  Hardy's Z below height 50 (ten zeros) with a certified upper bound of 12 on
+  N(50); Pascal
+  multiplicities to 10^9 exactly A003015 (3003 eight times; 120, 210, 1540,
+  7140, 11628, 24310 six times); 26 amicable numbers below 10^5 (13 pairs);
+  Brocard's n = 4, 5, 7; only 1 + 2 = 3 for Erdős-Moser; M(1000) = 248,083
+  distinct products; the Sidon maximum 8 in {1..40} (Golomb rulers, A003022);
+  R(4, 4) > 17, R(3, 5) > 13, R(3, 3) <= 6 (a checked refutation), S(4) >= 44
+  and S(3) = 13; Strassen's rank 7 for 2 x 2 matrix multiplication and rank 11
+  for 2 x 2 by 2 x 3; B(2, 3) of order 27; the Galois groups S5, S3 and D4 of
+  x^5 - x - 1, x^3 + x + 1 and x^4 - 5; Lehmer's polynomial (and its
+  reflection) the only reciprocal degree-10 measure below 1.18; the icosahedral
+  energy 49.16525... for 12 points on the sphere; kissing 40 in dimension 5; the
+  Mahler volume products 8 (square) and 9 (hexagon). Without a reference value
+  here: ten sign changes of L(s, chi_4) below height 30.8 (the first near 6.02,
+  as LMFDB lists), 3,603 of the 9,592 primes below 10^5 with 2 as a primitive
+  root (0.3756; Artin's constant, a limit under GRH, is 0.37396), and the
+  Gauss-circle and divisor error maxima.
+- **Defects the tools exposed, all fixed.** (1) The N+1 primality test for
+  k·2^n - 1 required gcd(U_((N+1)/2), N) = 1, which fails for every prime when
+  Q = 1; it would have refused every true Riesel prime above the Miller-Rabin
+  range. It now requires V_((N+1)/2) = -2 and a unit U_((N+1)/q) for odd q | k,
+  with the proof in its docstring; checked against a probable-prime test on
+  1,500 cases and a package check (3·2^94 - 1 prime; 3·2^83 - 1 and
+  3·2^95 - 1 composite). (2) The RUP checker watched a clause with a repeated
+  literal twice on that literal and missed its unit steps (Schur's clauses for
+  x + x = 2x); clauses are now sets. (3) The Jones polynomial had the writhe
+  sign reversed; it now matches 3_1, 4_1 and 5_1. (4) A flip in her matrix
+  multiplication search changed the tensor when two terms shared a factor up
+  to sign; her search now flips over GF(2) and lifts signs by backtracking. The
+  package build found two more: 26 compute operators registered in a loop were
+  invisible to the pyramid's source audit (each is now declared), and the
+  standalone checker replay lacked the window checker files. Her graceful-tree
+  witnesses now name vertices in the preorder of each tree's canonical code, so
+  any checker can read them.
+- **Searches improved to reach known answers.** Illumination (directions from
+  the polygon's own cones: 3 for a pentagon), Heilbronn sets (hill climbing),
+  Ramsey graphs (circulant graphs when Paley graphs fail), Andrews-Curtis moves
+  (best-first: AK(2) trivialized in 22 moves; AK(3) not), matrix multiplication
+  (flip graphs over GF(2)), primes k·2^n - 1 beyond the Miller-Rabin range (her
+  own run of the N+1 test).
+- **The independent verdict.** `tools/verdict_windows.py` recomputes 49 value
+  families and rechecks 35 witness and 2 proof families with its own code (86 of
+  115 family names). On the 125 window states it verified every claim of those
+  families and refuted none; the other 29 families answer UNRESOLVED. A forged
+  window value is refuted (package check).
+- **Statement bounds.** An exhaustive search here (Python, independent of her
+  code) to n = 100,000 gave the exceptions below; each stated problem starts at
+  the largest plus one. For a = 16 the search to 40,000 had missed 78,721 and
+  83,449. For a = 20 the largest exception below 10^5 is 90,001, so no threshold
+  is stated.
+
+| a | exceptions below 100,000 | the n with no representation a/n = 1/x + 1/y + 1/z |
+|---|---|---|
+| 12 | 23 | 2, 3, 5, 7, 13, 25, 29, 31, 37, 73, 97, 193, 433, 577, 1129, 1657, 1873, 2521, 2593, 3433, 10369, 12049, 12241 |
+| 15 | 31 | 2, 3, 4, 8, 16, 17, 19, 23, 31, 34, 47, 53, 61, 79, 113, 122, 137, 151, 197, 226, 233, 271, 541, 1103, 1171, 1367, 4201, 6301, 12601, 16831, 20521 |
+| 16 | 47 | 2, 3, 4, 5, 6, 7, 9, 11, 13, 17, 22, 23, 33, 34, 37, 73, 97, 113, 121, 131, 167, 193, 241, 257, 262, 421, 482, 577, 593, 641, 769, 1201, 1489, 2113, 2521, 2689, 3169, 3361, 4801, 4993, 5281, 8161, 8641, 33601, 36529, 78721, 83449 |
+| 17 | 20 | 2, 3, 4, 5, 6, 7, 9, 13, 19, 23, 41, 43, 53, 71, 73, 157, 281, 421, 1123, 2081 |
+| 18 | 53 | 2, 3, 4, 5, 7, 10, 11, 13, 19, 22, 23, 29, 31, 37, 38, 41, 47, 59, 61, 73, 109, 113, 131, 137, 149, 181, 193, 223, 239, 281, 379, 389, 397, 433, 457, 541, 599, 613, 661, 761, 811, 821, 911, 1009, 1297, 1381, 2269, 2819, 9461, 16561, 17389, 28081, 35281 |
+| 19 | 23 | 2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 23, 26, 29, 41, 43, 46, 82, 97, 137, 181, 193, 229, 353 |
+| 21 | 34 | 2, 3, 4, 5, 6, 8, 11, 13, 17, 22, 23, 26, 29, 43, 46, 89, 97, 101, 113, 127, 211, 269, 353, 401, 463, 593, 601, 757, 761, 947, 967, 1031, 7151, 14051 |
+
+- **Library changes.** Windows are a third status, ranked after open and before
+  closed problems among equal scores. The catalog lost six problems the
+  literature resolved in 2024-2026 (listed under `resolved` with sources) and
+  six entries were restated to their open form (unit distances, Jacobian n = 2,
+  Borsuk 4 to 62, hot spots for convex planar domains, Kakeya from dimension 4,
+  unforced Navier-Stokes); sources were updated for abc, Casas-Alvero,
+  sum-product, Hadamard, lonely runner, omega, inverse Galois, Erdős-Straus and
+  Sierpiński (web search, 2026-09-25).
+- **Open obligations.** Ten catalog problems have no window: Schinzel for a = 20
+  and a >= 22 (a threshold needs a search far beyond 10^5), Heesch numbers, the
+  Kaplansky zero-divisor conjecture, Whitehead asphericity, the smooth
+  four-dimensional Poincaré conjecture, the Hodge and standard conjectures,
+  resolution in characteristic p, Yang-Mills and BPP = P. Twenty-nine families
+  have no independent verdict rule. Several windows are marked as viewing
+  related objects rather than a finite case (Leopoldt, four exponentials,
+  restriction, Bochner-Riesz, hot spots, invariant subspaces, Navier-Stokes).
+  A window's size is fixed in the library; `window_widen` can enlarge one, but
+  she has not yet been run on widened windows.

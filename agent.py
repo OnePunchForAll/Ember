@@ -59,6 +59,7 @@ PRIOR_PROBES = 8  # a strategy her library has seen fail in a context gets this 
 # Moves that prepare a whole level: tried once per workspace state rather than once per target.
 LEVEL_STEPS = ('egypt_classical_obstruction', 'egypt_classical_sweep', 'egypt_wall_sweep')
 MAX_ROUNDS = 32  # rounds remembered per problem: what each call obtained and cost, for her choice among problems
+LEDGER_ID = 'problem-rounds'  # one record keeping every problem's rounds, so her choice survives evicted evidence
 EXHAUSTED = 'no untried move for any open target'
 
 
@@ -69,7 +70,8 @@ def digest(value):
 def generation():
     root = Path(__file__).resolve().parent
     names = ('agent.py', 'lexicon.py', 'lexicon_check.py', 'ops_seq.py', 'ops_poly.py', 'ops_orbit.py', 'ops_egypt.py',
-             'ops_arith.py', 'ops_word.py', 'ops_matrix.py', 'ops_collatz.py', 'recurrence_check.py')
+             'ops_arith.py', 'ops_word.py', 'ops_matrix.py', 'ops_collatz.py', 'recurrence_check.py', 'ops_wnum.py',
+             'ops_wdisc.py', 'window_check.py', 'window_real.py', 'window_discrete.py')
     return hashlib.sha256(b''.join((root / name).read_bytes() for name in names)).hexdigest()
 
 
@@ -1051,13 +1053,20 @@ class DecideGoal(Goal):
 
 
 class ExploreGoal(Goal):
-    """Find checked facts of the requested kinds about each given object."""
+    """Find checked facts of the requested kinds about each given object. The goal 'window' asks, for each window
+    object, for the answer kind its family gives (a value, a witness or a proof)."""
     kind = 'explore'
+    persist = ('value', 'witness', 'proof')
 
     def __init__(self, p, L): self.p = p
 
     def init(self, rt):
         self.roots = [rt.given(o['kind'], o['data']) for o in self.p['objects']]
+        self.wanted = []
+        for r in self.roots:
+            goals = set(self.p['goals'])
+            if 'window' in goals: goals = (goals - {'window'}) | {rt.checker.window_kind(r['kind'], r['data']['family'])}
+            self.wanted.append(goals)
 
     def found(self, rt, root):
         kinds = set()
@@ -1066,7 +1075,7 @@ class ExploreGoal(Goal):
         return kinds
 
     def targets(self, rt):
-        return [r for r in self.roots if not set(self.p['goals']) <= self.found(rt, r)]
+        return [r for r, goals in zip(self.roots, self.wanted) if not goals <= self.found(rt, r)]
 
     def done(self, rt): return not self.targets(rt)
 
@@ -1101,8 +1110,8 @@ def bind(task, host, L):
         if not need <= set(p) <= need | {'extra_lifts'}: raise host.Refused('unit fraction cover fields')
         if type(p.get('extra_lifts', 0)) is not int or not 0 <= p.get('extra_lifts', 0) <= 4:
             raise host.Refused('at most four refinement primes chosen by the agent')
-        if type(p['a']) is not int or not 1 <= p['a'] <= 16 or p['terms'] != 3: raise host.Refused('numerator 1..16 and three terms')
-        if type(p['min']) is not int or not 2 <= p['min'] <= 1000: raise host.Refused('minimum n')
+        if type(p['a']) is not int or not 1 <= p['a'] <= 64 or p['terms'] != 3: raise host.Refused('numerator 1..64 and three terms')
+        if type(p['min']) is not int or not 2 <= p['min'] <= 100_000: raise host.Refused('minimum n')
         if type(p['modulus']) is not int or not 1 <= p['modulus'] <= 100_000: raise host.Refused('cover modulus')
         if type(p['lifts']) is not list or len(p['lifts']) > 3 or not all(type(q) is int and L.is_prime(q) for q in p['lifts']):
             raise host.Refused('at most three prime lifts')
@@ -1120,6 +1129,14 @@ def bind(task, host, L):
         if set(p) != {'type', 'objects', 'goals'} or type(p['objects']) is not list or not 1 <= len(p['objects']) <= 8:
             raise host.Refused('explore fields')
         if type(p['goals']) is not list or not p['goals']: raise host.Refused('explore goals')
+        if 'window' in p['goals']:
+            checker = host.local_module('lexicon_check')
+            for o in p['objects']:
+                if type(o) is not dict or set(o) != {'kind', 'data'} or type(o['data']) is not dict \
+                        or checker.window_kind(o['kind'], o['data'].get('family')) is None:
+                    raise host.Refused('a window goal takes window objects of known families')
+                try: checker.question(o['kind'], o['data'])
+                except checker.Invalid as exc: raise host.Refused('window object: ' + str(exc))
     return p, moves, per, weighted_reports(reports), digest(dict(query='autonomous_research', problem=p))
 
 
@@ -1401,6 +1418,16 @@ class Agent:
 
 # ------------------------------------------------------------- strategy retention and failure mining
 
+def load_ledger(state):
+    """Every problem's rounds by task id: what each call obtained and cost. Kept apart from the per-problem records,
+    whose evidence the state bound may drop, so her choice among problems keeps its memory."""
+    row = next((o for o in state['observations'] if o.get('task_id') == LEDGER_ID), None)
+    entries = (row or {}).get('entries')
+    if type(entries) is not dict: return {}
+    return {k: [r for r in v if type(r) is dict][-MAX_ROUNDS:] for k, v in entries.items()
+            if type(k) is str and type(v) is list}
+
+
 def load_library(state):
     """Strategy outcomes kept from earlier problems, as discounted reports (at most one unit per route and context)."""
     row = next((o for o in state['observations'] if o.get('task_id') == LIBRARY_ID), None)
@@ -1473,16 +1500,16 @@ def compact(obj):
     return obj if set(obj) == {'kind', 'data'} else dict(kind=obj['kind'], data=obj['data'])
 
 
-def save(host, state, state_path, record, library=None, carried=()):
+def save(host, state, state_path, record, library=None, carried=(), ledger=None):
     """Write the record within the state bound, trimming what is worth least first: this record's scheduling memory,
     then the scheduling memory of other records (it serves only a resume of their problem), then the evidence of
     records whose claims this run carried over and checked again (carried: their task ids; a record left with no
     evidence is removed), and this record's own evidence only as a last resort. Evidence is dropped from the least
     valuable end; the number this record dropped is recorded and returned."""
     if state_path is None: return 0
-    ids = {record['task_id']} | ({library['task_id']} if library else set())
+    ids = {record['task_id']} | ({library['task_id']} if library else set()) | ({ledger['task_id']} if ledger else set())
     others = [o for o in state['observations'] if o['task_id'] not in ids]
-    state['observations'] = (others + ([library] if library else []) + [record])[-128:]
+    state['observations'] = (others + ([library] if library else []) + ([ledger] if ledger else []) + [record])[-128:]
     record['dropped_objects'] = 0
     size = lambda: len(host.canonical(state).encode()) + 1
     if size() > host.STATE_LIMIT:
@@ -1566,7 +1593,8 @@ def run(task, state_path, limit, host):
     settled = None
     if goal.done(rt): status, reason, settled = 'CHECKED_RESEARCH', 'goal settled by checked results', goal.outcome(rt)
     gained = max(0, sum(1 for o in rt.objects.values() if o['status'] == 'checked') - baseline) if agent else 0
-    rounds = [r for r in (old or {}).get('rounds', []) if type(r) is dict][-(MAX_ROUNDS - 1):]
+    ledger = load_ledger(state)
+    rounds = (ledger.get(identity) or [r for r in (old or {}).get('rounds', []) if type(r) is dict])[-(MAX_ROUNDS - 1):]
     rounds.append(dict(generation=gen[:16], status=status, reason=reason, settled=settled, new_checked=gained,
                        moves=agent.moves if agent else 0, seconds=round((time.perf_counter_ns() - started) / 1e9, 3)))
     record = dict(task_id=identity, kind='autonomous_research', generation=gen, problem=problem, status=status,
@@ -1579,8 +1607,9 @@ def run(task, state_path, limit, host):
     entries = merge_library(library, agent.outcomes if agent else {})
     carried_ids = {rec['task_id'] for rec in state['observations']
                    if rec.get('kind') == 'autonomous_research' and rec is not old and goal.carries(rec)}
+    ledger[identity] = rounds
     dropped = save(host, state, state_path, record, dict(task_id=LIBRARY_ID, kind='strategy_library', entries=entries),
-                   carried_ids)
+                   carried_ids, dict(task_id=LEDGER_ID, kind='problem_rounds', entries=ledger))
     checked = [o for o in rt.objects.values() if o['status'] == 'checked']
     by_kind = {}
     for o in checked: by_kind[o['kind']] = by_kind.get(o['kind'], 0) + 1
@@ -1599,7 +1628,8 @@ def run(task, state_path, limit, host):
                 carried_later=goal.carry_report(),
                 goal=goal.summary(rt), checked_objects=by_kind,
                 results=[result_row(o) for o in checked if o['kind'] in ('cover', 'finite', 'pattern', 'density', 'theorem',
-                                                                           'dcover', 'cfinite', 'cycle', 'exclusion')][-12:],
+                                                                           'dcover', 'cfinite', 'cycle', 'exclusion',
+                                                                           'value', 'witness', 'proof')][-12:],
                 refutations=sum(1 for o in checked if o['kind'] == 'refutation'),
                 invented_moves=[dict(name=m['name'], origin=m['origin'], status=m['status'], dirs=m['dirs'],
                                      uses=m['uses'], successes=m['successes'], invented_at=m['invented_at'])
@@ -1619,9 +1649,12 @@ def run(task, state_path, limit, host):
 PROBLEMS = 'problems.json'
 PROBLEMS_SCHEMA = 'ember.problems.v1'
 UNTRIED = 'not attempted yet'
+# Ties among equal scores: open problems, then windows (finite exact views onto catalog problems), then closed ones.
+STATUS_TIERS = dict(open=0, window=1, closed=2)
 CHOICE_RULE = ('an untried problem scores p = 1/2 over m = 0.01; a tried one, the doctrine score over her own rounds on '
                'it (a round with new checked results is a success, its seconds its cost); ties go to open problems, then '
-               'to the problem type her strategy library has the most successes with, then to the id')
+               'windows, then closed problems, then to the problem type her strategy library has the most successes '
+               'with, then to the id')
 
 
 def load_problems(host, L):
@@ -1631,15 +1664,19 @@ def load_problems(host, L):
     data = host.load_json(Path(__file__).resolve().parent / PROBLEMS)
     if type(data) is not dict or data.get('schema') != PROBLEMS_SCHEMA: raise host.Refused('problem library schema')
     problems, catalog, needs = data.get('problems'), data.get('catalog'), data.get('needs')
-    if type(problems) is not list or type(catalog) is not list or type(needs) is not dict:
+    resolved = data.get('resolved', [])
+    if type(problems) is not list or type(catalog) is not list or type(needs) is not dict or type(resolved) is not list:
         raise host.Refused('problem library shape')
     seen = set()
-    for e in problems + catalog:
+    for e in problems + catalog + resolved:
         if type(e) is not dict or type(e.get('id')) is not str or not e['id'] or e['id'] in seen:
             raise host.Refused('problem library ids')
         seen.add(e['id'])
+    viewed = {e['id'] for e in catalog + resolved}
     for e in problems:
-        if e.get('status') not in ('open', 'closed'): raise host.Refused('problem status of ' + e['id'])
+        if e.get('status') not in STATUS_TIERS: raise host.Refused('problem status of ' + e['id'])
+        if (e['status'] == 'window') != ('window_of' in e) or ('window_of' in e and e['window_of'] not in viewed):
+            raise host.Refused('a window names the catalog problem it views: ' + e['id'])
         try:
             bind(dict(query='autonomous_research', problem=e.get('task')), host, L)
         except host.Refused as exc:
@@ -1656,13 +1693,14 @@ def choose(problems, state, gen):
     round, and after that the ones where her rounds keep producing checked results cheaply come first. A scheduling
     policy over her experience, not a belief about which problem is easier or which answer is true."""
     records = {rec['task_id']: rec for rec in state['observations'] if rec.get('kind') == 'autonomous_research'}
+    ledger = load_ledger(state)
     affinity = {}
     for e in load_library(state)[0]:
         kind = e['context'].split(':')[0]; affinity[kind] = affinity.get(kind, 0) + e['successes']
     rows = []
     for e in problems:
-        rec = records.get(digest(dict(query='autonomous_research', problem=e['task'])))
-        rounds = [r for r in (rec or {}).get('rounds', []) if type(r) is dict]
+        key = digest(dict(query='autonomous_research', problem=e['task'])); rec = records.get(key)
+        rounds = ledger.get(key) or [r for r in (rec or {}).get('rounds', []) if type(r) is dict]
         samples = [dict(context='problem', strategy=e['id'], task=str(i), success=bool(r.get('new_checked')), weight=1,
                         seconds=r['seconds'] if type(r.get('seconds')) in (int, float) and r['seconds'] >= 0 else 0.0)
                    for i, r in enumerate(rounds)]
@@ -1674,14 +1712,15 @@ def choose(problems, state, gen):
         elif last.get('reason') == EXHAUSTED:
             eligible, why = False, 'no untried move left at this generation; waits for new instruments'
         elif not rounds:
-            eligible, why = True, UNTRIED if rec is None else 'attempted before rounds were recorded'
+            eligible, why = True, UNTRIED if rec is None and key not in ledger else 'attempted before rounds were recorded'
         else:
             eligible, why = True, (str(sum(1 for x in samples if x['success'])) + ' of ' + str(len(rounds)) +
                                    ' rounds with new checked results, ' + str(round(sum(x['seconds'] for x in samples))) +
                                    ' s in all')
         rows.append(dict(id=e['id'], status=e['status'], type=e['task']['type'], eligible=eligible, why=why,
                          score=round(score, 6), rounds=len(rounds),
-                         order=(not eligible, -score, e['status'] != 'open', -affinity.get(e['task']['type'], 0), e['id'])))
+                         order=(not eligible, -score, STATUS_TIERS[e['status']], -affinity.get(e['task']['type'], 0),
+                                e['id'])))
     rows.sort(key=lambda r: r['order'])
     for r in rows: del r['order']
     return rows
@@ -1698,13 +1737,14 @@ def scan(task, state_path, limit, host):
     if type(go) is not bool: raise host.Refused('run is true or false')
     problems, catalog, needs = load_problems(host, L)
     gen = generation(); ranking = choose(problems, host.read_state(state_path), gen)
-    tally = {}
+    tally = {}; windowed = {e['window_of'] for e in problems if e['status'] == 'window'}
     for e in catalog:
         for n in e['needs']: tally.setdefault(n, []).append(e['id'])
     report = dict(query='open_problems', rule=CHOICE_RULE, ranking=ranking,
                   library=dict(stated=len(problems), open=sum(1 for e in problems if e['status'] == 'open'),
-                               closed=sum(1 for e in problems if e['status'] == 'closed'), catalog=len(catalog)),
-                  backlog=[dict(need=n, problems=len(ids), examples=ids[:4])
+                               closed=sum(1 for e in problems if e['status'] == 'closed'),
+                               windows=sum(1 for e in problems if e['status'] == 'window'), catalog=len(catalog)),
+                  backlog=[dict(need=n, problems=len(ids), windowed=sum(1 for i in ids if i in windowed), examples=ids[:4])
                            for n, ids in sorted(tally.items(), key=lambda kv: (-len(kv[1]), kv[0]))])
     pick = next((r for r in ranking if r['eligible']), None)
     if pick is None:
@@ -1714,6 +1754,7 @@ def scan(task, state_path, limit, host):
     entry = next(e for e in problems if e['id'] == pick['id'])
     report['choice'] = dict(id=entry['id'], title=entry.get('title'), status=entry['status'], why=pick['why'],
                             score=pick['score'])
+    if entry['status'] == 'window': report['choice']['window_of'] = entry['window_of']
     if not go: return dict(report, status='SCANNED', generation=gen, reason='choice made; the round was not run')
     result = run(dict(query='autonomous_research', problem=entry['task'], moves=moves, move_work=per, name=entry['id']),
                  state_path, limit, host)
@@ -1733,4 +1774,10 @@ def result_row(o):
     if o['kind'] == 'dcover': row.update(modulus=d['modulus'], covered=ev.get('covered'))
     if o['kind'] == 'cfinite': row.update(lo=d['lo'], hi=d['hi'])
     if o['kind'] == 'cycle': row.update(start=d['start'], length=d['length'])
+    if o['kind'] in ('value', 'witness', 'proof'):
+        # a window's answer: the value itself, or the checker's summary of a witness or proof, cut for the report
+        answer = d['value'] if o['kind'] == 'value' else ev.get('summary')
+        text = json.dumps(answer, sort_keys=True, separators=(',', ':'))
+        row.update(tool=d['q'], family=d['family'], params=d['params'],
+                   answer=answer if len(text) <= 600 else text[:600] + '...')
     return row

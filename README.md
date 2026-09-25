@@ -9,8 +9,9 @@ API key, downloaded weights, third-party package or source archive. Python itsel
 is an external prerequisite and is **not** included. Generations through
 `ember-pyramid-15` were tested on Windows with Python 3.14.6. Generation
 `ember-pyramid-16` added the apex layer; this generation, `ember-pyramid-17`,
-adds a typed operator language with 165 executed operators, a move bench and an
-autonomous research agent. Both were verified on Linux x86_64 with Python 3.11.15
+adds a typed operator language (now 212 executed operators), a move bench, an
+autonomous research agent, an open-problem library and 29 window tools that give
+her a finite exact view of 125 catalogued open problems. Both were verified on Linux x86_64 with Python 3.11.15
 only; they have not been rerun on the Windows host. Other Python versions,
 operating systems and devices remain unverified. CPU, memory and storage are still
 required for each calculation.
@@ -20,7 +21,9 @@ mathematical intelligence, unrestricted invention, or a solution to every open
 problem. Its finite searches and exact checkers support the specific task types
 below. Its autonomous agent works only on problems stated in its typed language;
 an open problem stays open unless the checker settles it, and none has been
-settled. Same-model development and review are not external scientific replication.
+settled. A window computes or verifies a finite exact view of an open problem and
+settles nothing about it. Same-model development and review are not external
+scientific replication.
 
 ## Start locally
 
@@ -626,10 +629,10 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 322 implemented moves across
-29 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 165 operators of the typed language described below. The
-base holds 120 moves with an N component, 116 with W, 263 with S and 104 with E.
+`--pyramid` prints the map. Its base is a catalog of 369 implemented moves across
+34 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
+or replay work) and the 212 operators of the typed language described below. The
+base holds 166 moves with an N component, 117 with W, 310 with S and 105 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
 fifteen nonempty direction sets, from the four faces up to the apex {N,W,S,E}. A
@@ -861,16 +864,20 @@ python -I -B -X utf8 ember.py --move-bench
 Generation 17 gives Ember a typed mathematical language. Objects are a kind plus
 exact JSON data: questions (a sequence definition, a polynomial map and orbit, a
 residue class of a unit-fraction question, an integer polynomial, a residue-class
-map) and claims (a linear recurrence for every index, a rational generating
-function, a closed form, a period modulo m, a polynomial identity, an invariant or
-semi-invariant, an orbit exclusion, a unit-fraction family polynomial in the class
-parameter, a residue-class cover, a checked finite range, a modular root or its
-absence, a descent certificate, a cycle). `lexicon_check.py` is the only way a
-claim becomes checked. It imports no operator code, has its own exact arithmetic,
-and binds every claim to the question stated in its own data.
+map, and the 29 window questions described under "Window tools") and claims (a
+linear recurrence for every index, a rational generating function, a closed form,
+a period modulo m, a polynomial identity, an invariant or semi-invariant, an orbit
+exclusion, a unit-fraction family polynomial in the class parameter, a
+residue-class cover, a checked finite range, a modular root or its absence, a
+descent certificate, a cycle, and a window's value, witness or proof).
+`lexicon_check.py` is the only way a claim becomes checked. It imports no operator
+code, has its own exact arithmetic (its window checkers live in `window_check.py`,
+`window_real.py` and `window_discrete.py`), and binds every claim to the question
+stated in its own data.
 
-165 operators in eight modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
-`ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`) consume and produce objects.
+212 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+`ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`, `ops_wnum`, `ops_wdisc`)
+consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
 
 - **N** a new candidate;
@@ -893,8 +900,8 @@ The move bench runs every operator on its fixtures in a fresh runtime. It counts
 only the events that produced the objects the operator returned. An operator
 passes when its declared directions equal the union observed over its fixtures,
 every returned checked object is admitted again by a fresh checker call, and its
-argument and output kinds match its signature. All 165 pass: 65 have an N
-component, 51 W, 157 S and 78 E. Together with the subreasoner moves, every
+argument and output kinds match its signature. All 212 pass: 111 have an N
+component, 52 W, 204 S and 79 E. Together with the subreasoner moves, every
 direction of the pyramid now has more than one hundred moves. A package check
 changes one operator's declared directions and requires the bench to fail.
 Directions are observed on fixtures, not proved for every input.
@@ -1213,22 +1220,35 @@ python -I -B -X utf8 ember.py examples/open_problems.json --state her-instance.j
 
 `problems.json` is her library. It has two tiers.
 
-- **Stated problems** (16). Each is a task in her language that she can run.
-  Eleven are open: the Erdős–Straus conjecture, Sierpiński's 5/n, Schinzel's
-  conjecture for a/n with a = 6, 7, 8, 9, 10, 11, 13 and 14, and the Collatz
-  conjecture (descent classes to 2^20). Five are closed and calibrate her:
-  the Collatz sieve to 2^18, whose counts are known; 3/n and the halving
-  map, which are true; and the 3n − 1 and 5n + 1 maps, which are false
-  because each has a cycle. A task states the part of its problem her
-  checker can decide, and each entry's `scope` says what a result means for
-  the problem. For the Schinzel instances the least n lies above every
-  exception an exhaustive search here found below 20,000.
-- **The catalog** (141 entries so far). These are open problems she cannot
-  state yet, from the Riemann hypothesis to the Hadamard conjecture. Each
-  entry names what her language lacks (`needs`, 30 kinds described in the
-  file). The catalog is her instrument backlog: every scan reports how many
-  catalog problems each missing kind would open. It is a start, not every
-  open problem.
+- **Stated problems** (148). Each is a task in her language that she can run.
+  - *Open* (18): the Erdős–Straus conjecture, Sierpiński's 5/n, Schinzel's
+    conjecture for a/n with a = 6 to 19 and 21, and the Collatz conjecture
+    (descent classes to 2^20). The numerators 12, 15 to 19 and 21 became
+    stateable when her statement bounds widened (numerators up to 64, least n up
+    to 100,000); each starts above every exception an exhaustive search here
+    found below 100,000 (for 16/n that search found exceptions at 78,721 and
+    83,449, past an earlier search to 40,000).
+  - *Closed* (5) calibrate her: the Collatz sieve to 2^18, whose counts are
+    known; 3/n and the halving map, which are true; and the 3n − 1 and 5n + 1
+    maps, which are false because each has a cycle.
+  - *Windows* (125): a finite exact view of a catalog problem, one per problem
+    that has one (below). A window never settles its problem.
+
+  A task states the part of its problem her checker can decide, and each entry's
+  `scope` says what a result means for the problem.
+- **The catalog** (135 entries). These are open problems she cannot state as
+  questions, from the Riemann hypothesis to the Hadamard conjecture. Each entry
+  names what her language lacks (`needs`, 30 kinds described in the file) and
+  points to its window when it has one; 125 do. The ten without one are named in
+  CAMPAIGNS.md. It is a start, not every open problem.
+- **Resolved** (6): problems that left the catalog when the literature settled
+  them in 2024–2026 (the moving sofa, the cycle double cover, Chvátal's
+  conjecture, Sendov's conjecture, Schiffer's conjecture and the irrationality of
+  zeta(5)), with sources. A status check of every entry by web search on
+  2026-09-25 also restated six entries to their still-open form (the unit
+  distance growth order, the Jacobian conjecture in dimension 2, Borsuk's
+  problem in dimensions 4 to 62, hot spots for convex planar domains, Kakeya
+  from dimension 4, and unforced Navier-Stokes).
 
 `open_problems` scans the library, chooses one stated problem and runs one
 round on it. Her choice reads only each stated problem's id, status and
@@ -1239,23 +1259,94 @@ doctrine score over her own rounds on each problem: a round with new checked
 results is a success, and its seconds are its cost. An untried problem
 scores p = 1/2 over m = 0.01, so every problem gets a first round. After
 that, the problems where her rounds keep producing checked results cheaply
-come first. Ties go to open problems, then to the problem type her strategy
-library has the most successes with, then to the id.
+come first. Ties go to open problems, then windows, then closed problems, then
+to the problem type her strategy library has the most successes with, then to
+the id.
 
-Every record keeps the rounds it took: generation, status, checked results
-gained, moves and seconds. A problem she settled, or left with no untried
-move, waits until her code changes, and a new fingerprint makes it eligible
-again. `"run": false` returns her ranking and her choice without running.
-When nothing is left, the scan returns `UNKNOWN` with the backlog. The
-library's statuses and prose are not evidence, and she never reads them.
+Her rounds are kept in one ledger record per instance state: for each problem,
+the generation, status, checked results gained, moves and seconds of each round.
+The ledger sits beside her strategy library, so her memory of which problems she
+tried survives when the state bound drops a problem's evidence or the
+128-record bound drops an old record. A problem she settled, or left with no
+untried move, waits until her code changes, and a new fingerprint makes it
+eligible again. A window settles when every one of its objects has a checked
+answer. `"run": false` returns her ranking and her choice without running. When
+nothing is left, the scan returns `UNKNOWN` with the backlog, which now also
+counts, for each missing kind, how many of its catalog problems have a window.
+The library's statuses and prose are not evidence, and she never reads them.
 
 The library grows by editing `problems.json`. A stated problem needs a
-unique id, a status (`open` or `closed`) and a task that
-`autonomous_research` accepts. A catalog entry needs a unique id and at least
-one `needs` kind named in the file. The package checks refuse a library that
-breaks either rule. Editing the library does not change her fingerprint, so
-it does not make an exhausted problem eligible again. Only a change to her
-code does that.
+unique id, a status (`open`, `closed` or `window`) and a task that
+`autonomous_research` accepts; a window also names its catalog problem
+(`window_of`). A catalog entry needs a unique id and at least one `needs` kind
+named in the file. The package checks refuse a library that breaks either rule.
+Editing the library does not change her fingerprint, so it does not make an
+exhausted problem eligible again. Only a change to her code does that.
+
+## Window tools
+
+```text
+python -I -B -X utf8 ember.py window-task.json --state her-instance.json --work 2000000000
+```
+
+The catalog named 30 kinds of mathematics her language lacked. Each now has a
+tool: 29 window question kinds, one per kind of view, and wider statement
+bounds for unit-fraction problems. A window question names a family and its
+parameters, for example
+
+```json
+{"kind": "primes_q", "data": {"family": "tally", "params": {"pred": ["and", ["prime", "n"], ["prime", ["add", "n", 2]]], "lo": 2, "bounds": [1000, 10000, 100000, 1000000]}}}
+```
+
+and its answer is a claim of one of three kinds: a **value** the checker
+recomputes, a **witness** it verifies, or a **proof** it replays. The 120
+families (81 value, 37 witness, 2 proof) include:
+
+| tool | families (examples) |
+| --- | --- |
+| `census_q`, `primes_q`, `arith_q`, `dioph_q`, `bigint_q`, `field_q` | tallies and member lists over a typed predicate language (primes, divisor functions, Fibonacci numbers, factorials); record prime gaps, Goldbach tables, Gilbreath rows; totient fibres, odd weird numbers; Euler bricks, power sums, abc triples, Pascal multiplicities, three cubes, congruent numbers; Lucas-Lehmer, Pepin, Wall-Sun-Sun, Proth and N+1 tests, Pratt certificates; irregular pairs, class numbers, small Mahler measures |
+| `orbit_q`, `covering_q`, `dynamics_q` | reverse-and-add, residue-class maps, Conway's amusical permutation, aliquot sequences; covering systems and covering sets; certified Mandelbrot grids, x2 x3 orbits, averaged Liénard zeros |
+| `zeta_q`, `const_q`, `digits_q`, `interval_q`, `approx_q` | interval arithmetic: signs of Hardy's Z and of L(s, chi_4) on the critical line, zero-count bounds, certified sizes of zeta, lattice-point and divisor errors; enclosures, continued fractions, excluded rationals, relations and polynomials for constants; digits of pi; Mahler's Z-number sets; Littlewood products, lonely runner times |
+| `graph_q`, `setsys_q`, `additive_q`, `design_q`, `sat_q`, `circuit_q` | colorings, Hamiltonian paths, graceful labelings, cycle double covers, Ramsey graphs, strongly regular parameters, small censuses (reconstruction, Hadwiger, Sidorenko, Erdős-Hajnal, oriented graphs); union-closed and sunflower-free families, balanced pairs, Rota's bases; prime progressions, Sidon sets, four cubes, sums and products; Hadamard matrices, projective planes, orthogonal Latin squares; SAT witnesses and RUP-checked refutations; exact circuit sizes, isomorphism, unique games |
+| `config_q`, `kakeya_q`, `knot_q`, `algebra_q`, `group_q`, `variety_q`, `spectrum_q`, `lattice_q`, `operator_q` | unit distances, Heilbronn sets, no three in line, convex-free sets, kissing arrangements, rational distances, unit-distance graphs in Q(sqrt a, sqrt b), Mahler volumes, illumination, Borsuk partitions, lattice packings, points on the sphere with bounded energy; finite-field Kakeya sets; Jones polynomials, the Kashaev invariant, inscribed squares; Galois groups, plane polynomial inverses, matrix multiplication schemes, Casas-Alvero searches; coset enumeration, Andrews-Curtis trivializations; point counts and rational points; Laplacian eigenvalue counts; Ising and Galerkin identities; invariant subspaces |
+
+Her 47 window operators (`ops_wnum.py`, `ops_wdisc.py`) propose answers: one
+compute move per tool asks the checker's family for a value; search moves find
+witnesses with her own code (circulant Ramsey graphs, flip graphs over GF(2)
+with a sign lift for matrix multiplication, best-first Andrews-Curtis moves,
+hill climbing for Heilbronn sets, projected gradient descent moved to exact
+rational points of the sphere, a CDCL solver that logs RUP proofs, Proth bases
+and Lucas parameters, Pratt certificates); `window_widen` restates a checked
+window with larger bounds, and `window_refute` refutes a value that does not
+recompute. The explore goal `window` asks, for each object, for the answer
+kind its family gives.
+
+Every one of the 125 windows settles under her agent in seconds (most below
+five). The values that published tables also list agree with them: twin prime
+pairs below 10^3..10^6 (35, 205, 1224, 8169), Sophie Germain primes (37, 190,
+1171, 7746), prime quadruplets (5, 12, 38, 166), primes n^2 + 1 (112, 841,
+6656), the 22 record prime gaps below 10^7, the Mersenne exponents below 3000,
+the ten zeros of zeta below height 50, the Pascal multiplicities up to 10^9
+(3003 eight times; 120, 210, 1540, 7140, 11628 and 24310 six times), the
+13 amicable pairs below 10^5, M(1000) = 248,083 distinct products, Brocard's
+4, 5 and 7, and Lehmer's polynomial as the only reciprocal degree-10 measure
+below 1.18 (with its reflection). What a window shows is exactly its scope: a
+finite range, a box, one construction. It settles nothing about its problem.
+
+`tools/verdict.py` now also judges window claims with `tools/verdict_windows.py`,
+which shares no code with her producers or checkers. It recomputes 49 value
+families and rechecks 35 witness and 2 proof families with its own code (86 of
+the 115 family names). For the other 29 it answers UNRESOLVED and names the
+family: the interval-arithmetic families (zeta, constants, Littlewood, Mandelbrot,
+Kashaev), class numbers, Galois groups, Mahler measures, coset enumeration and a
+few others. So a window verdict's one bit is "verified" only when every family
+it holds has a rule.
+Building the tools found four defects that her checks then caught or that the
+package now tests: the N+1 test for k·2^n − 1 was wrong (it would have refused
+every true prime above the Miller-Rabin range); the RUP checker missed unit
+steps in clauses with a repeated literal; the Jones polynomial had the writhe
+sign reversed; and a flip in the matrix multiplication search changed the tensor
+for negatively shared factors.
 
 ## Task and result interface
 
@@ -1301,7 +1392,7 @@ bound does not impose a child-process disk quota.
 | `certify_minimal_recurrence` | Return a checked all-index recurrence with a nonzero Hankel determinant excluding every lower order. |
 | `certify_eventual_recurrence` | Return a reduced generating function with a Bezout coprimality certificate: the least order of a recurrence valid for all large indices, and where it starts. |
 | `autonomous_research` | Run the offline agent on a problem stated in the typed language: decide, explore, cover unit-fraction classes or certify descent; report only checked results. |
-| `open_problems` | Scan the problem library, choose a stated problem by her own records, and run one round on it; report her ranking and the instrument backlog. |
+| `open_problems` | Scan the problem library (open, closed and window problems), choose one by her own records, and run one round on it; report her ranking and the instrument backlog. |
 
 Exit code `0` means the returned result is closed within its stated scope. Exit
 code `3` with `status: "UNKNOWN"` means the evidence did not settle the request

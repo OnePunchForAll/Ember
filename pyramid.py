@@ -32,12 +32,18 @@ TYPES = ('original', 'candidate', 'certificate', 'counterexample', 'residual', '
 MODULES = ('ember.py', 'campaign.py', 'algebra.py', 'algebra_check.py', 'word_series.py', 'word_check.py',
            'recurrence.py', 'recurrence_check.py', 'invariant.py', 'invariant_map.py', 'invariant_check.py',
            'obligations.py', 'recursive.py', 'recursive_check.py', 'source_episode.py', 'apex.py', 'apex_check.py',
-           'lexicon.py', 'lexicon_check.py', 'movebench.py', 'agent.py')
+           'lexicon.py', 'lexicon_check.py', 'movebench.py', 'agent.py', 'window_check.py', 'window_real.py',
+           'window_discrete.py')
 # Operators of the typed language (lexicon.py) are read from these modules' @op declarations.
 LEXICON_MODULES = ('ops_seq.py', 'ops_poly.py', 'ops_orbit.py', 'ops_egypt.py', 'ops_arith.py', 'ops_word.py',
-                   'ops_matrix.py', 'ops_collatz.py')
+                   'ops_matrix.py', 'ops_collatz.py', 'ops_wnum.py', 'ops_wdisc.py')
 QUESTION_KINDS = frozenset(('seq', 'words', 'orbit', 'map', 'poly', 'esq', 'eclass', 'en', 'count', 'diophantine', 'modq',
-                            'cmap', 'cclass', 'cproblem', 'matrixq'))
+                            'cmap', 'cclass', 'cproblem', 'matrixq',
+                            # window tools: one question kind per tool (window_check.TOOLS)
+                            'census_q', 'primes_q', 'arith_q', 'dioph_q', 'approx_q', 'field_q', 'zeta_q', 'const_q',
+                            'digits_q', 'interval_q', 'kakeya_q', 'spectrum_q', 'variety_q', 'algebra_q', 'group_q',
+                            'knot_q', 'config_q', 'graph_q', 'setsys_q', 'additive_q', 'sat_q', 'bigint_q', 'orbit_q',
+                            'dynamics_q', 'circuit_q', 'operator_q', 'design_q', 'lattice_q', 'covering_q'))
 EVIDENCE_KINDS = frozenset(('refutation', 'exclusion', 'nosolmod', 'nosol', 'cycle', 'nofamily', 'obstruction'))
 LAW_KINDS = frozenset(('law', 'gf', 'closed', 'period', 'invariant', 'semi'))
 

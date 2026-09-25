@@ -11,6 +11,7 @@ answer is "verified" only when every claim is VERIFIED; otherwise it is
     python -I -B -X utf8 tools/verdict.py STATE.json
 """
 from fractions import Fraction as F
+import importlib.util
 import json
 from math import gcd
 from pathlib import Path
@@ -529,8 +530,19 @@ def cycle_verdict(d):
 
 # ------------------------------------------------------------- self-test and dispatch
 
+def _windows():
+    """The window rules: independent recomputation of window values and checks of window witnesses and proofs."""
+    spec = importlib.util.spec_from_file_location('ember_verdict_windows', Path(__file__).with_name('verdict_windows.py'))
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    return module
+
+
+WINDOWS = _windows()
+
+
 def verdict(kind, data):
     if type(data) is dict and set(data) == {'unresolvable'}: return 'UNRESOLVED', data['unresolvable']
+    if kind in ('value', 'witness', 'proof'): return WINDOWS.verdict(kind, data)
     try:
         if kind == 'ufam': return family_verdict(data)
         if kind == 'cover': return cover_verdict(data)
@@ -589,6 +601,7 @@ def self_test():
         'compact cover with a false identity refuted': verdict('cover', compact_case(True))[0] == 'REFUTED',
         'compact family rebuilds the written one': [trim(expand(e)) for e in unshaped(
             dict(a=4, m=4, r=3, k0=0, s=0), compact_case(False)['shapes'])['x']] == [trim(expand(e)) for e in good['x']],
+        'window rules tell true from false claims': WINDOWS.self_test()[0],
     }
     return all(checks.values()), checks
 

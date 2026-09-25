@@ -48,6 +48,8 @@ def _load(name):
 
 
 _recurrence = _load('recurrence_check')
+_windows = _load('window_check')  # the window tools: finite exact views onto problems her other claims cannot state
+QUESTION_KINDS = QUESTION_KINDS + _windows.TOOLS
 
 
 def canonical(value):
@@ -1511,6 +1513,9 @@ def check_refutation(data, budget):
          'refutation fields')
     claim, w = data['claim'], data['witness']; kind, cd = claim.get('kind'), claim.get('data')
     need(type(cd) is dict, 'refuted claim data')
+    if kind in _windows.CLAIMS:
+        try: return _windows.refute(kind, cd, w, budget)
+        except _windows.Invalid as exc: raise Invalid(str(exc)) from exc
     if kind in ('law', 'gf', 'closed'):
         i = integer(w.get('index'), 0, MAX_TERMS - 1)
         actual = seq_terms(cd['def'], i + 1, budget)[i]
@@ -1663,6 +1668,9 @@ def question(kind, data):
     if kind in ('identity', 'poly', 'words', 'template'): return digest(dict(q=kind, data=data))
     if kind == 'refutation': return question(data['claim']['kind'], data['claim']['data'])
     if kind == 'residual': return data.get('question', digest(data))
+    if kind in _windows.TOOLS or kind in _windows.CLAIMS:
+        try: return _windows.question(kind, data)
+        except _windows.Invalid as exc: raise Invalid(str(exc)) from exc
     raise Invalid('unknown object kind ' + str(kind))
 
 
@@ -1676,6 +1684,20 @@ CHECKS = dict(law=check_law, gf=check_gf, closed=check_closed, period=check_peri
               theorem=check_theorem, obstruction=check_obstruction)
 
 
+def window_kind(tool, name):
+    """The claim kind a window family answers with ('value', 'witness' or 'proof'), or None for no such family."""
+    spec = _windows.FAMILIES.get((tool, name)) if type(tool) is str and type(name) is str else None
+    return spec['kind'] if spec else None
+
+
+def window_compute(tool, name, params, budget):
+    """The value of a window family (for operators proposing value claims); the checker recomputes it on admission."""
+    try: return _windows.compute(tool, name, params, budget)
+    except _windows.Invalid as exc: raise Invalid(str(exc)) from exc
+    except (KeyError, TypeError, IndexError, ZeroDivisionError, ValueError) as exc:
+        raise Invalid('malformed window: ' + type(exc).__name__) from exc
+
+
 def check(kind, data, budget):
     """Admit a claim of the given kind, or raise Invalid; question kinds are not claims."""
     need(type(data) is dict, 'object data')
@@ -1685,6 +1707,11 @@ def check(kind, data, budget):
     if kind == 'semi':
         check_invariant(data, budget, data.get('factor'))
         return dict(ok=True, kind='semi', scope='P(F(x)) = lambda*P(x) as polynomials.', proof='Exact expansion.')
+    if kind in _windows.CLAIMS:
+        try: return _windows.check(kind, data, budget)
+        except _windows.Invalid as exc: raise Invalid(str(exc)) from exc
+        except (KeyError, TypeError, IndexError, ZeroDivisionError, ValueError) as exc:
+            raise Invalid('malformed ' + kind + ': ' + type(exc).__name__) from exc
     need(kind in CHECKS, 'no checker for kind ' + str(kind))
     try: return CHECKS[kind](data, budget)
     except (KeyError, TypeError, IndexError, ZeroDivisionError) as exc:
