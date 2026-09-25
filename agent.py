@@ -61,6 +61,58 @@ FAMILY_MISSES = frozenset(('ansatz miss', 'extended ansatz miss', 'classical mis
 MISS_SOURCES = {'ansatz miss': 'egypt_divisor_ansatz', 'extended ansatz miss': 'egypt_ansatz_extend',
                 'classical miss': 'egypt_classical_family'}
 RETIRE_AFTER = 64
+REFUSE_AFTER = 8  # claims of one strategy refused in a context and scope with none admitted before it is retired with the reason
+REFUSE_BOUND = 2  # refusals at a bound of the language (a reason naming an instrument) that retire a strategy there at once
+REFUSAL_FLOOR = 8  # a round that refused at least this many claims and admitted fewer waits for an instrument in her scan
+NEVER_RETIRED = ('egypt_classical_family', 'egypt_classical_exclusion', 'egypt_classical_sweep', 'egypt_wall_sweep', 'verify')
+# A refusal reason names the bound or instrument that would lift it: a fixed table read by the diagnosis, not a claim
+# about why the round failed. Order matters where one reason contains another.
+INSTRUMENTS = (('family shapes bound', 'MAX_DFAM_SHAPES in lexicon_check: the shapes a proof\'s family part may name'),
+               ('family shape', 'MAX_DFAM_H in lexicon_check: the h a divisor family may have'),
+               ('finite range bound', 'MAX_RANGE in lexicon_check: a longer range needs range_extend chunks'),
+               ('closure residue bound', 'CLOSURE_RESIDUES in lexicon_check: a closure by family moduli'),
+               ('premise identities', 'MAX_PREMISES in lexicon_check: the premises a derivation may name'),
+               ('sieve lift bound', 'SIEVE_LIFTS in lexicon_check'), ('term count bound', 'MAX_TERMS in lexicon_check'),
+               ('bit bound', 'MAX_BITS in lexicon_check'), ('object exceeds', 'MAX_OBJECT_BYTES in lexicon'))
+
+
+def instrument_for(reason):
+    return next((name for key, name in INSTRUMENTS if key in reason), None)
+
+
+def refusal_rows(rt, limit=16):
+    """The claims the checker refused this call, by move, kind and reason, most refused first, each with the first
+    refused identity and the instrument its reason names (None when the table names none)."""
+    rows = sorted(rt.refusals.items(), key=lambda kv: (-kv[1][0], kv[0]))[:limit]
+    return [dict(strategy=k[0], kind=k[1], reason=k[2], count=v[0], first=v[1], instrument=instrument_for(k[2])) for k, v in rows]
+
+
+def bound_refusals(rt):
+    """The refusals whose reason names a bound of the language: their count and the most frequent such reason."""
+    rows = [(v[0], k[2]) for k, v in rt.refusals.items() if instrument_for(k[2])]
+    return sum(c for c, _ in rows), (max(rows)[1] if rows else None)
+
+
+def diagnosis(agent, goal, rt, gained, refused, reason):
+    """For a round that ran out of moves, gained nothing, refused more claims than it admitted, or had a claim refused
+    at a bound of the language: what was exhausted, what was refused and why, the residual's size, and the instrument
+    each refusal reason names. Read from her own run; it names a bound, not a cause. `blocked` is 'instrument' when a
+    bound refused her claims, 'refused' when the checker refused more than it admitted, 'exhausted' when the round
+    gained nothing without refusals, and 'none' when the round ran out of moves after gaining."""
+    if agent is None: return None
+    at_bound, bound = bound_refusals(rt)
+    if gained and refused <= gained and reason != EXHAUSTED and not at_bound: return None
+    kinds = {}
+    for tid in agent.exhausted:
+        o = rt.objects.get(tid); k = o['kind'] if o else 'gone'; kinds[k] = kinds.get(k, 0) + 1
+    rows = refusal_rows(rt, 8)
+    residual = sum(len(o['data']['items']) if type(o['data'].get('items')) in (list, dict) else 1
+                   for o in rt.objects.values() if o['kind'] == 'residual')
+    return dict(gained=gained, refused=refused, at_bound=at_bound, bound=bound, exhausted=kinds, residual_items=residual,
+                reasons=[dict(reason=r['reason'], count=r['count'], strategy=r['strategy'], instrument=r['instrument']) for r in rows],
+                instruments=sorted({r['instrument'] for r in rows if r['instrument']}),
+                blocked='instrument' if at_bound else 'refused' if refused > gained and refused >= REFUSAL_FLOOR
+                else 'exhausted' if not gained else 'none')
 PRIOR_PROBES = 8  # a strategy her library has seen fail in a context gets this many tries per level before retiring
 # Moves that prepare a whole level: tried once per workspace state rather than once per target.
 LEVEL_STEPS = ('egypt_classical_obstruction', 'egypt_classical_sweep', 'egypt_wall_sweep')
@@ -466,8 +518,7 @@ class CoverGoal(Goal):
 
     def retirable(self, context, strategy):
         # The classical generator and wall certificates decide every class's status; they are never retired.
-        return ':eclass' in context and context.startswith(self.kind) and strategy not in (
-            'egypt_classical_family', 'egypt_classical_exclusion', 'egypt_classical_sweep', 'egypt_wall_sweep')
+        return ':eclass' in context and context.startswith(self.kind) and strategy not in NEVER_RETIRED
 
     def targets(self, rt):
         self.update(rt); out = []
@@ -1260,6 +1311,8 @@ class Agent:
         self.checkable = set(checker.CHECKS) | {'invariant', 'semi'}
         # Strategies retired per context and level after RETIRE_AFTER failures without a success in this run.
         self.retired = {}; goal.retired = self.retired; self.retire_tally = {}; self.priors = set(); self.retired_in = {}
+        # Refusal accounting per (context, strategy, scope): [claims refused, claims admitted] in this run.
+        self.refused_by = {}
         self.pooled = set(); self.quiet = set(); self.quiet_key = None
         # Anytime moves waiting at a breath, by move key; and (object, move) pairs whose residual records an attempt.
         self.suspended = {}; self.attempted_by = set(); self.switches = 0; self.resumes = 0; self.slices = 0; self.settled = 0; self.settled_objects = 0
@@ -1506,6 +1559,30 @@ class Agent:
             while True: gen.send('checkpoint')
         except StopIteration as done: return done.value or []
 
+    def top_refusal(self, name):
+        """The reason the checker gave most often to a move's claims this call, or None."""
+        rows = [(v[0], k[2]) for k, v in self.rt.refusals.items() if k[0] == name]
+        return max(rows)[1] if rows else None
+
+    def note_refusals(self, context, name, scope, refused, admitted, at_bound=0):
+        """Refusal accounting per strategy, context and scope. A strategy whose claims the checker refused REFUSE_AFTER
+        times here with none admitted, or REFUSE_BOUND times at a bound of the language, is retired with the reason,
+        whatever its context (a scheduling policy: what it proposes cannot be admitted as stated, so it stops spending
+        until the code or the state changes); a strategy retired for failing keeps its refusal reason too. Returns the
+        retirement made here, or None."""
+        if not refused and not admitted: return None
+        key = (context, name, scope); tally = self.refused_by.setdefault(key, [0, 0, 0])
+        tally[0] += refused; tally[1] += admitted; tally[2] += at_bound
+        if key in self.retired:
+            if tally[0] and 'reason' not in self.retired[key]: self.retired[key].update(refused=tally[0], reason=self.top_refusal(name))
+            return None
+        if (tally[0] >= REFUSE_AFTER or tally[2] >= REFUSE_BOUND) and not tally[1] and name not in NEVER_RETIRED:
+            self.retired[key] = dict(failures=self.retire_tally.get(key, [0, 0])[1], refused=tally[0], at_bound=tally[2],
+                                     reason=self.top_refusal(name), at_move=self.moves, prior=(context, name) in self.priors)
+            self.retired_in[(context, scope)] = self.retired_in.get((context, scope), 0) + 1
+            return self.retired[key]
+        return None
+
     def breathe(self, gen, budget, stop_at):
         """Advance an anytime move until it returns its objects, or until a breath finds the slice used (None)."""
         while True:
@@ -1556,6 +1633,8 @@ class Agent:
             existing = resume['existing']; objects_before = resume['objects_before']; self.resumes += 1
         before = self.goal.progress(self.rt); began = time.perf_counter_ns(); reason = None; out = None
         self.rt.budget = budget; self.rt.current_move = name; self.rt.events = []
+        refusals_before = sum(r[0] for r in self.rt.refusals.values()); refused_earlier = resume['refused'] if resume else 0
+        bound_before = bound_refusals(self.rt)[0]; bound_earlier = resume['at_bound'] if resume else 0
         try:
             if gen is None:
                 out = self.run_op(name, args, budget)
@@ -1586,7 +1665,9 @@ class Agent:
             self.slices += 1
             self.suspend(dict(gen=gen, budget=budget, target=target, context=context, name=name, args=args, key=key, allocation=allocation,
                               slices=slices + 1, idle=0 if slice_progress else (resume['idle'] + 1 if resume else 1),
-                              seconds=seconds, progressed=progressed, existing=existing, objects_before=objects_before))
+                              seconds=seconds, progressed=progressed, existing=existing, objects_before=objects_before,
+                              refused=refused_earlier + sum(r[0] for r in self.rt.refusals.values()) - refusals_before,
+                              at_bound=bound_earlier + bound_refusals(self.rt)[0] - bound_before))
             row = dict(move=self.moves, target=target['kind'], strategy=name, success=slice_progress, work=budget.work - began_work,
                        outputs=[], waiting=True, slices=slices + 1)
             self.log = (self.log + [row])[-MAX_LOG:]
@@ -1620,6 +1701,9 @@ class Agent:
                 and (context, name, scope) not in self.retired:
             self.retired[(context, name, scope)] = dict(failures=count[1], at_move=self.moves, prior=(context, name) in self.priors)
             self.retired_in[(context, scope)] = self.retired_in.get((context, scope), 0) + 1
+        self.note_refusals(context, name, scope, refused_earlier + sum(r[0] for r in self.rt.refusals.values()) - refusals_before,
+                           sum(1 for o in out if o['status'] == 'checked' and o['id'] not in objects_before),
+                           bound_earlier + bound_refusals(self.rt)[0] - bound_before)
         for m in self.macros:
             if m['name'] == name:
                 m['uses'] += 1; m['successes'] += int(success)
@@ -1917,10 +2001,15 @@ def run(task, state_path, limit, host):
     settled = None
     if goal.done(rt): status, reason, settled = 'CHECKED_RESEARCH', 'goal settled by checked results', goal.outcome(rt)
     gained = max(0, sum(1 for o in rt.objects.values() if o['status'] == 'checked') - baseline) if agent else 0
+    # Refusal accounting: what the checker refused this call (carried claims included), and the reason given most.
+    refused = sum(r[0] for r in rt.refusals.values())
+    refusal = max(((v[0], k[2]) for k, v in rt.refusals.items()), default=(0, None))[1]
+    at_bound, bound = bound_refusals(rt)
     ledger = load_ledger(state)
     rounds = (ledger.get(identity) or [r for r in (old or {}).get('rounds', []) if type(r) is dict])[-(MAX_ROUNDS - 1):]
     rounds.append(dict(generation=gen[:16], relevant=rel[:16], status=status, reason=reason, settled=settled, new_checked=gained,
-                       moves=agent.moves if agent else 0, seconds=round((time.perf_counter_ns() - started) / 1e9, 3)))
+                       moves=agent.moves if agent else 0, seconds=round((time.perf_counter_ns() - started) / 1e9, 3),
+                       refused=refused, refusal=refusal, at_bound=at_bound, bound=bound))
     record = dict(task_id=identity, kind='autonomous_research', generation=gen, relevant=rel, problem=problem, status=status,
                   reason=reason, settled=settled, rounds=rounds,
                   objects=[compact(o) for o in goal.persisted(rt)], macros=agent.macros if agent else macros,
@@ -1966,6 +2055,7 @@ def run(task, state_path, limit, host):
                 retired_strategies=[dict(context=c, strategy=s, scope=w, **info) for (c, s, w), info in agent.retired.items()]
                 if agent else [],
                 failures=mine_failures(agent, goal, rt), related_problems=goal.related(),
+                refused=refused, refusals=refusal_rows(rt), diagnosis=diagnosis(agent, goal, rt, gained, refused, reason),
                 strategy_library=dict(entries=len(entries), reports_loaded=len(retained)),
                 limits='Operators search bounded grammars; the checker admits every reported claim in its stated scope. '
                        'UNKNOWN leaves the problem open. Scores order moves and are not beliefs.')
@@ -2082,8 +2172,19 @@ def choose(problems, state, gen, registry=None):
         recent = history[-RECENT_ROUNDS:]
         if last.get('status') == 'CHECKED_RESEARCH':
             eligible, why = False, 'settled at this generation (' + str(last.get('settled')) + ')'
+        elif last.get('bound') and (last.get('reason') == EXHAUSTED or last.get('refused', 0) > last.get('new_checked', 0)):
+            # Her own diagnosis: a bound of the language refused the round's claims and the round then ran out of moves
+            # (or admitted fewer than it refused), so the problem waits for the instrument the reason names; a change
+            # of the code a round can depend on makes it eligible again.
+            eligible, why = False, ('last round had ' + str(last.get('at_bound')) + ' claims refused at a bound (' + str(last['bound']) +
+                                    ': ' + str(instrument_for(last['bound'])) + '); waits for that instrument')
+        elif type(last.get('refused')) is int and last['refused'] >= REFUSAL_FLOOR and last['refused'] > last.get('new_checked', 0):
+            # The checker refused more of the round's claims than it admitted: the problem waits like one out of moves.
+            eligible, why = False, ('last round refused ' + str(last['refused']) + ' claims and admitted ' + str(last.get('new_checked', 0)) +
+                                    ' (' + str(last.get('refusal')) + '); waits for an instrument')
         elif last.get('reason') == EXHAUSTED:
-            eligible, why = False, 'no untried move left at this generation; waits for new instruments'
+            eligible, why = False, ('no untried move left at this generation; waits for new instruments' +
+                                    (' (' + str(last['refused']) + ' claims refused: ' + str(last.get('refusal')) + ')' if last.get('refused') else ''))
         elif inherited:
             eligible, why = True, ('her own widening of ' + e['parent'] + ', ranked by its rounds: gains ' +
                                    ', '.join(str(r.get('new_checked', 0)) for r in recent) + ' in ' +

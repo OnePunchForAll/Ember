@@ -1109,7 +1109,8 @@ def family_table(families, terms):
     """The shapes and the per-number table a proof's family part carries, checked for shape, or empty lists."""
     if families is None: return [], {}
     need(type(families) is dict and set(families) == {'shapes', 'table'} and type(families['shapes']) is list
-         and len(families['shapes']) <= MAX_DFAM_SHAPES and type(families['table']) is dict, 'family table')
+         and type(families['table']) is dict, 'family table')
+    need(len(families['shapes']) <= MAX_DFAM_SHAPES, 'family shapes bound')
     shapes = []
     for row in families['shapes']:
         need(type(row) is list and len(row) == 2 and row[0] in DFAM_SHAPES and type(row[1]) is int

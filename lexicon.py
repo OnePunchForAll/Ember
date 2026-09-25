@@ -675,6 +675,8 @@ class Runtime:
         self.order = list(self.objects)
         # The move being executed, when a scheduler names it: a residual it leaves records the attempt.
         self.current_move = None
+        # Refusal accounting: (move, kind, reason) -> [count, first refused identity]; the reason is the checker's own.
+        self.refusals = {}
 
     def admitted(self, identity):
         """The kind and data of an admitted claim, for a derivation naming it as a premise; None otherwise."""
@@ -722,7 +724,9 @@ class Runtime:
             result = (self.checker.check(obj['kind'], obj['data'], self.budget, self.admitted) if obj['kind'] == 'derived'
                       else self.checker.check(obj['kind'], obj['data'], self.budget))
         except self.checker.Invalid as exc:
-            obj.setdefault('rejections', []).append(str(exc)[:200]); return False
+            reason = str(exc)[:200]; obj.setdefault('rejections', []).append(reason)
+            row = self.refusals.setdefault((self.current_move or 'carried', obj['kind'], reason[:120]), [0, obj['id']]); row[0] += 1
+            return False
         obj['status'] = 'checked'; obj['evidence'] = result
         self.events.append(('S', obj['id']))
         if obj['kind'] in EVIDENCE_KINDS: self.events.append(('W', obj['id']))

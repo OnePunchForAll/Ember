@@ -1130,6 +1130,23 @@ one context (class kind and local squareness) and one refinement level are
 retired there for the rest of the run. The classical generator and the
 wall certificates are never retired.
 
+A claim the checker refuses is counted. The runtime keeps, per call, the
+refused claims by move, kind and the checker's own reason, with the first
+refused identity; the report carries the table (`refusals`), the total
+(`refused`) and, for a round that gained nothing or refused more than it
+admitted, a `diagnosis`: what was exhausted, what was refused and why, the
+residual's size, and the bound each reason names from a fixed table (the
+shapes a proof's family part may name, the finite range bound, the closure
+residue bound, the premises a derivation may name, and the rest). A strategy
+whose claims are refused eight times in a context and scope with none admitted
+is retired there with the reason, whatever its context. The rounds ledger keeps
+each round's refusals and its most frequent reason, and her scan treats a
+problem whose last round refused at least eight claims and more than it
+admitted as waiting for an instrument, naming the reason, until the code
+changes. The defect the third tier's first run found (every chunk refused past
+the shapes bound, the rounds ending as if exhausted) is now named in her own
+report and ledger on the round it happens.
+
 She prepares her finest level before its classes: her obstruction lemma first,
 then a classical sweep that runs the generator over every class still without a
 classical outcome in one move, then one batch wall claim for the classes it
@@ -1172,7 +1189,7 @@ including pattern, density and wall claims stored with a digest reference to
 their cover, are proposals until the checker admits them again on resume. If a saved object is
 refused, the scheduling memory built on it is discarded and the search is redone.
 The report lists only checked results, residuals, invented moves, the scheduler's
-ranking and the directions observed.
+ranking, the directions observed and the refusals with their reasons.
 
 ### Moves she can leave and come back to
 

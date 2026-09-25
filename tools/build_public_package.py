@@ -1823,6 +1823,37 @@ checkpoints = (part12 is not None and part12['kind'] == 'finite' and part12['sta
                and V.verdict('finite', part12['data'])[0] == 'VERIFIED' and sliced['anytime'].get('settled', 0) >= 0
                and rel_unit != rel_desc and rel_unit != A.generation() and len(rel_unit) == 64
                and [o['task_id'] for o in order] == ['newer-settled', 'old-open', 'newest-open'])
+# Refusal accounting: a claim the checker refuses is counted by move, kind and reason and named to the report with the
+# instrument its reason points to; a strategy whose claims are refused with none admitted is retired with the reason;
+# a round that refused more than it admitted waits for an instrument in her scan, naming the reason.
+rt13 = L.Runtime(C, ember['Budget'](10 ** 9)); rt13.current_move = 'egypt_range_chunk'
+many13 = dict(shapes=[[s_, h_] for s_ in ('plus', 'times', 'pair') for h_ in range(1, 65)] + [['square', 1]] + [['plus', 1]] * 8, table={})
+wide13 = rt13.propose('finite', dict(a=4, terms=3, lo=2, hi=12, witnesses={}, divisors={}, cover=None, families=many13))
+refused13 = not rt13.check(wide13); rows13 = A.refusal_rows(rt13)
+goal13 = A.CoverGoal(dict(a=4, terms=3, min=2, modulus=24, lifts=[5], verify_to=100), L); goal13.init(rt13)
+agent13 = A.Agent(agent_host, L, C, registry, goal13, rt13, 10 ** 7, [], [], set(), 0)
+ret13 = agent13.note_refusals('unit_fraction_cover:a4:range', 'egypt_range_chunk', 'all', 8, 0)
+bound13 = agent13.note_refusals('unit_fraction_cover:a4:range', 'egypt_range_chunk', 'bound', 2, 0, at_bound=2)
+kept13 = agent13.note_refusals('unit_fraction_cover:a4:range', 'egypt_range_chunk', 'other', 8, 1)
+never13 = agent13.note_refusals('unit_fraction_cover:a4:eclass:coprime', 'egypt_classical_family', 'all', 8, 0)
+diag13 = A.diagnosis(agent13, goal13, rt13, 0, 1, 'move allowance used'); quiet13 = A.diagnosis(agent13, goal13, L.Runtime(C, ember['Budget'](10)), 5, 1, 'move allowance used')
+kA13 = A.digest(dict(query='autonomous_research', problem=dict(type='unit_fraction_cover', a=4, terms=3, min=2, modulus=840, lifts=[], verify_to=100)))
+def rnd13(g, refused, why, **more): return dict(dict(generation='0' * 16, status='UNKNOWN', reason='move allowance used', settled=None, new_checked=g, moves=1, seconds=1, refused=refused, refusal=why), **more)
+def ranked13(row): return A.choose([dict(id='A', status='open', task=dict(type='unit_fraction_cover', a=4, terms=3, min=2, modulus=840, lifts=[], verify_to=100))],
+                                   dict(observations=[dict(task_id=A.LEDGER_ID, kind='problem_rounds', entries={kA13: [row]})]), '0' * 64)[0]
+blocked13 = ranked13(rnd13(3, 20, 'residue 7 breaks the pattern')); fine13 = ranked13(rnd13(30, 5, 'x'))
+atbound13 = ranked13(rnd13(402, 18, 'no instance of the family', at_bound=6, bound='family shapes bound', reason=A.EXHAUSTED))
+gaining13 = ranked13(rnd13(402, 18, 'no instance of the family', at_bound=6, bound='family shapes bound'))
+refusals_ok = (refused13 and len(rows13) == 1 and rows13[0]['strategy'] == 'egypt_range_chunk' and rows13[0]['kind'] == 'finite'
+               and rows13[0]['reason'] == 'family shapes bound' and rows13[0]['count'] == 1 and rows13[0]['first'] == wide13['id']
+               and 'MAX_DFAM_SHAPES' in rows13[0]['instrument']
+               and ret13 is not None and ret13['reason'] == 'family shapes bound' and ret13['refused'] == 8 and kept13 is None and never13 is None
+               and bound13 is not None and bound13['at_bound'] == 2 and ('unit_fraction_cover:a4:range', 'egypt_range_chunk', 'all') in agent13.retired
+               and diag13 is not None and diag13['blocked'] == 'instrument' and diag13['bound'] == 'family shapes bound'
+               and diag13['reasons'][0]['reason'] == 'family shapes bound' and 'MAX_DFAM_SHAPES' in diag13['instruments'][0] and quiet13 is None
+               and not blocked13['eligible'] and 'residue 7 breaks the pattern' in blocked13['why'] and fine13['eligible']
+               and not atbound13['eligible'] and 'MAX_DFAM_SHAPES' in atbound13['why'] and gaining13['eligible']
+               and type(sliced.get('refusals')) is list and type(sliced.get('refused')) is int and 'diagnosis' in sliced)
 derivations = (multiples and reclosed_ok and grown['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
                and grown['evidence']['via_divisor'] > 0 and grown['evidence']['via_witness'] > 0
                and ext['data']['statement']['range_hi'] == 798 and ext['data']['statement']['modulus'] == 24
@@ -1922,7 +1953,7 @@ batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == wri
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
                       obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, anytime=anytime,
-                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
+                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -1950,9 +1981,12 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
             summary = json.loads(campaign_run.stdout)
             first = json.loads((out_dir / 's.1.json').read_text(encoding='utf-8')); second = json.loads((out_dir / 's.2.json').read_text(encoding='utf-8'))
             calls = (out_dir / 's.calls.txt').read_text(encoding='utf-8').splitlines(); log = (out_dir / 's.log.txt').read_text(encoding='utf-8').splitlines()
+            campaign_state = json.loads((root / 'campaign-state.json').read_text(encoding='utf-8'))
+            campaign_rounds = next(o for o in campaign_state['observations'] if o.get('task_id') == 'problem-rounds')['entries']
             campaign_ok = (summary.get('status') == 'CAMPAIGN' and summary.get('calls') == 2 and first['status'] != 'REFUSED'
                            and second.get('replayed_objects', 0) > 0 and len(calls) == 2 and calls[0].startswith('scan 1 exit')
-                           and log[-1] == 'finished' and len(log) == 3)
+                           and log[-1] == 'finished' and len(log) == 3 and type(first.get('refused')) is int and ' refused ' in log[0]
+                           and all(type(r.get('refused')) is int for rounds_ in campaign_rounds.values() for r in rounds_))
         except (OSError, ValueError, KeyError, IndexError): campaign_ok = False
         check('campaign_mode_runs_calls_in_one_process_and_resumes', campaign_ok)
         check('sieved_cover_matches_enumeration_and_verdict', sieve_result.get('sieve') is True)
@@ -1970,6 +2004,7 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('divisor_families_verify_and_carry_a_chunk', sieve_result.get('families') is True)
         check('pair_families_compositions_squares_and_family_base_ranges', sieve_result.get('third_tier') is True)
         check('checkpoints_relevant_fingerprints_and_forgetting_settled_first', sieve_result.get('checkpoints') is True)
+        check('refusals_are_counted_named_and_retire_a_strategy', sieve_result.get('refusals') is True)
         check('residual_records_the_attempt_of_a_deterministic_move', sieve_result.get('attempt_recorded') is True)
         check('problem_choice_weighs_gains_and_inherits_widened_windows', sieve_result.get('choice') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)

@@ -799,7 +799,7 @@ def campaign(task,args):
             with open(out/'s.calls.txt','a',encoding='utf-8') as f: f.write('scan %d exit %d seconds %.6f\n'%(i,code,seconds))
             c=result.get('choice') or {}
             with open(out/'s.log.txt','a',encoding='utf-8') as f:
-                f.write('scan %d %s | %s | %s %s | %s | new %s moves %s dropped %s\n'%(i,c.get('id'),c.get('why'),result['status'],result.get('settled'),str(result.get('reason',''))[:60],result.get('new_checked'),result.get('moves_executed'),result.get('dropped_objects')))
+                f.write('scan %d %s | %s | %s %s | %s | new %s moves %s dropped %s refused %s\n'%(i,c.get('id'),c.get('why'),result['status'],result.get('settled'),str(result.get('reason',''))[:60],result.get('new_checked'),result.get('moves_executed'),result.get('dropped_objects'),result.get('refused')))
         else: print(json.dumps(dict(call=i,status=result['status'],choice=(result.get('choice') or {}).get('id'),reason=str(result.get('reason',''))[:80],new_checked=result.get('new_checked'),seconds=round(seconds,1))))
         if code==3 and 'every stated problem' in str(result.get('reason','')):
             if out is not None:
