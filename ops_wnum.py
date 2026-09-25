@@ -173,15 +173,33 @@ def variety_compute(rt, root): return compute(rt, root)
 def config_compute(rt, root): return compute(rt, root)
 
 
+# The widening rule of each family, kept within the family's own bounds (window_check, window_real, window_discrete):
+# a proposal the checker would refuse on sight is no proposal.
+WIDEN_CAPS = dict(tally=10_000_000, members=10_000_000, gap_records=10_000_000, goldbach=4_000_000, gilbreath=20_000,
+                  mersenne=6000, wall_sun_sun=5_000_000, irregular_pairs=1200, zeta_signs=4000, l4_signs=2000,
+                  digit_counts=100_000, circle_errors=20_000, reverse_add=50_000, affine_orbit=200_000, amusical=200_000,
+                  mahler_z=200, littlewood=200_000, class_numbers=20_000, four_cubes=1_000_000)
+
+
 def _widened(tool, family, params):
-    """Larger bounds for a checked window, or None when the family has no widening rule."""
-    p = dict(params)
-    if family in ('tally',) and p['bounds'][-1] * 10 - p['lo'] <= 10_000_000: p['bounds'] = p['bounds'] + [p['bounds'][-1] * 10]
-    elif family == 'members': p['hi'] = p['lo'] + 2 * (p['hi'] - p['lo'])
-    elif family in ('gap_records', 'goldbach'): p['hi'] = 2 * p['hi']
+    """Larger bounds for a checked window, or None when the family has no widening rule or its bound is reached."""
+    p = dict(params); cap = WIDEN_CAPS.get(family)
+    if cap is None: return None
+    if family == 'tally':
+        last = p['bounds'][-1]; nxt = last * 10 if last < 1_000_000 else last * 2
+        if nxt - p['lo'] > cap: return None
+        p['bounds'] = p['bounds'] + [nxt]
+    elif family == 'members':
+        p['hi'] = p['lo'] + 2 * (p['hi'] - p['lo'])
+        if p['hi'] - p['lo'] > cap: return None
+    elif family in ('gap_records', 'goldbach'):
+        p['hi'] = 2 * p['hi']
+        if p['hi'] > cap: return None
     elif family == 'gilbreath': p['k'] = 2 * p['k']
     elif family in ('mersenne', 'wall_sun_sun', 'irregular_pairs'): p['p_max'] = 2 * p['p_max']
-    elif family in ('zeta_signs', 'l4_signs'): p['count'] = 2 * p['count']
+    elif family in ('zeta_signs', 'l4_signs'):
+        p['count'] = 2 * p['count']
+        if _rat_value(p['t0']) + _rat_value(p['h']) * p['count'] > (2000 if family == 'zeta_signs' else 500): return None
     elif family == 'digit_counts': p['n'] = 2 * p['n']
     elif family == 'circle_errors': p['r_max'] = 2 * p['r_max']
     elif family in ('reverse_add', 'affine_orbit', 'amusical'): p['steps'] = 2 * p['steps']
@@ -189,8 +207,17 @@ def _widened(tool, family, params):
     elif family == 'littlewood': p['n_max'] = 2 * p['n_max']
     elif family == 'class_numbers': p['d_max'] = 2 * p['d_max']
     elif family == 'four_cubes': p['N'] = 2 * p['N']
-    else: return None
+    key = dict(gilbreath='k', mersenne='p_max', wall_sun_sun='p_max', irregular_pairs='p_max', zeta_signs='count',
+               l4_signs='count', digit_counts='n', circle_errors='r_max', reverse_add='steps', affine_orbit='steps',
+               amusical='steps', mahler_z='steps', littlewood='n_max', class_numbers='d_max', four_cubes='N').get(family)
+    if key is not None and p[key] > cap: return None
     return p
+
+
+def _rat_value(x):
+    """A window's rational parameter as a Fraction (an integer, or a [numerator, denominator] pair)."""
+    from fractions import Fraction
+    return Fraction(x) if type(x) is int else Fraction(x[0], x[1])
 
 
 WIDEN = _widened  # her scan reads this rule to propose a settled window's widening as her own next problem

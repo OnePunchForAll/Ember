@@ -939,12 +939,16 @@ def theorem_statements(rt, a, terms):
     return out
 
 
-@op('egypt_range_chunk', 'NWS', ('esq',), ('finite', 'residual'),
-    'Verify the next chunk past the admitted range frontier, as long as the base range, up to ten times verify_to: '
-    'cover classes or a witness for each n. An anytime move: it breathes after every 256 n.')
+@op('egypt_range_chunk', 'NWS', ('esq',), ('derived', 'residual'),
+    'Extend the admitted range from min past its frontier by a chunk as long as the base range, up to ten times '
+    'verify_to: a range_extend derivation whose proof carries a witness only for each n that no cover class holds '
+    'and no proper divisor at or past min reduces. An anytime move: it breathes after every 64 n.')
 def egypt_range_chunk(rt, esq):
     d = esq['data']; a, terms, lo, size = d['a'], d['terms'], d['min'], d['verify_to'] - d['min']
-    start, _ = frontier(range_statements(rt, a, terms), lo)
+    ranges = range_statements(rt, a, terms)
+    spine = max(((hi, o) for l, hi, o in ranges if l == lo), key=lambda x: x[0], default=None)
+    if spine is None: return []
+    start, base = spine
     cap = lo + RANGE_FRONTIER * size
     if start < d['verify_to'] or start >= cap: return []
     hi = min(start + size, cap)
@@ -952,19 +956,21 @@ def egypt_range_chunk(rt, esq):
     for entry in (cover['data']['entries'] if cover else []):
         f = entry['family']; row = thresholds.setdefault(f['m'], {})
         row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
-    witnesses, divisors, done, missing = {}, {}, set(), []
+    witnesses, missing = {}, []
     for n in range(start, hi):
-        if (n - start) % BREATH == 0: yield
+        if (n - start) % BREATH == 0: yield  # a breath: the scheduler may suspend the move here
         rt.budget.use(1 + len(thresholds))
-        if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): done.add(n); continue
-        p = next((q for q in sorted(L.factor(n)) if q < n and q in done), None)
-        if p is not None: divisors[str(n)] = p; done.add(n); continue
+        if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): continue
+        p = L.factor(n); p = min(p) if p else n
+        if p < n and n // p >= lo: continue  # the checker finds this divisor itself
         xs = witness(a, n, rt.budget, max_excess=4 * a * 256) if terms == 3 else None
         if xs is None: missing.append(n); continue
-        witnesses[str(n)] = sorted(xs)[:-1]; done.add(n)
+        witnesses[str(n)] = sorted(xs)[:-1]
     if missing: return [rt.residual(esq, missing[:4096], 'no witness found within the search bound past ' + str(start))]
-    claim = rt.propose('finite', dict(a=a, terms=terms, lo=start, hi=hi, witnesses=witnesses, divisors=divisors,
-                                      cover=cover['data'] if cover else None), (esq,) + ((cover,) if cover else ()))
+    claim = rt.propose('derived', dict(rule='range_extend', premises=[base['id']],
+                                       statement=dict(kind='range', a=a, terms=terms, lo=lo, hi=hi),
+                                       proof=dict(cover=cover['data'] if cover else None, witnesses=witnesses)),
+                       (esq, base) + ((cover,) if cover else ()))
     return [claim] if rt.check(claim) else []
 
 
@@ -1145,10 +1151,16 @@ def _chunked_level(rt):
     esq = _ranged_level(rt)[0]; L.drive(egypt_range_chunk(rt, esq)); return [esq]
 
 
+def _two_ranges_level(rt):
+    """A base range and a separately verified range that touches it: what range_union joins."""
+    esq = _ranged_level(rt)[0]
+    L.drive(egypt_finite_verify(rt, rt.given('esq', dict(a=4, terms=3, min=400, modulus=24, verify_to=800)))); return [esq]
+
+
 def _theorem_level(rt):
     esq = _chunked_level(rt)[0]
     base = next(o for o in rt.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked' and o['data']['lo'] == 2)
-    egypt_reduction_theorem(rt, base); egypt_range_union(rt, esq); return [esq]
+    egypt_reduction_theorem(rt, base); return [esq]
 
 
 def _four_term_level(rt):
@@ -1199,7 +1211,7 @@ FIXTURES = {
     'egypt_reduction_theorem': [lambda rt: L.drive(egypt_finite_verify(rt, _esq(rt, 24, verify_to=400)))
                                 if _classical_cover(rt, 24) else [], _sieved_range],
     'egypt_range_chunk': [_ranged_level, _four_term_level],
-    'egypt_range_union': [_chunked_level],
+    'egypt_range_union': [_two_ranges_level],
     'egypt_theorem_range': [_theorem_level],
     'egypt_choose_lift': [_lift_inputs],
 }

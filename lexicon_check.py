@@ -1040,8 +1040,18 @@ def class_thresholds(cover, budget):
 
 # ------------------------------------------------------------- derivations: claims that follow from admitted claims
 
-DERIVATION_RULES = ('range_union', 'theorem_range')
+DERIVATION_RULES = ('range_union', 'theorem_range', 'range_extend')
 MAX_PREMISES = 8
+
+
+def least_factor(n):
+    """The least prime factor of n >= 2 by trial division."""
+    if n % 2 == 0: return 2
+    f = 3
+    while f * f <= n:
+        if n % f == 0: return f
+        f += 2
+    return n
 
 
 def statement_of(kind, data):
@@ -1060,12 +1070,14 @@ def check_derived(data, budget, admitted=None):
     """A claim that follows from admitted premises by a named rule. The premises are named by identity (the digest of
     their kind and data); admitted() gives an admitted claim's kind and data, or None. The checker verifies the rule,
     never the premises again: a derivation is sound only in a workspace whose admissions are sound."""
-    need(set(data) == {'rule', 'premises', 'statement'}, 'derivation fields')
+    rule = data.get('rule')
+    need(set(data) == ({'rule', 'premises', 'statement', 'proof'} if rule == 'range_extend' else {'rule', 'premises', 'statement'}),
+         'derivation fields')
     need(admitted is not None, 'a derivation is checked only where its premises can be looked up')
     ids = data['premises']
     need(type(ids) is list and 1 <= len(ids) <= MAX_PREMISES and all(type(i) is str and len(i) == 64 for i in ids)
          and len(set(ids)) == len(ids), 'premise identities')
-    rule, s = data['rule'], data['statement']
+    s = data['statement']
     need(rule in DERIVATION_RULES, 'unknown derivation rule')
     need(type(s) is dict, 'derived statement')
     premises = []
@@ -1073,6 +1085,40 @@ def check_derived(data, budget, admitted=None):
         row = admitted(i); budget.use()
         need(row is not None, 'premise ' + i[:12] + ' is not an admitted claim here')
         premises.append(statement_of(*row))
+    if rule == 'range_extend':
+        # A derivation with a computed part: the premise range is extended by verifying only the new numbers, each
+        # by a cover class, an exact witness, or a proper divisor at or past the range start, which the checker finds
+        # itself (a/(t*d) = sum 1/(t*x_i) whenever a/d = sum 1/x_i, and d lies in the premise or earlier in this part).
+        need(len(premises) == 1 and premises[0]['kind'] == 'range', 'range_extend takes one range')
+        R = premises[0]; a, terms, lo, h = R['a'], R['terms'], R['lo'], R['hi']
+        proof = data['proof']; need(type(proof) is dict and set(proof) == {'cover', 'witnesses'}, 'range_extend proof')
+        need(s == dict(kind='range', a=a, terms=terms, lo=lo, hi=s.get('hi')) and type(s['hi']) is int and h < s['hi'] <= h + MAX_RANGE,
+             'the stated range must extend the premise range by at most the checker bound')
+        cover, witnesses = proof['cover'], proof['witnesses']; need(type(witnesses) is dict, 'witness table')
+        thresholds = {}
+        if cover is not None:
+            check_cover(cover, budget); need(cover['a'] == a and cover['terms'] == terms, 'cover belongs to another question')
+            for entry in cover['entries']:
+                f = entry['family']; row = thresholds.setdefault(f['m'], {})
+                row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
+        via_cover = via_witness = via_divisor = 0
+        for n in range(h, s['hi']):
+            budget.use(1 + len(thresholds))
+            if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): via_cover += 1; continue
+            xs = witnesses.get(str(n))
+            if xs is not None:
+                need(type(xs) is list and len(xs) == terms - 1 and all(type(x) is int and x >= 1 for x in xs), 'witness shape')
+                rest = Q(a, n) - sum(Q(1, x) for x in xs); budget.use(terms)
+                need(rest > 0 and rest.numerator == 1, 'witness does not leave a unit fraction'); via_witness += 1; continue
+            p = least_factor(n); budget.use(max(1, p.bit_length()))
+            need(p < n and n // p >= lo, 'no cover class, witness or divisor in the range for ' + str(n))
+            via_divisor += 1
+        return dict(ok=True, kind='derived', rule=rule, lo=lo, hi=s['hi'], via_cover=via_cover, via_witness=via_witness,
+                    via_divisor=via_divisor,
+                    scope='Every integer n with lo <= n < hi has a representation of a/n with the stated number of terms.',
+                    proof='Below the premise range end by the premise; from it, each n by a checked family whose class '
+                          'contains n at or above its threshold, an exact witness with a unit remainder, or a proper divisor '
+                          'd >= lo of n (in the premise, or earlier in this part) scaled by n/d.')
     if rule == 'range_union':
         need(len(premises) == 2 and all(q['kind'] == 'range' for q in premises), 'range_union takes two ranges')
         first, second = sorted(premises, key=lambda q: (q['lo'], q['hi']))

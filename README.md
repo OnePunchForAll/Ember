@@ -915,21 +915,31 @@ each premise's kind and data) and the statement that follows. The checker takes
 one more thing for this kind only: a way to look up an admitted claim by its
 identity, which the runtime supplies from its own workspace. The checker never
 verifies the premises again; it verifies that the statement is exactly what the
-rule gives from what the premises state. Two rules exist. `range_union`: two
+rule gives from what the premises state. Three rules exist. `range_union`: two
 admitted ranges of one question that touch or overlap give the range from the
 lower start to the further end. `theorem_range`: a theorem whose range ends at
 h, and an admitted range that starts at or before h and reaches past it, give
-the same theorem with the further range end. A derivation is sound in a
-workspace whose admissions are sound; on a resume every derivation is admitted
-again after its premises, and one whose premise is gone is refused.
+the same theorem with the further range end. `range_extend` is a derivation
+with a computed part: from an admitted range [lo, h) it states [lo, hi), and
+the checker verifies only the new numbers, each by a cover class at or above
+its family threshold, by a witness the proof carries, or by a proper divisor
+d >= lo of n, which the checker finds itself by trial division (a/(t d) follows
+from a/d, and d lies in the premise or earlier in the new part). So a proof
+part carries witnesses only for the primes and the few numbers whose divisors
+lie below lo; on Schinzel's 11/n, where the cover leaves 34,611 of 83,160
+residues open, a plain chunk claim had to witness 42 percent of its numbers
+and took twenty minutes, and the extension takes seconds. A derivation is
+sound in a workspace whose admissions are sound; on a resume every derivation
+is admitted again after its premises, and one whose premise is gone is refused.
 
 The rules let her verified range grow past the checker's bound on one claim
-(2,000,000 numbers). `egypt_range_chunk` verifies the next chunk past the
-admitted frontier, as long as the base range and up to ten times `verify_to`;
-`egypt_range_union` joins it to the spine from the least n; `egypt_theorem_range`
-extends her theorem over it. Each is tried once per state of what it reads.
-The independent verdict checks derivations with its own reading of the rules,
-after the claims they rest on.
+(2,000,000 numbers). `egypt_range_chunk` extends the admitted range from the
+least n past its frontier, by a chunk as long as the base range and up to ten
+times `verify_to`; `egypt_theorem_range` extends her theorem over the result;
+`egypt_range_union` joins two separately verified ranges. Each is tried once
+per state of what it reads. The independent verdict checks derivations with
+its own reading of the rules, after the claims they rest on, and the chunk
+proofs number by number.
 
 ## Autonomous research agent
 
@@ -1090,9 +1100,10 @@ without progress. So a long search that keeps producing keeps its place, a
 search that stalls yields to other moves and resumes when nothing better is
 left, and she can switch at any breath. At most eight moves wait; with the
 table full she resumes one rather than starting another, so every search she
-starts runs to its end within the call. Moves still waiting when the call ends
-are closed and start over if chosen again. The report counts slices, resumes
-and switches.
+starts runs to its end within the call or to its work bound, which is four
+times its allocation over all its slices (what an escalated plain move gets).
+Moves still waiting when the call ends are closed and start over if chosen
+again. The report counts slices, resumes and switches.
 
 ### What counts as attempted
 
@@ -1321,9 +1332,10 @@ with, then to the id.
 She also proposes problems of her own. A settled window is offered again with
 larger bounds (the widening rule of its family, the one `window_widen` uses),
 up to three times over, each level only once the level below it is settled.
-A widening is ranked by the rounds of the window it widens until it has its
-own, keeps its rounds in the ledger under its own task like any problem, and
-appears in the scan's ranking with `proposed_by: ember`. So her frontier on a
+A widening stays within the family's own bounds, so nothing is proposed that
+the checker would refuse on sight. It is ranked by the rounds of the window it
+widens until it has its own, keeps its rounds in the ledger under its own task
+like any problem, and appears in the scan's ranking with `proposed_by: ember`. So her frontier on a
 catalog problem grows as far as her rounds keep succeeding, without a new
 library entry.
 

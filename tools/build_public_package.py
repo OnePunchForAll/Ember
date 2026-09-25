@@ -1473,6 +1473,8 @@ print(json.dumps(answers))
             data = with_cover(row['data'])
             if 'finite_ref' in data:
                 data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=saved_ranges[data['finite_ref']])
+            if row['kind'] == 'derived' and type(data.get('proof')) is dict and 'cover_ref' in data['proof']:
+                data = dict(data, proof=with_cover(data['proof']))
             return dict(kind=row['kind'], data=data)
         expanded_objects = [expand(row) for row in saved_objects if row['kind'] not in ('template', 'cover_tree')]
         (standalone_lexicon / 'evidence.json').write_bytes(encoded(expanded_objects))
@@ -1722,17 +1724,27 @@ E2 = registry['egypt_range_chunk']['fn'].__globals__
 rt6 = L.Runtime(C, ember['Budget'](10 ** 9)); esq6 = E2['_theorem_level'](rt6)[0]
 E2['egypt_theorem_range'](rt6, esq6)
 derived = [o for o in rt6.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
-union = next(o for o in derived if o['data']['rule'] == 'range_union'); ext = next(o for o in derived if o['data']['rule'] == 'theorem_range')
-forged_union = rt6.propose('derived', dict(union['data'], statement=dict(union['data']['statement'], hi=900)))
-missing = rt6.propose('derived', dict(union['data'], premises=[union['data']['premises'][0], 'f' * 64]))
+grown = next(o for o in derived if o['data']['rule'] == 'range_extend'); ext = next(o for o in derived if o['data']['rule'] == 'theorem_range')
+forged_grown = rt6.propose('derived', dict(grown['data'], statement=dict(grown['data']['statement'], lo=3)))  # not the premise's start
+missing = rt6.propose('derived', dict(grown['data'], premises=['f' * 64]))
 wider = rt6.propose('derived', dict(ext['data'], statement=dict(ext['data']['statement'], range_hi=900)))
+witnessed = next(iter(grown['data']['proof']['witnesses']))
+bad_witness = dict(grown['data']['proof'], witnesses=dict(grown['data']['proof']['witnesses'], **{witnessed: [1, 1]}))
+forged_witness = rt6.propose('derived', dict(grown['data'], proof=bad_witness))
+rt7u = L.Runtime(C, ember['Budget'](10 ** 9)); esq7u = E2['_two_ranges_level'](rt7u)[0]; E2['egypt_range_union'](rt7u, esq7u)
+union = next(o for o in rt7u.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked')
 admitted6 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt6.objects.values() if o['status'] == 'checked'}
-derivations = (union['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
+admitted7 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt7u.objects.values() if o['status'] == 'checked'}
+derivations = (grown['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
+               and grown['evidence']['via_divisor'] > 0 and grown['evidence']['via_witness'] > 0
                and ext['data']['statement']['range_hi'] == 798 and ext['data']['statement']['modulus'] == 24
-               and not rt6.check(forged_union) and not rt6.check(missing) and not rt6.check(wider)
-               and V.derived_verdict(union['data'], admitted6)[0] == 'VERIFIED'
+               and union['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=800)
+               and not rt6.check(forged_grown) and not rt6.check(missing) and not rt6.check(wider) and not rt6.check(forged_witness)
+               and V.derived_verdict(grown['data'], admitted6)[0] == 'VERIFIED'
                and V.derived_verdict(ext['data'], admitted6)[0] == 'VERIFIED'
-               and V.derived_verdict(forged_union['data'], admitted6)[0] == 'REFUTED'
+               and V.derived_verdict(union['data'], admitted7)[0] == 'VERIFIED'
+               and V.derived_verdict(forged_grown['data'], admitted6)[0] == 'REFUTED'
+               and V.derived_verdict(forged_witness['data'], admitted6)[0] == 'REFUTED'
                and V.derived_verdict(wider['data'], admitted6)[0] == 'REFUTED'
                and V.derived_verdict(missing['data'], admitted6)[0] == 'UNRESOLVED')
 # A residual records the attempt: a deterministic one-argument move that left one on an object is not proposed

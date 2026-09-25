@@ -552,11 +552,46 @@ def statement_of(kind, data):
     return None
 
 
+def extension_verdict(a, terms, lo, h, hi, cover, witnesses):
+    """Every n in [h, hi) by a cover class at or above its family threshold, a witness leaving a unit fraction, or a
+    proper divisor at or past lo (found here by trial division, and itself in the premise or earlier in the part)."""
+    thresholds = {}
+    if cover is not None:
+        v, detail = cover_verdict(cover)
+        if v != 'VERIFIED': return v, 'cover: ' + detail
+        if cover['a'] != a or cover['terms'] != terms: return 'REFUTED', 'cover of another question'
+        for entry in cover['entries']:
+            f = entry['family']; row = thresholds.setdefault(f['m'], {})
+            row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
+    for n in range(h, hi):
+        if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): continue
+        xs = witnesses.get(str(n)) if type(witnesses) is dict else None
+        if xs is not None:
+            if type(xs) is not list or len(xs) != terms - 1 or not all(type(x) is int and x >= 1 for x in xs):
+                return 'REFUTED', 'witness shape at ' + str(n)
+            rest = F(a, n) - sum(F(1, x) for x in xs)
+            if rest <= 0 or rest.numerator != 1: return 'REFUTED', 'witness at ' + str(n) + ' leaves no unit fraction'
+            continue
+        p = least_prime_factor(n)
+        if p == n or n // p < lo: return 'REFUTED', 'no class, witness or divisor in range for ' + str(n)
+    return 'VERIFIED', 'extension verified number by number'
+
+
+def least_prime_factor(n):
+    if n % 2 == 0: return 2
+    f = 3
+    while f * f <= n:
+        if n % f == 0: return f
+        f += 2
+    return n
+
+
 def derived_verdict(d, admitted):
     """A derivation holds when every premise it names is a VERIFIED saved claim of the same record and its statement
     is exactly what the named rule gives from the premises' statements. admitted maps a claim's identity (the digest
     of its kind and data) to (kind, data, verdict)."""
-    if set(d) != {'rule', 'premises', 'statement'} or type(d['premises']) is not list: return 'REFUTED', 'malformed derivation'
+    fields = {'rule', 'premises', 'statement', 'proof'} if d.get('rule') == 'range_extend' else {'rule', 'premises', 'statement'}
+    if set(d) != fields or type(d['premises']) is not list: return 'REFUTED', 'malformed derivation'
     premises = []
     for i in d['premises']:
         row = admitted.get(i)
@@ -567,6 +602,14 @@ def derived_verdict(d, admitted):
         if s is None: return 'REFUTED', 'a ' + kind + ' claim is not a premise of any rule'
         premises.append(s)
     s = d['statement']
+    if d['rule'] == 'range_extend':
+        if len(premises) != 1 or premises[0]['kind'] != 'range': return 'REFUTED', 'range_extend takes one range'
+        R = premises[0]; proof = d.get('proof')
+        if type(proof) is not dict or set(proof) != {'cover', 'witnesses'}: return 'REFUTED', 'range_extend proof fields'
+        if s != dict(kind='range', a=R['a'], terms=R['terms'], lo=R['lo'], hi=s.get('hi')) or type(s['hi']) is not int \
+                or not R['hi'] < s['hi'] <= R['hi'] + 2_000_000:
+            return 'REFUTED', 'the stated range does not extend the premise range within the bound'
+        return extension_verdict(R['a'], R['terms'], R['lo'], R['hi'], s['hi'], proof['cover'], proof['witnesses'])
     if d['rule'] == 'range_union':
         if len(premises) != 2 or any(q['kind'] != 'range' for q in premises): return 'REFUTED', 'range_union takes two ranges'
         first, second = sorted(premises, key=lambda q: (q['lo'], q['hi']))
@@ -651,6 +694,8 @@ def self_test():
         'range union with a gap refuted': derivation_case(gap=True)[0] == 'REFUTED',
         'theorem range extension verifies': derivation_case(theorem=True)[0] == 'VERIFIED',
         'theorem range claiming more refuted': derivation_case(theorem=True, more=True)[0] == 'REFUTED',
+        'range extension verifies number by number': extension_case()[0] == 'VERIFIED',
+        'range extension with a bad witness refuted': extension_case(bad=True)[0] == 'REFUTED',
     }
     return all(checks.values()), checks
 
@@ -681,6 +726,18 @@ def sieved(case):
 def digest(value):
     import hashlib
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+def extension_case(bad=False):
+    """The range [2, 100) of 4/n extended to [2, 110): the primes in the part need a witness (two denominators whose
+    remainder is a unit fraction, found by a small search here), and every composite reduces to a divisor at or past 2."""
+    base = dict(a=4, terms=3, lo=2, hi=100, witnesses={}, divisors={}, cover=None)
+    admitted = {digest(dict(kind='finite', data=base)): ('finite', base, 'VERIFIED')}
+    witnesses = {'101': [56, 130088], '103': [52, 52], '107': [54, 54], '109': [60, 32700]}
+    if bad: witnesses['103'] = [52, 53]
+    ext = dict(rule='range_extend', premises=list(admitted), statement=dict(kind='range', a=4, terms=3, lo=2, hi=110),
+               proof=dict(cover=None, witnesses=witnesses))
+    return derived_verdict(ext, admitted)
 
 
 def derivation_case(gap=False, theorem=False, more=False):
@@ -743,6 +800,11 @@ def claims_of(state, state_path=None):
                 if data['cover_ref'] not in covers:
                     yield record['task_id'], kind, dict(unresolvable='no saved cover has the referenced digest'); continue
                 data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=covers[data['cover_ref']])
+            if kind == 'derived' and type(data) is dict and type(data.get('proof')) is dict and 'cover_ref' in data['proof']:
+                if data['proof']['cover_ref'] not in covers:
+                    yield record['task_id'], kind, dict(unresolvable='no saved cover has the referenced digest'); continue
+                data = dict(data, proof=dict({k: v for k, v in data['proof'].items() if k != 'cover_ref'},
+                                             cover=covers[data['proof']['cover_ref']]))
             if type(data) is dict and 'finite_ref' in data:
                 ranges = {}
                 for r in record.get('objects', []):

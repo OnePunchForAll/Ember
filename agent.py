@@ -70,7 +70,8 @@ EXHAUSTED = 'no untried move for any open target'
 # Anytime moves: an operator that breathes (yields) runs in slices of at most SLICE_WORK; at a breath past the slice
 # it waits with its own budget and place, and each step chooses again between the waiting moves and the best fresh
 # one. At most MAX_SUSPENDED moves wait: with the table full she resumes one rather than starting another, so every
-# search she starts is run to its end within the call unless its target closes.
+# search she starts is run to its end within the call unless its target closes or it reaches its work bound, which
+# is ESCALATION times its allocation over all its slices (the bound an escalated plain move has).
 SLICE_WORK = 4_000_000
 MAX_SUSPENDED = 8
 # Her choice among problems: a round is a success to the degree g / (g + GAIN_HALF) of its g new checked results, and
@@ -115,6 +116,14 @@ def record_sample(samples, row):
     key = (row['context'], row['strategy'], row['task'])
     kept = [s for s in samples if (s['context'], s['strategy'], s['task']) != key]
     return (kept + [row])[-MAX_SAMPLES:]
+
+
+def compact_proof(L, obj, best):
+    """A saved derivation whose proof carries the saved cover names it by digest; it is expanded again on resume."""
+    d = obj['data']; proof = d.get('proof')
+    if best is None or type(proof) is not dict or proof.get('cover') != best['data']: return obj
+    return dict(kind=obj['kind'], data=dict(d, proof=dict({k: v for k, v in proof.items() if k != 'cover'},
+                                                          cover_ref=L.digest(best['data']))))
 
 
 def compact_range(L, obj, best):
@@ -663,7 +672,7 @@ class CoverGoal(Goal):
         claims_first += [row for head in heads[1:] for row in [head] + claims[id(head)]]
         # Range chunks past the base range and the derivations built on them (the chunk's cover is named by digest).
         claims_first += [compact_range(self.L, o, chain) for o in chunks]
-        claims_first += [o for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
+        claims_first += [compact_proof(self.L, o, chain) for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
         lemmas = [o for o in rt.objects.values() if (o['kind'] == 'obstruction' and o['status'] == 'checked') or
                   (o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'obstruction')]
         batches = {}
@@ -759,6 +768,10 @@ class CoverGoal(Goal):
                 # A compact claim is rechecked against the saved cover it names; without that cover it is dropped.
                 if data['cover_ref'] not in covers: continue
                 data = dict({k: v for k, v in data.items() if k != 'cover_ref'}, cover=covers[data['cover_ref']])
+            if row['kind'] == 'derived' and type(data.get('proof')) is dict and 'cover_ref' in data['proof']:
+                if data['proof']['cover_ref'] not in covers: continue
+                data = dict(data, proof=dict({k: v for k, v in data['proof'].items() if k != 'cover_ref'},
+                                             cover=covers[data['proof']['cover_ref']]))
             with_covers.append(dict(kind=row['kind'], data=data))
         ranges = {self.L.digest(row['data']): row['data'] for row in with_covers if row['kind'] == 'finite'}
         expanded = []
@@ -1495,6 +1508,9 @@ class Agent:
         seconds = seconds_before + (time.perf_counter_ns() - began) / 1e9
         self.moves += 1; self.last_key = key; slice_progress = self.goal.progress(self.rt) != before
         progressed = progressed or slice_progress
+        if out is None and reason is None and gen is not None and budget.work >= allocation * ESCALATION:
+            # The move has had the work an escalated move gets, over all its slices: it ends at its bound.
+            gen.close(); gen = None; reason = 'limit: anytime move work bound'; self.escalated.setdefault(key, allocation)
         if out is None and reason is None and gen is not None:
             # Waiting at a breath with the slice used: the move keeps its budget and its place.
             self.slices += 1
@@ -2071,7 +2087,10 @@ def visible_results(checked):
     base_lo = min((o['data']['lo'] for o in rows if o['kind'] == 'finite'), default=None)
     shown = [o for o in rows if not (o['kind'] == 'finite' and o['data']['lo'] != base_lo)
              and not (o['kind'] == 'derived' and id(o) not in keep)]
-    return [result_row(o) for o in shown][-12:]
+    # The range chain's rows are kept whatever the cut; the other rows fill the rest from the newest.
+    chain = [o for o in shown if o['kind'] in ('finite', 'theorem', 'derived')]
+    others = [o for o in shown if o['kind'] not in ('finite', 'theorem', 'derived')]
+    return [result_row(o) for o in others[max(0, len(others) - max(0, 12 - len(chain))):] + chain]
 
 
 def result_row(o):
@@ -2086,8 +2105,10 @@ def result_row(o):
                                           open_coprime=ev.get('open_coprime'), lo=d['lo'], range_hi=ev.get('range_hi'))
     if o['kind'] == 'dcover': row.update(modulus=d['modulus'], covered=ev.get('covered'))
     if o['kind'] == 'cfinite': row.update(lo=d['lo'], hi=d['hi'])
-    if o['kind'] == 'derived': row.update(rule=d['rule'], premises=len(d['premises']), **{k: v for k, v in d['statement'].items() if k != 'kind'},
-                                          statement=d['statement']['kind'])
+    if o['kind'] == 'derived':
+        row.update(rule=d['rule'], premises=len(d['premises']), **{k: v for k, v in d['statement'].items() if k != 'kind'},
+                   statement=d['statement']['kind'])
+        if d['rule'] == 'range_extend': row.update(via_cover=ev.get('via_cover'), via_witness=ev.get('via_witness'), via_divisor=ev.get('via_divisor'))
     if o['kind'] == 'cycle': row.update(start=d['start'], length=d['length'])
     if o['kind'] in ('value', 'witness', 'proof'):
         # a window's answer: the value itself, or the checker's summary of a witness or proof, cut for the report
