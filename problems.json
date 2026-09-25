@@ -1,0 +1,2047 @@
+{
+ "schema": "ember.problems.v1",
+ "about": "Ember's problem library. \"problems\" are stated in her typed language: each task is a problem she can run with autonomous_research, and the query open_problems lets her choose one herself. \"catalog\" lists open problems she cannot state yet; each names what her language lacks, described under \"needs\". Her choice reads only the id, status and task of a stated problem. Titles, statements, scopes, known results, sources and the catalog are for people: they were written from secondary knowledge, statuses were checked by web search where \"checked\" says so, and none of it is evidence she uses.",
+ "checked": "2026-09-25",
+ "problems": [
+  {
+   "id": "erdos-straus-4n",
+   "title": "Erdős–Straus conjecture",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 2, 4/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 4,
+    "terms": 3,
+    "min": 2,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000. Her own checked lemma shows that no classical fixed-parameter family reaches a coprime square class, so for 4/n covers of this kind cannot settle it.",
+   "known": "Open. Mordell showed it for every n outside six residue classes mod 840 (the squares 1, 121, 169, 289, 361, 529). Her Campaign 1 reduced it to 26,262 classes mod 36,756,720 (CAMPAIGNS.md).",
+   "source": "Erdős and Straus (1948); Mordell, Diophantine Equations (1969)."
+  },
+  {
+   "id": "sierpinski-5n",
+   "title": "Sierpiński's 5/n conjecture",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 2, 5/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 5,
+    "terms": 3,
+    "min": 2,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 4,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000. Her own checked lemma shows that no classical fixed-parameter family reaches a coprime square class, but for 5/n her checker refuted that lemma; covers of this kind cannot settle it.",
+   "known": "Open. Her Campaign 2 reduced it to 821 classes mod 8,031,343,320 (CAMPAIGNS.md). Secondary sources say it is settled except possibly for n ≡ 1 (mod 278,460).",
+   "source": "Sierpiński (1956)."
+  },
+  {
+   "id": "schinzel-6n",
+   "title": "Schinzel's conjecture for 6/n",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 2, 6/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 6,
+    "terms": 3,
+    "min": 2,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000.",
+   "known": "Open for a = 6 as for every a >= 4. For even n = 2m, 6/n = 3/m, which is always a sum of three unit fractions.",
+   "source": "The conjecture that for every fixed a, a/n = 1/x + 1/y + 1/z for all sufficiently large n is attributed to Schinzel; Sierpiński (1956) posed a = 5."
+  },
+  {
+   "id": "schinzel-7n",
+   "title": "Schinzel's conjecture for 7/n",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 3, 7/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 7,
+    "terms": 3,
+    "min": 3,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000.",
+   "known": "Open for a = 7 as for every a >= 4. An exhaustive search in this environment found no representation for n = 2 and one for every other n below 20,000, so the statement starts at n = 3.",
+   "source": "The conjecture that for every fixed a, a/n = 1/x + 1/y + 1/z for all sufficiently large n is attributed to Schinzel; Sierpiński (1956) posed a = 5."
+  },
+  {
+   "id": "schinzel-8n",
+   "title": "Schinzel's conjecture for 8/n",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 242, 8/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 8,
+    "terms": 3,
+    "min": 242,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000.",
+   "known": "Open for a = 8 as for every a >= 4. An exhaustive search in this environment found no representation for n = 2, 3, 11, 17, 131 and 241 and one for every other n below 20,000, so the statement starts at n = 242. For even n = 2m, 8/n = 4/m: its even members are the Erdős–Straus conjecture for m = n/2.",
+   "source": "The conjecture that for every fixed a, a/n = 1/x + 1/y + 1/z for all sufficiently large n is attributed to Schinzel; Sierpiński (1956) posed a = 5."
+  },
+  {
+   "id": "schinzel-9n",
+   "title": "Schinzel's conjecture for 9/n",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 20, 9/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 9,
+    "terms": 3,
+    "min": 20,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000.",
+   "known": "Open for a = 9 as for every a >= 4. An exhaustive search in this environment found no representation for n = 2, 5, 11 and 19 and one for every other n below 20,000, so the statement starts at n = 20.",
+   "source": "The conjecture that for every fixed a, a/n = 1/x + 1/y + 1/z for all sufficiently large n is attributed to Schinzel; Sierpiński (1956) posed a = 5."
+  },
+  {
+   "id": "schinzel-10n",
+   "title": "Schinzel's conjecture for 10/n",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 182, 10/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 10,
+    "terms": 3,
+    "min": 182,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000.",
+   "known": "Open for a = 10 as for every a >= 4. An exhaustive search in this environment found no representation for n = 2, 3, 7, 11, 43, 61, 67 and 181 and one for every other n below 20,000, so the statement starts at n = 182. For even n = 2m, 10/n = 5/m: its even members are Sierpiński's 5/n conjecture for m = n/2.",
+   "source": "The conjecture that for every fixed a, a/n = 1/x + 1/y + 1/z for all sufficiently large n is attributed to Schinzel; Sierpiński (1956) posed a = 5."
+  },
+  {
+   "id": "schinzel-11n",
+   "title": "Schinzel's conjecture for 11/n",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 38, 11/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 11,
+    "terms": 3,
+    "min": 38,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000.",
+   "known": "Open for a = 11 as for every a >= 4. An exhaustive search in this environment found no representation for n = 2, 3, 4 and 37 and one for every other n below 20,000, so the statement starts at n = 38.",
+   "source": "The conjecture that for every fixed a, a/n = 1/x + 1/y + 1/z for all sufficiently large n is attributed to Schinzel; Sierpiński (1956) posed a = 5."
+  },
+  {
+   "id": "schinzel-13n",
+   "title": "Schinzel's conjecture for 13/n",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 282, 13/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 13,
+    "terms": 3,
+    "min": 282,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000.",
+   "known": "Open for a = 13 as for every a >= 4. An exhaustive search in this environment found no representation for n = 2, 3, 4, 5, 7, 14, 53, 61, 67, 79, 211 and 281 and one for every other n below 20,000, so the statement starts at n = 282.",
+   "source": "The conjecture that for every fixed a, a/n = 1/x + 1/y + 1/z for all sufficiently large n is attributed to Schinzel; Sierpiński (1956) posed a = 5."
+  },
+  {
+   "id": "schinzel-14n",
+   "title": "Schinzel's conjecture for 14/n",
+   "status": "open",
+   "area": "number theory",
+   "statement": "For every integer n >= 842, 14/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 14,
+    "terms": 3,
+    "min": 842,
+    "modulus": 840,
+    "lifts": [
+     11,
+     3,
+     3
+    ],
+    "extra_lifts": 3,
+    "verify_to": 100000
+   },
+   "scope": "Her theorems prove the statement for every n from the least n outside the residue classes her covers leave open, and her range checks every n below 100,000.",
+   "known": "Open for a = 14 as for every a >= 4. An exhaustive search in this environment found no representation for n = 2, 3, 4, 5, 17, 19, 29, 59, 257, 353 and 841 and one for every other n below 20,000, so the statement starts at n = 842. For even n = 2m, 14/n = 7/m: its even members are the statement for 7/m.",
+   "source": "The conjecture that for every fixed a, a/n = 1/x + 1/y + 1/z for all sufficiently large n is attributed to Schinzel; Sierpiński (1956) posed a = 5."
+  },
+  {
+   "id": "collatz",
+   "title": "Collatz conjecture",
+   "status": "open",
+   "area": "number theory",
+   "statement": "Every orbit of T(n) = n/2 (n even), (3n + 1)/2 (n odd) from a positive integer reaches 1.",
+   "task": {
+    "type": "descent_cover",
+    "map": {
+     "d": 2,
+     "a": [
+      1,
+      3
+     ],
+     "b": [
+      0,
+      1
+     ]
+    },
+    "depth": 20,
+    "verify_to": 1000000
+   },
+   "scope": "Her descent covers prove that every n in a covered class modulo 2^20 falls below itself, and her range checks every n below 10^6. The class of 2^k - 1 modulo 2^k never descends within k steps, so no finite depth settles the conjecture in this language.",
+   "known": "Open. Verified by computer far beyond her range; Tao (2019) proved that almost all orbits attain almost bounded values.",
+   "source": "Collatz (1937); Lagarias, The 3x + 1 Problem and Its Generalizations (1985)."
+  },
+  {
+   "id": "collatz-sieve-18",
+   "title": "The Collatz stopping-time sieve to 2^18",
+   "status": "closed",
+   "area": "number theory",
+   "statement": "Count the residue classes modulo 2^k, for k = 1 to 18, on which T^j(n) < n is not certified within k steps.",
+   "task": {
+    "type": "descent_cover",
+    "map": {
+     "d": 2,
+     "a": [
+      1,
+      3
+     ],
+     "b": [
+      0,
+      1
+     ]
+    },
+    "depth": 18,
+    "verify_to": 1000000
+   },
+   "scope": "A closed count: her open classes at each level can be compared with an independent parity simulation.",
+   "known": "Closed. 7,495 classes mod 2^18 stay open; her Campaign 3 matched all 18 levels against an independent count.",
+   "source": "The stopping-time sieve is classical (Terras 1976; Everett 1977)."
+  },
+  {
+   "id": "three-over-n",
+   "title": "Three unit fractions for 3/n",
+   "status": "closed",
+   "area": "number theory",
+   "statement": "For every integer n >= 2, 3/n = 1/x + 1/y + 1/z has a solution in positive integers.",
+   "task": {
+    "type": "unit_fraction_cover",
+    "a": 3,
+    "terms": 3,
+    "min": 2,
+    "modulus": 6,
+    "lifts": [],
+    "verify_to": 1000
+   },
+   "scope": "A theorem with no open residue proves the statement for every n >= 2.",
+   "known": "True: 3/n = 1/n + 1/n + 1/n. A calibration of the settled path for covers.",
+   "source": "Folklore."
+  },
+  {
+   "id": "halving-map",
+   "title": "Descent of the halving map",
+   "status": "closed",
+   "area": "number theory",
+   "statement": "Under T(n) = n/2 (n even), (n + 1)/2 (n odd), every n >= 2 has some j >= 1 with T^j(n) < n.",
+   "task": {
+    "type": "descent_cover",
+    "map": {
+     "d": 2,
+     "a": [
+      1,
+      1
+     ],
+     "b": [
+      0,
+      1
+     ]
+    },
+    "depth": 4,
+    "verify_to": 100
+   },
+   "scope": "A descent cover reaching every class of its modulus, with a range from 2 to its bound, proves the statement.",
+   "known": "True in one step. A calibration of the settled path for descent.",
+   "source": "Folklore."
+  },
+  {
+   "id": "map-3n-minus-1",
+   "title": "Descent of the 3n - 1 map",
+   "status": "closed",
+   "area": "number theory",
+   "statement": "Under T(n) = n/2 (n even), (3n - 1)/2 (n odd), every n >= 2 has some j >= 1 with T^j(n) < n.",
+   "task": {
+    "type": "descent_cover",
+    "map": {
+     "d": 2,
+     "a": [
+      1,
+      3
+     ],
+     "b": [
+      0,
+      -1
+     ]
+    },
+    "depth": 8,
+    "verify_to": 1000
+   },
+   "scope": "A checked cycle avoiding 1 refutes the statement: its least member never falls below itself.",
+   "known": "False: 5 -> 7 -> 10 -> 5 is a cycle. Refutation practice.",
+   "source": "Folklore (the 3x - 1 problem)."
+  },
+  {
+   "id": "map-5n-plus-1",
+   "title": "Descent of the 5n + 1 map",
+   "status": "closed",
+   "area": "number theory",
+   "statement": "Under T(n) = n/2 (n even), (5n + 1)/2 (n odd), every n >= 2 has some j >= 1 with T^j(n) < n.",
+   "task": {
+    "type": "descent_cover",
+    "map": {
+     "d": 2,
+     "a": [
+      1,
+      5
+     ],
+     "b": [
+      0,
+      1
+     ]
+    },
+    "depth": 8,
+    "verify_to": 1000
+   },
+   "scope": "A checked cycle avoiding 1 refutes the statement: its least member never falls below itself.",
+   "known": "False: 13 -> 33 -> 83 -> 208 -> 104 -> 52 -> 26 -> 13 is a cycle. Refutation practice. Whether the orbit of 7 is unbounded is open and listed in the catalog.",
+   "source": "Folklore (the 5x + 1 problem)."
+  }
+ ],
+ "catalog": [
+  {
+   "id": "riemann-hypothesis",
+   "title": "Riemann hypothesis",
+   "area": "number theory",
+   "statement": "Every nontrivial zero of the Riemann zeta function has real part 1/2.",
+   "source": "Riemann (1859); a Clay Millennium Prize Problem (2000).",
+   "needs": [
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "generalized-riemann-hypothesis",
+   "title": "Generalized Riemann hypothesis",
+   "area": "number theory",
+   "statement": "Every nontrivial zero of every Dirichlet L-function has real part 1/2.",
+   "source": "Piltz (1884) and later authors.",
+   "needs": [
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "goldbach",
+   "title": "Goldbach's conjecture",
+   "area": "number theory",
+   "statement": "Every even integer greater than 2 is the sum of two primes.",
+   "source": "Goldbach, letter to Euler (1742). The ternary version was proved by Helfgott (2013).",
+   "needs": [
+    "prime-distribution"
+   ],
+   "nearest": "A claim kind \"every even n in [4, N) is a sum of two primes\", checked with one witness per n, would let her check finite ranges; the conjecture itself needs more.",
+   "checked": "not re-checked"
+  },
+  {
+   "id": "twin-primes",
+   "title": "Twin prime conjecture",
+   "area": "number theory",
+   "statement": "There are infinitely many primes p such that p + 2 is also prime.",
+   "source": "Stated by de Polignac (1849). Bounded gaps: Zhang (2013), Maynard (2015), Polymath8.",
+   "needs": [
+    "infinitude",
+    "prime-distribution"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "polignac",
+   "title": "Polignac's conjecture",
+   "area": "number theory",
+   "statement": "For every even k, infinitely many pairs of consecutive primes differ by exactly k.",
+   "source": "de Polignac (1849).",
+   "needs": [
+    "infinitude",
+    "prime-distribution"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "legendre",
+   "title": "Legendre's conjecture",
+   "area": "number theory",
+   "statement": "For every positive integer n there is a prime between n^2 and (n + 1)^2.",
+   "source": "Legendre; one of the four problems Landau listed in 1912.",
+   "needs": [
+    "prime-distribution"
+   ],
+   "nearest": "A claim kind \"for every n in [1, N) a prime lies in (n^2, (n+1)^2)\", checked with one witness per n, would state finite ranges.",
+   "checked": "not re-checked"
+  },
+  {
+   "id": "landau-n2-plus-1",
+   "title": "Primes of the form n^2 + 1",
+   "area": "number theory",
+   "statement": "There are infinitely many primes of the form n^2 + 1.",
+   "source": "Landau (1912), one of his four problems.",
+   "needs": [
+    "infinitude",
+    "prime-distribution"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "andrica",
+   "title": "Andrica's conjecture",
+   "area": "number theory",
+   "statement": "For consecutive primes p < q, sqrt(q) - sqrt(p) < 1.",
+   "source": "Andrica (1985).",
+   "needs": [
+    "prime-distribution",
+    "real-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "oppermann",
+   "title": "Oppermann's conjecture",
+   "area": "number theory",
+   "statement": "For every integer n > 1 there is a prime between n(n - 1) and n^2, and another between n^2 and n(n + 1).",
+   "source": "Oppermann (1882).",
+   "needs": [
+    "prime-distribution"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "cramer",
+   "title": "Cramér's conjecture",
+   "area": "number theory",
+   "statement": "Gaps between consecutive primes satisfy p_(n+1) - p_n = O((log p_n)^2).",
+   "source": "Cramér (1936).",
+   "needs": [
+    "prime-distribution",
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "mersenne-infinitude",
+   "title": "Infinitely many Mersenne primes",
+   "area": "number theory",
+   "statement": "There are infinitely many primes of the form 2^p - 1 (equivalently, infinitely many even perfect numbers).",
+   "source": "Mersenne (1644); the question of infinitude is folklore.",
+   "needs": [
+    "infinitude",
+    "big-integers"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "fermat-primes",
+   "title": "Fermat primes beyond 65537",
+   "area": "number theory",
+   "statement": "Is 2^(2^n) + 1 composite for every n > 4? (Only n = 0..4 give known primes.)",
+   "source": "Fermat (1640) conjectured all are prime; Euler (1732) factored the case n = 5.",
+   "needs": [
+    "big-integers",
+    "infinitude"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "sophie-germain",
+   "title": "Infinitely many Sophie Germain primes",
+   "area": "number theory",
+   "statement": "There are infinitely many primes p such that 2p + 1 is also prime.",
+   "source": "Folklore; implied by the Hardy-Littlewood prime tuples conjecture.",
+   "needs": [
+    "infinitude",
+    "prime-distribution"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "schinzel-hypothesis-h",
+   "title": "Schinzel's Hypothesis H",
+   "area": "number theory",
+   "statement": "If irreducible integer polynomials f_1, ..., f_k with positive leading coefficients have no fixed prime divisor of their product, then infinitely many n make every f_i(n) prime.",
+   "source": "Schinzel and Sierpiński (1958).",
+   "needs": [
+    "infinitude",
+    "prime-distribution"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "bunyakovsky",
+   "title": "Bunyakovsky conjecture",
+   "area": "number theory",
+   "statement": "An irreducible integer polynomial with positive leading coefficient and no fixed prime divisor takes infinitely many prime values.",
+   "source": "Bunyakovsky (1857).",
+   "needs": [
+    "infinitude",
+    "prime-distribution"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "prime-k-tuples",
+   "title": "Hardy-Littlewood prime k-tuples conjecture",
+   "area": "number theory",
+   "statement": "Every admissible pattern of k linear forms n + h_i is simultaneously prime infinitely often, with the asymptotic count predicted by the singular series.",
+   "source": "Hardy and Littlewood (1923).",
+   "needs": [
+    "infinitude",
+    "prime-distribution",
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "artin-primitive-root",
+   "title": "Artin's primitive root conjecture",
+   "area": "number theory",
+   "statement": "Every integer other than -1 that is not a perfect square is a primitive root modulo infinitely many primes.",
+   "source": "Artin (1927); proved under the generalized Riemann hypothesis by Hooley (1967).",
+   "needs": [
+    "infinitude",
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "wieferich-infinitude",
+   "title": "Infinitely many Wieferich primes",
+   "area": "number theory",
+   "statement": "There are infinitely many primes p with p^2 dividing 2^(p-1) - 1. Only 1093 and 3511 are known.",
+   "source": "Wieferich (1909).",
+   "needs": [
+    "infinitude",
+    "big-integers"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "wall-sun-sun",
+   "title": "Wall-Sun-Sun primes",
+   "area": "number theory",
+   "statement": "Is there a prime p such that p^2 divides the Fibonacci number F(p - (p/5))? None is known.",
+   "source": "Wall (1960); Sun and Sun (1992).",
+   "needs": [
+    "big-integers",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "gilbreath",
+   "title": "Gilbreath's conjecture",
+   "area": "number theory",
+   "statement": "Repeatedly taking absolute differences of consecutive terms, starting from the sequence of primes, every row after the first begins with 1.",
+   "source": "Proth (1878); Gilbreath (1958).",
+   "needs": [
+    "prime-distribution",
+    "infinitude"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "regular-primes-infinitude",
+   "title": "Infinitely many regular primes",
+   "area": "number theory",
+   "statement": "There are infinitely many regular primes (primes not dividing the class number of the p-th cyclotomic field).",
+   "source": "Kummer (1850); Jensen (1915) proved there are infinitely many irregular primes.",
+   "needs": [
+    "infinitude",
+    "algebraic-number-theory"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "fibonacci-primes",
+   "title": "Infinitely many Fibonacci primes",
+   "area": "number theory",
+   "statement": "Infinitely many Fibonacci numbers are prime.",
+   "source": "Folklore.",
+   "needs": [
+    "infinitude",
+    "big-integers"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "brocard",
+   "title": "Brocard's problem",
+   "area": "number theory",
+   "statement": "n! + 1 = m^2 has no integer solutions other than n = 4, 5 and 7.",
+   "source": "Brocard (1876); Ramanujan (1913).",
+   "needs": [
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "erdos-moser",
+   "title": "Erdős-Moser equation",
+   "area": "number theory",
+   "statement": "1^k + 2^k + ... + (m - 1)^k = m^k has no solution in positive integers other than 1 + 2 = 3.",
+   "source": "Erdős and Moser (about 1953).",
+   "needs": [
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "odd-perfect",
+   "title": "Odd perfect numbers",
+   "area": "number theory",
+   "statement": "There is no odd perfect number (no odd n with sigma(n) = 2n).",
+   "source": "Descartes (1638) and Euler; folklore.",
+   "needs": [
+    "arithmetic-functions",
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "lehmer-totient",
+   "title": "Lehmer's totient problem",
+   "area": "number theory",
+   "statement": "No composite n has phi(n) dividing n - 1.",
+   "source": "Lehmer (1932).",
+   "needs": [
+    "arithmetic-functions"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "carmichael-totient",
+   "title": "Carmichael's totient conjecture",
+   "area": "number theory",
+   "statement": "For every m, the equation phi(x) = m has either no solution or at least two.",
+   "source": "Carmichael (1907).",
+   "needs": [
+    "arithmetic-functions"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "amicable-infinitude",
+   "title": "Infinitely many amicable pairs",
+   "area": "number theory",
+   "statement": "There are infinitely many pairs m < n with sigma(m) = sigma(n) = m + n.",
+   "source": "Folklore.",
+   "needs": [
+    "infinitude",
+    "arithmetic-functions"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "odd-weird",
+   "title": "Odd weird numbers",
+   "area": "number theory",
+   "statement": "Is there an odd weird number (abundant, but not a sum of any subset of its proper divisors)?",
+   "source": "Benkoski and Erdős (1974).",
+   "needs": [
+    "arithmetic-functions",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "catalan-dickson",
+   "title": "Catalan-Dickson conjecture on aliquot sequences",
+   "area": "number theory",
+   "statement": "Every aliquot sequence n, s(n), s(s(n)), ... with s(n) = sigma(n) - n ends at 0 or becomes periodic. The sequence from 276 is not known to end.",
+   "source": "Catalan (1888), Dickson (1913); Guy and Selfridge conjectured the opposite.",
+   "needs": [
+    "unbounded-orbits",
+    "big-integers"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "lychrel-196",
+   "title": "The 196 problem",
+   "area": "number theory",
+   "statement": "Repeatedly adding 196 to the reversal of its decimal digits never produces a palindrome.",
+   "source": "Folklore; large computations since the 1980s.",
+   "needs": [
+    "unbounded-orbits",
+    "big-integers"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "perfect-cuboid",
+   "title": "Perfect cuboid",
+   "area": "number theory",
+   "statement": "There is no rectangular box whose three edges, three face diagonals and space diagonal are all integers.",
+   "source": "Euler; folklore.",
+   "needs": [
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "abc",
+   "title": "abc conjecture",
+   "area": "number theory",
+   "statement": "For every epsilon > 0, only finitely many coprime triples a + b = c satisfy c > rad(abc)^(1 + epsilon).",
+   "source": "Masser (1985) and Oesterlé (1988). Mochizuki (2012) announced a proof that is not accepted by most experts (Scholze and Stix, 2018).",
+   "needs": [
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "beal",
+   "title": "Beal conjecture",
+   "area": "number theory",
+   "statement": "If A^x + B^y = C^z with positive integers and x, y, z > 2, then A, B and C share a prime factor.",
+   "source": "Beal (1993).",
+   "needs": [
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "fermat-catalan",
+   "title": "Fermat-Catalan conjecture",
+   "area": "number theory",
+   "statement": "The equation a^m + b^n = c^k with coprime positive a, b, c and 1/m + 1/n + 1/k < 1 has only finitely many solutions (counting each (a^m, b^n, c^k) once).",
+   "source": "Darmon and Granville (1995).",
+   "needs": [
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "pillai",
+   "title": "Pillai's conjecture",
+   "area": "number theory",
+   "statement": "Each positive integer occurs only finitely many times as a difference of two perfect powers.",
+   "source": "Pillai (1931).",
+   "needs": [
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "three-cubes",
+   "title": "Sums of three cubes",
+   "area": "number theory",
+   "statement": "Every integer n not congruent to 4 or 5 mod 9 is a sum of three integer cubes.",
+   "source": "Heath-Brown (1992) conjectured it with infinitely many representations; 33 and 42 were found in 2019 (Booker; Booker and Sutherland).",
+   "needs": [
+    "diophantine",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "congruent-numbers",
+   "title": "Congruent number problem",
+   "area": "number theory",
+   "statement": "Decide for every n whether n is the area of a right triangle with rational sides. Tunnell (1983) gave a criterion that is complete if the Birch and Swinnerton-Dyer conjecture holds for y^2 = x^3 - n^2 x.",
+   "source": "Ancient; Tunnell (1983).",
+   "needs": [
+    "diophantine",
+    "algebraic-geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "birch-swinnerton-dyer",
+   "title": "Birch and Swinnerton-Dyer conjecture",
+   "area": "number theory",
+   "statement": "The rank of an elliptic curve over Q equals the order of vanishing of its L-function at s = 1.",
+   "source": "Birch and Swinnerton-Dyer (1960s); a Clay Millennium Prize Problem.",
+   "needs": [
+    "algebraic-geometry",
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "kummer-vandiver",
+   "title": "Kummer-Vandiver conjecture",
+   "area": "number theory",
+   "statement": "For every prime p, p does not divide the class number of the maximal real subfield of the p-th cyclotomic field.",
+   "source": "Kummer (1849); Vandiver (1920s).",
+   "needs": [
+    "algebraic-number-theory"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "leopoldt",
+   "title": "Leopoldt's conjecture",
+   "area": "number theory",
+   "statement": "The p-adic regulator of a number field is nonzero.",
+   "source": "Leopoldt (1962); proved for abelian fields (Brumer, 1967).",
+   "needs": [
+    "algebraic-number-theory"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "class-number-one",
+   "title": "Infinitely many real quadratic fields of class number one",
+   "area": "number theory",
+   "statement": "Infinitely many real quadratic fields have class number 1.",
+   "source": "Gauss (1801).",
+   "needs": [
+    "infinitude",
+    "algebraic-number-theory"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "lehmer-mahler-measure",
+   "title": "Lehmer's Mahler measure problem",
+   "area": "number theory",
+   "statement": "There is a constant c > 1 such that every integer polynomial that is not a product of cyclotomic polynomials and powers of x has Mahler measure at least c.",
+   "source": "Lehmer (1933).",
+   "needs": [
+    "algebraic-number-theory",
+    "real-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "littlewood-approximation",
+   "title": "Littlewood conjecture",
+   "area": "number theory",
+   "statement": "For all real a and b, liminf over n of n * ||n a|| * ||n b|| is 0, where ||x|| is the distance to the nearest integer.",
+   "source": "Littlewood (about 1930); Einsiedler, Katok and Lindenstrauss (2006) proved the exceptions have Hausdorff dimension 0.",
+   "needs": [
+    "diophantine-approximation"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "mahler-3-2",
+   "title": "Mahler's 3/2 problem",
+   "area": "number theory",
+   "statement": "Is there a real x > 0 such that the fractional part of x (3/2)^n lies in [0, 1/2) for every n >= 0?",
+   "source": "Mahler (1968).",
+   "needs": [
+    "real-analysis",
+    "dynamics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "gauss-circle",
+   "title": "Gauss circle problem",
+   "area": "number theory",
+   "statement": "The number of lattice points in the disc of radius r is pi r^2 + O(r^(1/2 + epsilon)) for every epsilon > 0.",
+   "source": "Gauss; Hardy (1915) showed that 1/2 cannot be lowered.",
+   "needs": [
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "dirichlet-divisor",
+   "title": "Dirichlet divisor problem",
+   "area": "number theory",
+   "statement": "The sum of d(n) for n <= x equals x log x + (2 gamma - 1) x + O(x^(1/4 + epsilon)) for every epsilon > 0.",
+   "source": "Dirichlet (1849).",
+   "needs": [
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "lindelof",
+   "title": "Lindelöf hypothesis",
+   "area": "number theory",
+   "statement": "For every epsilon > 0, zeta(1/2 + i t) = O(|t|^epsilon).",
+   "source": "Lindelöf (1908); implied by the Riemann hypothesis.",
+   "needs": [
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "waring-g3",
+   "title": "The value of G(3) in Waring's problem",
+   "area": "number theory",
+   "statement": "Every sufficiently large integer is a sum of four positive cubes (G(3) = 4; known: 4 <= G(3) <= 7).",
+   "source": "Waring (1770); Linnik (1943) proved G(3) <= 7.",
+   "needs": [
+    "analytic",
+    "additive-combinatorics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "sierpinski-smallest",
+   "title": "Is 78,557 the smallest Sierpiński number?",
+   "area": "number theory",
+   "statement": "For every odd k < 78,557 there is an n with k 2^n + 1 prime. A few k remain without a known prime.",
+   "source": "Sierpiński (1960); Selfridge (1962) found the covering for 78,557.",
+   "needs": [
+    "big-integers",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "riesel-smallest",
+   "title": "Is 509,203 the smallest Riesel number?",
+   "area": "number theory",
+   "statement": "For every odd k < 509,203 there is an n with k 2^n - 1 prime.",
+   "source": "Riesel (1956).",
+   "needs": [
+    "big-integers",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "odd-covering",
+   "title": "Covering systems with odd moduli",
+   "area": "number theory",
+   "statement": "Is there a finite covering system of the integers whose moduli are distinct odd integers greater than 1?",
+   "source": "Erdős and Selfridge. Hough (2015) bounded the least modulus of a distinct covering system.",
+   "needs": [
+    "covering-systems"
+   ],
+   "nearest": "A claim kind for a covering system (a finite list of residue classes whose union is all integers, checked at the lcm of the moduli) is close to her language; existence would then be a search, nonexistence needs more.",
+   "checked": "not re-checked"
+  },
+  {
+   "id": "schinzel-beyond-bounds",
+   "title": "Schinzel's conjecture for numerators 12, 15, 16 and above 16",
+   "area": "number theory",
+   "statement": "For every fixed a, a/n = 1/x + 1/y + 1/z has a solution in positive integers for all sufficiently large n. For a = 12, 15 and 16 an exhaustive search here found exceptions beyond n = 1000, and numerators above 16 lie beyond her statement bounds.",
+   "source": "Schinzel (attributed; see Sierpiński 1956 for a = 5).",
+   "needs": [
+    "statement-bounds"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "five-x-plus-one",
+   "title": "Divergent orbits of the 5x + 1 map",
+   "area": "number theory",
+   "statement": "The orbit of 7 under T(n) = n/2 (n even), (5n + 1)/2 (n odd) is unbounded.",
+   "source": "Folklore around the Collatz problem (see Lagarias, The 3x + 1 Problem and Its Generalizations, 1985).",
+   "needs": [
+    "unbounded-orbits"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "conway-amusical",
+   "title": "Conway's amusical permutation",
+   "area": "number theory",
+   "statement": "Under g(2n) = 3n, g(4n + 1) = 3n + 1, g(4n - 1) = 3n - 1, is the orbit of 8 infinite?",
+   "source": "Conway (1972).",
+   "needs": [
+    "unbounded-orbits"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "busy-beaver-6",
+   "title": "The sixth Busy Beaver value",
+   "area": "logic and computation",
+   "statement": "Determine BB(6), the most steps a halting 6-state, 2-symbol Turing machine takes from a blank tape. Some holdout machines encode Collatz-like problems.",
+   "source": "Radó (1962); BB(5) = 47,176,870 was proved by the bbchallenge collaboration (2024).",
+   "needs": [
+    "finite-search-at-scale",
+    "unbounded-orbits"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "erdos-arithmetic-progressions",
+   "title": "Erdős conjecture on arithmetic progressions",
+   "area": "combinatorics",
+   "statement": "If the sum of 1/a over a set A of positive integers diverges, A contains arithmetic progressions of every length.",
+   "source": "Erdős (1936 with Turán, and later); length 3 proved by Bloom and Sisask (2020).",
+   "needs": [
+    "additive-combinatorics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "erdos-turan-bases",
+   "title": "Erdős-Turán conjecture on additive bases",
+   "area": "combinatorics",
+   "statement": "If every positive integer is a sum of two elements of B, then the number of such representations is unbounded.",
+   "source": "Erdős and Turán (1941).",
+   "needs": [
+    "additive-combinatorics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "sidon-sets",
+   "title": "Largest Sidon sets",
+   "area": "combinatorics",
+   "statement": "The largest Sidon subset of {1, ..., n} has size sqrt(n) + O(n^epsilon) for every epsilon > 0 (Erdős asked whether even sqrt(n) + O(1) holds).",
+   "source": "Erdős and Turán (1941).",
+   "needs": [
+    "additive-combinatorics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "sum-product",
+   "title": "Erdős-Szemerédi sum-product conjecture",
+   "area": "combinatorics",
+   "statement": "For every epsilon > 0 and every finite set A of integers, max(|A + A|, |A A|) >= c |A|^(2 - epsilon).",
+   "source": "Erdős and Szemerédi (1983).",
+   "needs": [
+    "additive-combinatorics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "singmaster",
+   "title": "Singmaster's conjecture",
+   "area": "combinatorics",
+   "statement": "There is a finite bound on how many times an integer greater than 1 appears in Pascal's triangle.",
+   "source": "Singmaster (1971).",
+   "needs": [
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "unit-distances",
+   "title": "Erdős unit distance problem",
+   "area": "geometry",
+   "statement": "The number of unit distances among n points in the plane is at most n^(1 + O(1/log log n)).",
+   "source": "Erdős (1946).",
+   "needs": [
+    "geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "heilbronn-triangle",
+   "title": "Heilbronn triangle problem",
+   "area": "geometry",
+   "statement": "Determine the order of the largest possible smallest triangle area among n points in the unit square.",
+   "source": "Heilbronn (about 1950).",
+   "needs": [
+    "geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "no-three-in-line",
+   "title": "No-three-in-line problem",
+   "area": "geometry",
+   "statement": "For all large n, can 2n points of the n x n grid be chosen with no three collinear?",
+   "source": "Dudeney (1917).",
+   "needs": [
+    "geometry",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "happy-ending",
+   "title": "Erdős-Szekeres conjecture (happy ending problem)",
+   "area": "geometry",
+   "statement": "Every set of 2^(n-2) + 1 points in the plane in general position contains the vertices of a convex n-gon.",
+   "source": "Erdős and Szekeres (1935); proved for n <= 6; Suk (2017) proved 2^(n + o(n)).",
+   "needs": [
+    "geometry",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "hadwiger-nelson",
+   "title": "Chromatic number of the plane",
+   "area": "geometry",
+   "statement": "Determine the least number of colors needed so that no two points at distance 1 share a color. Known: 5, 6 or 7.",
+   "source": "Nelson (1950); de Grey (2018) proved at least 5.",
+   "needs": [
+    "geometry",
+    "graphs",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "kissing-number-5",
+   "title": "Kissing number in dimension 5",
+   "area": "geometry",
+   "statement": "Determine the largest number of non-overlapping unit spheres in R^5 that touch a common unit sphere (40 to 44).",
+   "source": "Folklore; bounds from lattice constructions and semidefinite programming.",
+   "needs": [
+    "geometry",
+    "real-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "sphere-packing",
+   "title": "Densest sphere packings in other dimensions",
+   "area": "geometry",
+   "statement": "Determine the densest sphere packing in R^n for n other than 1, 2, 3, 8 and 24.",
+   "source": "Kepler (1611); Hales (2005) for n = 3; Viazovska (2016) for n = 8, with coauthors for n = 24.",
+   "needs": [
+    "geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "inscribed-square",
+   "title": "Inscribed square problem",
+   "area": "geometry",
+   "statement": "Every Jordan curve in the plane contains the four vertices of a square.",
+   "source": "Toeplitz (1911).",
+   "needs": [
+    "geometry",
+    "topology"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "moving-sofa",
+   "title": "Moving sofa problem",
+   "area": "geometry",
+   "statement": "Determine the largest area of a planar shape that can be moved around a right-angled corner in a hallway of unit width. Gerver (1992) gave a shape of area about 2.2195.",
+   "source": "Moser (1966).",
+   "needs": [
+    "geometry",
+    "real-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "kakeya-higher",
+   "title": "Kakeya conjecture in higher dimensions",
+   "area": "harmonic analysis",
+   "statement": "Every Besicovitch set in R^n (containing a unit segment in every direction) has Hausdorff dimension n.",
+   "source": "Kakeya (1917), Besicovitch (1919); proved for n = 2 by Davies (1971).",
+   "needs": [
+    "harmonic-analysis",
+    "geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "restriction",
+   "title": "Fourier restriction conjecture",
+   "area": "harmonic analysis",
+   "statement": "The Fourier extension operator from the unit sphere in R^n is bounded from L^infinity to L^p for every p > 2n/(n - 1).",
+   "source": "Stein (1970s).",
+   "needs": [
+    "harmonic-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "bochner-riesz",
+   "title": "Bochner-Riesz conjecture",
+   "area": "harmonic analysis",
+   "statement": "The Bochner-Riesz means of order delta > 0 are bounded on L^p(R^n) exactly in the conjectured range of p.",
+   "source": "Bochner and Riesz; Stein.",
+   "needs": [
+    "harmonic-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "heesch",
+   "title": "Heesch's problem",
+   "area": "geometry",
+   "statement": "Which positive integers are Heesch numbers of plane shapes, and is there an upper bound?",
+   "source": "Heesch (1968).",
+   "needs": [
+    "geometry",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "lonely-runner",
+   "title": "Lonely runner conjecture",
+   "area": "combinatorics",
+   "statement": "For k runners with distinct constant speeds on a unit circular track, each runner is at some time at distance at least 1/k from all the others.",
+   "source": "Wills (1967); Cusick (1973).",
+   "needs": [
+    "diophantine-approximation"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "thomson",
+   "title": "Thomson problem",
+   "area": "geometry",
+   "statement": "Determine the configuration of n unit charges on a sphere minimizing electrostatic energy, for all n.",
+   "source": "Thomson (1904).",
+   "needs": [
+    "geometry",
+    "real-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "erdos-ulam",
+   "title": "Erdős-Ulam problem",
+   "area": "geometry",
+   "statement": "Is there a dense set of points in the plane with all pairwise distances rational?",
+   "source": "Ulam and Erdős (1945).",
+   "needs": [
+    "geometry",
+    "diophantine"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "borsuk-low-dimensions",
+   "title": "Borsuk's problem in dimensions 4 to 63",
+   "area": "geometry",
+   "statement": "Can every bounded set in R^n be partitioned into n + 1 sets of smaller diameter? False for n >= 64, true for n <= 3.",
+   "source": "Borsuk (1933); Kahn and Kalai (1993) found the first counterexamples.",
+   "needs": [
+    "geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "mahler-volume",
+   "title": "Mahler's conjecture on the volume product",
+   "area": "geometry",
+   "statement": "The product of the volumes of a centrally symmetric convex body and its polar body is minimized by the cube.",
+   "source": "Mahler (1939); proved in dimension 3 by Iriyeh and Shibata (2020).",
+   "needs": [
+    "geometry",
+    "real-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "hadwiger-covering",
+   "title": "Hadwiger covering conjecture",
+   "area": "geometry",
+   "statement": "Every convex body in R^n can be covered by 2^n smaller homothetic copies of itself.",
+   "source": "Hadwiger (1957); Levi.",
+   "needs": [
+    "geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "hadwiger-graph",
+   "title": "Hadwiger's conjecture",
+   "area": "graph theory",
+   "statement": "Every graph with no K_t minor is (t - 1)-colorable.",
+   "source": "Hadwiger (1943); known for t <= 6.",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "erdos-hajnal",
+   "title": "Erdős-Hajnal conjecture",
+   "area": "graph theory",
+   "statement": "For every graph H there is c > 0 such that every n-vertex graph without an induced copy of H has a clique or an independent set of size n^c.",
+   "source": "Erdős and Hajnal (1989).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "graceful-tree",
+   "title": "Graceful tree conjecture",
+   "area": "graph theory",
+   "statement": "Every tree has a graceful labeling.",
+   "source": "Ringel and Kotzig (1964).",
+   "needs": [
+    "graphs",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "cycle-double-cover",
+   "title": "Cycle double cover conjecture",
+   "area": "graph theory",
+   "statement": "Every bridgeless graph has a family of cycles covering each edge exactly twice.",
+   "source": "Szekeres (1973); Seymour (1979).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "reconstruction",
+   "title": "Reconstruction conjecture",
+   "area": "graph theory",
+   "statement": "Every graph with at least three vertices is determined up to isomorphism by its multiset of vertex-deleted subgraphs.",
+   "source": "Kelly and Ulam (1942).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "second-neighborhood",
+   "title": "Seymour's second neighborhood conjecture",
+   "area": "graph theory",
+   "statement": "Every oriented graph has a vertex whose second out-neighborhood is at least as large as its first.",
+   "source": "Seymour (1990).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "caccetta-haggkvist",
+   "title": "Caccetta-Häggkvist conjecture",
+   "area": "graph theory",
+   "statement": "Every directed graph on n vertices with minimum out-degree r has a directed cycle of length at most ceil(n/r).",
+   "source": "Caccetta and Häggkvist (1978).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "total-coloring",
+   "title": "Total coloring conjecture",
+   "area": "graph theory",
+   "statement": "Every graph of maximum degree D has a total coloring with at most D + 2 colors.",
+   "source": "Behzad (1965); Vizing.",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "list-coloring",
+   "title": "List edge-coloring conjecture",
+   "area": "graph theory",
+   "statement": "The list chromatic index of every graph equals its chromatic index.",
+   "source": "Vizing, Gupta and others (1970s).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "lovasz-hamiltonian",
+   "title": "Lovász conjecture on vertex-transitive graphs",
+   "area": "graph theory",
+   "statement": "Every finite connected vertex-transitive graph has a Hamiltonian path.",
+   "source": "Lovász (1969).",
+   "needs": [
+    "graphs",
+    "groups"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "barnette",
+   "title": "Barnette's conjecture",
+   "area": "graph theory",
+   "statement": "Every cubic, bipartite, 3-connected planar graph is Hamiltonian.",
+   "source": "Barnette (1969).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "erdos-gyarfas",
+   "title": "Erdős-Gyárfás conjecture",
+   "area": "graph theory",
+   "statement": "Every graph with minimum degree at least 3 contains a cycle whose length is a power of 2.",
+   "source": "Erdős and Gyárfás (1995).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "conway-99-graph",
+   "title": "Conway's 99-graph problem",
+   "area": "graph theory",
+   "statement": "Is there a strongly regular graph with parameters (99, 14, 1, 2)?",
+   "source": "Conway (2014 prize list); Biggs.",
+   "needs": [
+    "graphs",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "moore-graph-57",
+   "title": "Moore graph of degree 57",
+   "area": "graph theory",
+   "statement": "Is there a 57-regular graph of diameter 2 and girth 5 on 3250 vertices?",
+   "source": "Hoffman and Singleton (1960).",
+   "needs": [
+    "graphs",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "sidorenko",
+   "title": "Sidorenko's conjecture",
+   "area": "graph theory",
+   "statement": "For every bipartite graph H, the density of H in any graph of edge density p is at least p^(e(H)).",
+   "source": "Sidorenko (1993); Erdős and Simonovits.",
+   "needs": [
+    "graphs",
+    "real-analysis"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "graham-pebbling",
+   "title": "Graham's pebbling conjecture",
+   "area": "graph theory",
+   "statement": "The pebbling number of a Cartesian product satisfies pi(G x H) <= pi(G) pi(H).",
+   "source": "Graham (1989).",
+   "needs": [
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "ramsey-r55",
+   "title": "The Ramsey number R(5, 5)",
+   "area": "graph theory",
+   "statement": "Determine R(5, 5), the least n such that every 2-coloring of the edges of K_n has a monochromatic K_5.",
+   "source": "Greenwood and Gleason (1955) for small cases; Exoo (1989) for the lower bound 43.",
+   "needs": [
+    "graphs",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "schur-s6",
+   "title": "The sixth Schur number",
+   "area": "combinatorics",
+   "statement": "Determine S(6), the largest n such that {1, ..., n} can be split into six sum-free parts.",
+   "source": "Schur (1916); S(5) = 160 was proved with a SAT solver by Heule (2017).",
+   "needs": [
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "union-closed",
+   "title": "Union-closed sets conjecture",
+   "area": "combinatorics",
+   "statement": "Every finite union-closed family with a nonempty member has an element in at least half of its members.",
+   "source": "Frankl (1979); Gilmer (2022) proved a constant fraction.",
+   "needs": [
+    "set-systems"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "sunflower",
+   "title": "Sunflower conjecture",
+   "area": "combinatorics",
+   "statement": "There is C(k) such that every family of more than C(k)^w sets of size w contains a sunflower with k petals.",
+   "source": "Erdős and Rado (1960); Alweiss, Lovett, Wu and Zhang (2019) improved the bound.",
+   "needs": [
+    "set-systems"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "one-third-two-thirds",
+   "title": "1/3-2/3 conjecture",
+   "area": "combinatorics",
+   "statement": "Every finite partial order that is not a chain has two elements x, y with 1/3 <= P(x before y) <= 2/3 in a uniformly random linear extension.",
+   "source": "Kislitsyn (1968); Fredman; Linial.",
+   "needs": [
+    "set-systems"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "rota-basis",
+   "title": "Rota's basis conjecture",
+   "area": "combinatorics",
+   "statement": "For n bases of a rank-n matroid, the n^2 elements can be arranged in an n x n grid whose rows are the bases and whose columns are also bases.",
+   "source": "Rota (1989).",
+   "needs": [
+    "set-systems"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "chvatal-intersecting",
+   "title": "Chvátal's conjecture",
+   "area": "combinatorics",
+   "statement": "In every down-closed family of sets, some largest intersecting subfamily consists of the sets containing one common element.",
+   "source": "Chvátal (1974).",
+   "needs": [
+    "set-systems"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "hadamard",
+   "title": "Hadamard conjecture",
+   "area": "combinatorics",
+   "statement": "A Hadamard matrix of order 4k exists for every positive integer k.",
+   "source": "Paley (1933); Hadamard (1893).",
+   "needs": [
+    "designs",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "projective-plane-12",
+   "title": "Projective plane of order 12",
+   "area": "combinatorics",
+   "statement": "Is there a finite projective plane of order 12? (Order 10 was excluded by computer in 1989.)",
+   "source": "Lam, Thiel and Swiercz (1989) for order 10.",
+   "needs": [
+    "designs",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "mols-10",
+   "title": "Three mutually orthogonal Latin squares of order 10",
+   "area": "combinatorics",
+   "statement": "Are there three mutually orthogonal Latin squares of order 10?",
+   "source": "Euler's 36 officers problem and its successors; Parker, Bose and Shrikhande (1959) disproved Euler for order 10 with two squares.",
+   "needs": [
+    "designs",
+    "finite-search-at-scale"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "inverse-galois",
+   "title": "Inverse Galois problem",
+   "area": "algebra",
+   "statement": "Every finite group is the Galois group of some Galois extension of the rational numbers.",
+   "source": "Hilbert and Noether.",
+   "needs": [
+    "algebra",
+    "groups"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "jacobian",
+   "title": "Jacobian conjecture",
+   "area": "algebra",
+   "statement": "A polynomial map from C^n to C^n with constant nonzero Jacobian determinant has a polynomial inverse.",
+   "source": "Keller (1939).",
+   "needs": [
+    "algebra"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "kaplansky-zero-divisor",
+   "title": "Kaplansky zero-divisor conjecture",
+   "area": "algebra",
+   "statement": "The group ring K[G] of a torsion-free group G over a field K has no zero divisors. (The related unit conjecture was disproved by Gardam in 2021.)",
+   "source": "Kaplansky (1950s).",
+   "needs": [
+    "algebra",
+    "groups"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "burnside-b25",
+   "title": "Is the Burnside group B(2, 5) finite?",
+   "area": "algebra",
+   "statement": "Is the free Burnside group on two generators of exponent 5 finite?",
+   "source": "Burnside (1902).",
+   "needs": [
+    "groups"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "andrews-curtis",
+   "title": "Andrews-Curtis conjecture",
+   "area": "topology",
+   "statement": "Every balanced presentation of the trivial group can be reduced to the trivial presentation by Andrews-Curtis moves.",
+   "source": "Andrews and Curtis (1965).",
+   "needs": [
+    "groups",
+    "topology"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "whitehead-asphericity",
+   "title": "Whitehead asphericity conjecture",
+   "area": "topology",
+   "statement": "Every connected subcomplex of an aspherical 2-dimensional CW complex is aspherical.",
+   "source": "Whitehead (1941).",
+   "needs": [
+    "topology"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "smooth-poincare-4",
+   "title": "Smooth four-dimensional Poincaré conjecture",
+   "area": "topology",
+   "statement": "Every smooth 4-manifold homotopy equivalent to the 4-sphere is diffeomorphic to it.",
+   "source": "Folklore after Freedman (1982).",
+   "needs": [
+    "topology"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "volume-conjecture",
+   "title": "Volume conjecture",
+   "area": "topology",
+   "statement": "For a hyperbolic knot K, 2 pi log |J_N(K; e^(2 pi i/N))| / N tends to the hyperbolic volume of its complement.",
+   "source": "Kashaev (1997); H. Murakami and J. Murakami (2001).",
+   "needs": [
+    "topology",
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "hodge",
+   "title": "Hodge conjecture",
+   "area": "algebraic geometry",
+   "statement": "On a non-singular complex projective variety, every rational Hodge class is a rational combination of classes of algebraic cycles.",
+   "source": "Hodge (1950); a Clay Millennium Prize Problem.",
+   "needs": [
+    "algebraic-geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "standard-conjectures",
+   "title": "Grothendieck's standard conjectures",
+   "area": "algebraic geometry",
+   "statement": "The standard conjectures on algebraic cycles (Lefschetz type and Hodge type) hold for smooth projective varieties.",
+   "source": "Grothendieck (1969).",
+   "needs": [
+    "algebraic-geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "tate",
+   "title": "Tate conjecture",
+   "area": "algebraic geometry",
+   "statement": "For a smooth projective variety over a finitely generated field, the Galois-invariant l-adic cohomology classes are spanned by algebraic cycles.",
+   "source": "Tate (1963).",
+   "needs": [
+    "algebraic-geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "resolution-char-p",
+   "title": "Resolution of singularities in positive characteristic",
+   "area": "algebraic geometry",
+   "statement": "Every variety over a field of positive characteristic admits a resolution of singularities, in all dimensions.",
+   "source": "Hironaka (1964) settled characteristic 0.",
+   "needs": [
+    "algebraic-geometry"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "navier-stokes",
+   "title": "Navier-Stokes existence and smoothness",
+   "area": "analysis",
+   "statement": "For smooth, rapidly decaying initial data, the incompressible Navier-Stokes equations in R^3 have smooth solutions for all time (or give a counterexample).",
+   "source": "A Clay Millennium Prize Problem (2000).",
+   "needs": [
+    "pde",
+    "mathematical-physics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "yang-mills",
+   "title": "Yang-Mills existence and mass gap",
+   "area": "mathematical physics",
+   "statement": "For every compact simple gauge group, quantum Yang-Mills theory on R^4 exists and has a mass gap.",
+   "source": "A Clay Millennium Prize Problem (2000).",
+   "needs": [
+    "mathematical-physics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "sendov",
+   "title": "Sendov's conjecture",
+   "area": "analysis",
+   "statement": "If all zeros of a complex polynomial of degree at least 2 lie in the closed unit disc, each zero is within distance 1 of a zero of its derivative.",
+   "source": "Sendov (1958); Tao (2020) proved it for sufficiently large degree.",
+   "needs": [
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "casas-alvero",
+   "title": "Casas-Alvero conjecture",
+   "area": "algebra",
+   "statement": "A complex polynomial of degree n that shares a root with each of its first n - 1 derivatives is (x - a)^n.",
+   "source": "Casas-Alvero (2001).",
+   "needs": [
+    "algebra",
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "hot-spots",
+   "title": "Hot spots conjecture",
+   "area": "analysis",
+   "statement": "For a bounded Lipschitz domain, the maximum and minimum of the second Neumann eigenfunction are attained on the boundary.",
+   "source": "Rauch (1974).",
+   "needs": [
+    "pde"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "schiffer",
+   "title": "Schiffer's conjecture",
+   "area": "analysis",
+   "statement": "If a Neumann eigenfunction on a bounded planar domain is constant on the boundary, the domain is a disc.",
+   "source": "Schiffer (1950s); related to the Pompeiu problem.",
+   "needs": [
+    "pde"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "invariant-subspace",
+   "title": "Invariant subspace problem",
+   "area": "analysis",
+   "statement": "Every bounded operator on a separable infinite-dimensional complex Hilbert space has a nontrivial closed invariant subspace.",
+   "source": "Folklore; false for some Banach spaces (Enflo; Read).",
+   "needs": [
+    "operator-theory"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "hilbert-16",
+   "title": "Hilbert's sixteenth problem (second part)",
+   "area": "dynamics",
+   "statement": "Bound the number of limit cycles of a planar polynomial vector field of degree n in terms of n.",
+   "source": "Hilbert (1900).",
+   "needs": [
+    "dynamics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "mlc",
+   "title": "Local connectivity of the Mandelbrot set",
+   "area": "dynamics",
+   "statement": "The Mandelbrot set is locally connected.",
+   "source": "Douady and Hubbard (1980s).",
+   "needs": [
+    "dynamics",
+    "analytic"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "furstenberg-x2x3",
+   "title": "Furstenberg x2 x3 conjecture",
+   "area": "dynamics",
+   "statement": "The only ergodic probability measures on the circle invariant under both x -> 2x and x -> 3x are Lebesgue measure and measures supported on finite orbits.",
+   "source": "Furstenberg (1967).",
+   "needs": [
+    "dynamics"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "e-plus-pi",
+   "title": "Irrationality of e + pi",
+   "area": "number theory",
+   "statement": "Is e + pi irrational? (At least one of e + pi and e pi is transcendental.)",
+   "source": "Folklore.",
+   "needs": [
+    "transcendence"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "euler-gamma",
+   "title": "Irrationality of the Euler-Mascheroni constant",
+   "area": "number theory",
+   "statement": "Is gamma = 0.5772... irrational?",
+   "source": "Folklore.",
+   "needs": [
+    "transcendence"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "catalan-constant",
+   "title": "Irrationality of Catalan's constant",
+   "area": "number theory",
+   "statement": "Is G = 0.9159... irrational?",
+   "source": "Folklore.",
+   "needs": [
+    "transcendence"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "zeta-5",
+   "title": "Irrationality of zeta(5)",
+   "area": "number theory",
+   "statement": "Is zeta(5) irrational? (Apéry proved zeta(3) irrational in 1978; Zudilin (2001) showed one of zeta(5), zeta(7), zeta(9), zeta(11) is irrational.)",
+   "source": "Folklore.",
+   "needs": [
+    "transcendence"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "pi-normal",
+   "title": "Normality of pi",
+   "area": "number theory",
+   "statement": "Every block of k decimal digits occurs in the expansion of pi with limiting frequency 10^(-k).",
+   "source": "Borel (1909).",
+   "needs": [
+    "digits-normality"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "schanuel",
+   "title": "Schanuel's conjecture",
+   "area": "number theory",
+   "statement": "For complex z_1, ..., z_n linearly independent over Q, the field Q(z_1, ..., z_n, e^(z_1), ..., e^(z_n)) has transcendence degree at least n.",
+   "source": "Schanuel (1960s).",
+   "needs": [
+    "transcendence"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "four-exponentials",
+   "title": "Four exponentials conjecture",
+   "area": "number theory",
+   "statement": "If x_1, x_2 and y_1, y_2 are each linearly independent over Q, then one of the four numbers e^(x_i y_j) is transcendental.",
+   "source": "Schneider, Lang and Ramachandra (1940s-1960s).",
+   "needs": [
+    "transcendence"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "p-vs-np",
+   "title": "P versus NP",
+   "area": "computational complexity",
+   "statement": "Is every problem whose solutions can be verified in polynomial time also solvable in polynomial time?",
+   "source": "Cook (1971), Levin (1973); a Clay Millennium Prize Problem.",
+   "needs": [
+    "complexity"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "np-vs-conp",
+   "title": "NP versus coNP",
+   "area": "computational complexity",
+   "statement": "Is NP closed under complement?",
+   "source": "Folklore.",
+   "needs": [
+    "complexity"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "bpp-vs-p",
+   "title": "Derandomization of BPP",
+   "area": "computational complexity",
+   "statement": "Does BPP equal P?",
+   "source": "Folklore; Impagliazzo and Wigderson (1997).",
+   "needs": [
+    "complexity"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "graph-isomorphism-p",
+   "title": "Graph isomorphism in polynomial time",
+   "area": "computational complexity",
+   "statement": "Can graph isomorphism be decided in polynomial time? Babai (2015) gave a quasi-polynomial algorithm.",
+   "source": "Folklore.",
+   "needs": [
+    "complexity",
+    "graphs"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "matrix-multiplication-omega",
+   "title": "The exponent of matrix multiplication",
+   "area": "computational complexity",
+   "statement": "Is omega = 2, that is, can n x n matrices be multiplied in O(n^(2 + epsilon)) operations for every epsilon > 0?",
+   "source": "Strassen (1969).",
+   "needs": [
+    "complexity",
+    "algebra"
+   ],
+   "checked": "not re-checked"
+  },
+  {
+   "id": "unique-games",
+   "title": "Unique games conjecture",
+   "area": "computational complexity",
+   "statement": "For every epsilon > 0 it is NP-hard to distinguish unique games that are (1 - epsilon)-satisfiable from those that are at most epsilon-satisfiable.",
+   "source": "Khot (2002); the 2-to-2 case was proved in 2018.",
+   "needs": [
+    "complexity"
+   ],
+   "checked": "not re-checked"
+  }
+ ],
+ "needs": {
+  "infinitude": "A checked certificate that infinitely many integers have a property. Her checker admits finite certificates, identities on residue classes and descent on classes; none of them yields an unbounded supply of primes or solutions.",
+  "prime-distribution": "Explicit estimates for primes in intervals or progressions (sieve bounds with explicit constants, prime tables beyond her ranges).",
+  "arithmetic-functions": "Claims about sigma(n), phi(n) and other arithmetic functions for all n, beyond finite ranges.",
+  "diophantine": "Finiteness or nonexistence of integer solutions beyond identities on residue classes: curves of genus one and higher, exponential equations, height bounds.",
+  "diophantine-approximation": "Statements about how well real numbers are approximated by rationals, for all real parameters.",
+  "algebraic-number-theory": "Number fields, class groups, units and cyclotomic arithmetic.",
+  "analytic": "Complex analysis: L-functions and their zeros, contour estimates, conformal maps, zeros of polynomials.",
+  "transcendence": "Irrationality or transcendence certificates for specific constants.",
+  "digits-normality": "Statements about the digit distribution of constants.",
+  "real-analysis": "Inequalities, limits and extremal problems over the real numbers.",
+  "harmonic-analysis": "Fourier restriction, maximal functions and Kakeya-type estimates.",
+  "pde": "Existence, regularity and spectral properties of partial differential equations.",
+  "algebraic-geometry": "Varieties, cohomology theories and algebraic cycles.",
+  "algebra": "Rings, polynomial maps, fields and Galois groups.",
+  "groups": "Group presentations, finiteness questions and representations.",
+  "topology": "Manifolds, knots, homotopy and four-dimensional topology.",
+  "geometry": "Points, distances, packings, coverings and convex bodies in Euclidean space.",
+  "graphs": "Graphs with colorings, minors, labelings, cycles and Hamiltonian paths.",
+  "set-systems": "Families of sets, hypergraphs, partial orders and matroids.",
+  "additive-combinatorics": "Sums, products and arithmetic progressions in sets of integers, for all sets.",
+  "finite-search-at-scale": "A finite question whose resolution needs a search far beyond her work bounds, with a checkable certificate such as a SAT proof log or an exhaustive-search receipt.",
+  "big-integers": "Primality proofs and arithmetic for integers far beyond her bounds.",
+  "unbounded-orbits": "A certificate that an orbit never terminates or grows without bound; her descent language certifies only that orbits fall.",
+  "dynamics": "Continuous, holomorphic or measure-theoretic dynamical systems.",
+  "complexity": "Computational complexity classes and lower bounds.",
+  "operator-theory": "Operators on infinite-dimensional Hilbert and Banach spaces.",
+  "designs": "Combinatorial designs: Hadamard matrices, projective planes, orthogonal Latin squares.",
+  "mathematical-physics": "Rigorous quantum field theory and fluid equations.",
+  "covering-systems": "Finite systems of congruences covering the integers. Her language has residue classes but no claim kind for a covering system.",
+  "statement-bounds": "Stateable with her current claim kinds, but beyond the bounds of her problem statements (numerator at most 16, three terms, least n at most 1000, lifted modulus at most 10^6)."
+ }
+}

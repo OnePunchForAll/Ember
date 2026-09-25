@@ -51,6 +51,9 @@ These are the director's standing instructions for how Ember is developed.
   creativity and skill.
 - Phrases must be earned by evidence. A discovered limitation, honestly
   reported, is welcome.
+- Keep a library of open problems: stated in her language where it can
+  state them, and otherwise catalogued with what her language lacks. She
+  scans it and chooses which problem to work on herself.
 
 ## Campaign 1: which residue classes do identities reach? (Erdős–Straus)
 

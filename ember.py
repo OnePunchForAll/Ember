@@ -502,12 +502,13 @@ def solve(task,state_path=None,limit=10_000_000,strategy='auto',guard_policy='re
     if invariant_records and query!='discover_invariant':raise Refused('invariant observations apply only to invariant discovery')
     if query=='transition_count': return solve_matrix(task,state_path,limit,strategy)
     if strategy!='auto': raise Refused('matrix strategy supplied for another query')
-    if query=='autonomous_research':
-        # The agent chooses operators itself; subreasoner policy flags stay at their defaults.
+    if query in ('autonomous_research','open_problems'):
+        # The agent chooses operators itself, and in a library scan the problem too; policy flags stay at their defaults.
         if lemma_records or invariant_records or guard_policy!='residual_first':raise Refused('the agent accepts only a problem statement')
-        names=('Refused','Exhausted','Budget','STATE_LIMIT','local_module','read_state','canonical','digest')
+        names=('Refused','Exhausted','Budget','STATE_LIMIT','local_module','read_state','load_json','canonical','digest')
         host=SimpleNamespace(**{name:globals()[name] for name in names})
-        return local_module('agent').run(task,state_path,limit,host)
+        agent=local_module('agent')
+        return agent.run(task,state_path,limit,host) if query=='autonomous_research' else agent.scan(task,state_path,limit,host)
     if query in ('apex_research','prove_orbit_exclusion','count_word_avoiders','discover_generating_function','certify_minimal_recurrence','certify_eventual_recurrence'):
         # The apex chooses subreasoner policies itself; caller policy flags stay default.
         if lemma_records or guard_policy!='residual_first':raise Refused('apex queries accept only original tasks')
@@ -676,7 +677,7 @@ def capabilities():
         'queries':['transition_count','test_overlap_shortcut','polynomial_consequence',
                    'discover_guards','word_avoidance_identity','research_campaign','discover_recurrence','discover_word_recurrence','discover_invariant','prove_recursive_identity','source_research_episode',
                    'apex_research','prove_orbit_exclusion','count_word_avoiders','discover_generating_function','certify_minimal_recurrence','certify_eventual_recurrence',
-                   'autonomous_research'],
+                   'autonomous_research','open_problems'],
         'layers':['direct','apex'],
         'apex':{'faces':['N','W','S','E'],
                 'schedule':'per obligation, the face with the fewest attempts; routes inside a face by measured outcome and cost',
@@ -697,7 +698,8 @@ def capabilities():
         'agent':{'query':'autonomous_research','problem_types':['unit_fraction_cover','descent_cover','decide','explore'],
                  'scheduling':'doctrine score p=(1+S)/(2+S+F) over smoothed cost; order reversed on every fifth unseen task',
                  'invention':'checked derivation chains become macros; type-compatible operator pairs are proposed and promoted on success',
-                 'scope':'Offline and non-LLM; bounded grammars; an open problem stays UNKNOWN unless the checker settles it'},
+                 'scope':'Offline and non-LLM; bounded grammars; an open problem stays UNKNOWN unless the checker settles it',
+                 'library':'open_problems scans problems.json (problems stated in her language and a catalog of open problems she cannot state yet) and runs a round on the stated problem her own records rank first'},
         'source_episode_policies':['native_isolated','graph_isolated','fixed_bridge','gap_bridge'],
         'source_episode_formats':['pie-problem-v1','ember.recursive_claim.v1'],
         'source_episode_scope':'Bounded inert structured sources; original Nat/List questions, explicit source claims and checked same-definition proof transfer',

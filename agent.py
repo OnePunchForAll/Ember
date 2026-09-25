@@ -58,6 +58,8 @@ RETIRE_AFTER = 64
 PRIOR_PROBES = 8  # a strategy her library has seen fail in a context gets this many tries per level before retiring
 # Moves that prepare a whole level: tried once per workspace state rather than once per target.
 LEVEL_STEPS = ('egypt_classical_obstruction', 'egypt_classical_sweep', 'egypt_wall_sweep')
+MAX_ROUNDS = 32  # rounds remembered per problem: what each call obtained and cost, for her choice among problems
+EXHAUSTED = 'no untried move for any open target'
 
 
 def digest(value):
@@ -210,6 +212,10 @@ class Goal:
 
     def done(self, rt): return False
 
+    def outcome(self, rt):
+        """How checked results settled the problem ('proved', 'refuted' or 'found'), or None while it is open."""
+        return None
+
     def settled(self, rt, target):
         """The checked claim that rules out the goal's remaining strategies on an open target, or None."""
         return None
@@ -241,6 +247,19 @@ class CoverGoal(Goal):
     capped = ('eclass', 'en')
     limit_kinds = ('nofamily', 'obstruction')
 
+    def outcome(self, rt):
+        """'proved' once a checked theorem leaves no residue open from the problem's least n: every n >= min is then
+        represented, below the checked range's end by the range and above it by a family. Covers never refute."""
+        self.update(rt)
+        for o in self.theorems:
+            d = o['data']
+            if o['status'] == 'checked' and d['a'] == self.p['a'] and d['terms'] == self.p['terms'] \
+                    and d['lo'] <= self.p['min'] and o.get('evidence', {}).get('open_residues') == 0:
+                return 'proved'
+        return None
+
+    def done(self, rt): return self.outcome(rt) is not None
+
     def __init__(self, p, L):
         self.p, self.L = p, L
         self.levels = [p['modulus']]
@@ -249,7 +268,7 @@ class CoverGoal(Goal):
         self.fam = {}; self.residual = set(); self.base_miss = set(); self.misses = {}; self.refined = set(); self.seen = 0
         self.classes = []; self.classical_miss = set(); self._ready = None; self._powers = {}; self._contexts = {}
         # Incremental indexes: the step loop reads these instead of rescanning the workspace.
-        self.results = []; self.covers_at = {}; self._open = {}; self.fam_count = 0
+        self.results = []; self.covers_at = {}; self._open = {}; self.fam_count = 0; self.theorems = []
         self.fam = {}; self.fam_log = []; self._fam_known = set(); self.lemmas = []
         # Walls by modulus, lemma attempts and refutations: what a level already knows about its classes.
         self.walled = {}; self._wall_pending = []; self.lemma_tried = set(); self.lemma_refuted = set(); self._prep = None
@@ -293,6 +312,7 @@ class CoverGoal(Goal):
                 for parent in o['parents']: self.refined.add(parent)
             if o['kind'] == 'template' or o['kind'] in ('finite', 'cover', 'pattern', 'density', 'theorem', 'obstruction'):
                 self.results.append(o)
+                if o['kind'] == 'theorem': self.theorems.append(o)
                 if o['kind'] == 'obstruction': self.lemmas.append(o); self.lemma_tried.add(o['data']['m'])
             if o['kind'] == 'nofamily' and o['data'].get('a') == self.p['a']: self._wall_pending.append(o)
             if o['kind'] == 'refutation' and o['data']['claim']['kind'] == 'obstruction': self._wall_pending.append(o)
@@ -928,6 +948,22 @@ class DescentGoal(Goal):
     def capped_key(self, rt, target, retired_in):
         return (len(self.retired),)
 
+    def outcome(self, rt):
+        """'refuted' by a checked cycle avoiding 1: its least member m >= 2 never falls below m. 'proved' by a checked
+        descent cover reaching every class of its modulus together with a checked range from 2 to the cover's bound:
+        every n >= 2 then falls below itself, below the bound by the range and from it by the cover."""
+        self.update(rt)
+        mine = [o for o in self.others if o['data']['map'] == self.p['map']]
+        if any(o['kind'] == 'cycle' for o in mine): return 'refuted'
+        reach = max([o['data']['hi'] for o in mine if o['kind'] == 'cfinite' and o['data']['lo'] <= 2], default=0)
+        for o in mine:
+            if o['kind'] == 'dcover' and o.get('evidence', {}).get('covered') == o['data']['modulus'] \
+                    and reach >= o['data']['bound']:
+                return 'proved'
+        return None
+
+    def done(self, rt): return self.outcome(rt) is not None
+
     def progress(self, rt):
         self.descents(rt)
         return len(self.desc_log), tuple(sorted(o['kind'] for o in self.others))
@@ -1007,6 +1043,8 @@ class DecideGoal(Goal):
 
     def done(self, rt): return self.claim['status'] in ('checked', 'refuted')
 
+    def outcome(self, rt): return dict(checked='proved', refuted='refuted').get(self.claim['status'])
+
     def progress(self, rt): return self.claim['status']
 
     def summary(self, rt): return dict(claim_status=self.claim['status'], claim_kind=self.claim['kind'])
@@ -1031,6 +1069,8 @@ class ExploreGoal(Goal):
         return [r for r in self.roots if not set(self.p['goals']) <= self.found(rt, r)]
 
     def done(self, rt): return not self.targets(rt)
+
+    def outcome(self, rt): return 'found' if self.done(rt) else None
 
     def progress(self, rt): return tuple(tuple(sorted(self.found(rt, r))) for r in self.roots)
 
@@ -1490,7 +1530,7 @@ def run(task, state_path, limit, host):
     library, retained = load_library(state)
     samples, macros, tried, unseen, replayed, invalid = retained + list(reports), [], set(), 0, 0, 0
     carried = (0, 0)
-    agent = None
+    agent = None; baseline = 0; status = 'UNKNOWN'; reason = 'move allowance used'
     try:
         if old is not None:
             if old.get('generation') == gen:
@@ -1511,19 +1551,26 @@ def run(task, state_path, limit, host):
             rows = [o for rec in state['observations'] if rec.get('kind') == 'autonomous_research'
                     for o in rec.get('objects', []) if type(o) is dict and type(o.get('data')) is dict]
             carried = goal.transfer(rt, rows)
+        # Checked results replayed or carried over are not this round's; what the round adds is counted from here.
+        baseline = sum(1 for o in rt.objects.values() if o['status'] == 'checked')
         agent = Agent(host, L, checker, registry, goal, rt, per, samples[-MAX_SAMPLES:], macros, tried, unseen)
         agent.priors = experience_priors(goal, library, state, problem)
-        status = 'UNKNOWN'; reason = 'move allowance used'
         for _ in range(moves):
             if goal.done(rt): break
             remaining = limit - budget.work
             if remaining <= 0: reason = 'work budget exhausted'; break
             row = agent.step(max(1, min(per, remaining // 2)), remaining)
-            if row is None: reason = 'no untried move for any open target'; break
+            if row is None: reason = EXHAUSTED; break
     except host.Exhausted as exc:
         reason = str(exc)
-    if goal.done(rt): status, reason = 'CHECKED_RESEARCH', 'goal settled by checked results'
-    record = dict(task_id=identity, kind='autonomous_research', generation=gen, problem=problem,
+    settled = None
+    if goal.done(rt): status, reason, settled = 'CHECKED_RESEARCH', 'goal settled by checked results', goal.outcome(rt)
+    gained = max(0, sum(1 for o in rt.objects.values() if o['status'] == 'checked') - baseline) if agent else 0
+    rounds = [r for r in (old or {}).get('rounds', []) if type(r) is dict][-(MAX_ROUNDS - 1):]
+    rounds.append(dict(generation=gen[:16], status=status, reason=reason, settled=settled, new_checked=gained,
+                       moves=agent.moves if agent else 0, seconds=round((time.perf_counter_ns() - started) / 1e9, 3)))
+    record = dict(task_id=identity, kind='autonomous_research', generation=gen, problem=problem, status=status,
+                  reason=reason, settled=settled, rounds=rounds,
                   objects=[compact(o) for o in goal.persisted(rt)], macros=agent.macros if agent else macros,
                   samples=[s for s in (agent.samples if agent else samples) if s.get('source') == 'local'],
                   tried=sorted(agent.tried if agent else tried)[-MAX_TRIED:], unseen=agent.unseen if agent else unseen,
@@ -1545,8 +1592,8 @@ def run(task, state_path, limit, host):
                                 key=lambda s: -doctrine_score(agent.samples, c, s))
             ranking.append(dict(context=c, order=[dict(strategy=s, score=round(doctrine_score(agent.samples, c, s), 3))
                                                   for s in strategies[:6]]))
-    return dict(status=status, reason=reason, task_id=identity, problem=problem, generation=gen,
-                moves_executed=agent.moves if agent else 0, work=budget.work,
+    return dict(status=status, reason=reason, settled=settled, task_id=identity, problem=problem, generation=gen,
+                new_checked=gained, rounds=len(rounds), moves_executed=agent.moves if agent else 0, work=budget.work,
                 elapsed_ns=time.perf_counter_ns() - started, replayed_objects=replayed, invalidated_objects=invalid,
                 dropped_objects=dropped, carried_objects=dict(admitted=carried[0], refused=carried[1]),
                 carried_later=goal.carry_report(),
@@ -1565,6 +1612,112 @@ def run(task, state_path, limit, host):
                 strategy_library=dict(entries=len(entries), reports_loaded=len(retained)),
                 limits='Operators search bounded grammars; the checker admits every reported claim in its stated scope. '
                        'UNKNOWN leaves the problem open. Scores order moves and are not beliefs.')
+
+
+# ------------------------------------------------------------- the open-problem library
+
+PROBLEMS = 'problems.json'
+PROBLEMS_SCHEMA = 'ember.problems.v1'
+UNTRIED = 'not attempted yet'
+CHOICE_RULE = ('an untried problem scores p = 1/2 over m = 0.01; a tried one, the doctrine score over her own rounds on '
+               'it (a round with new checked results is a success, its seconds its cost); ties go to open problems, then '
+               'to the problem type her strategy library has the most successes with, then to the id')
+
+
+def load_problems(host, L):
+    """The packaged problem library: problems stated as tasks in her language, and a catalog of open problems she cannot
+    state yet, each naming what her language lacks. Only ids, statuses and tasks steer her choice; the prose is for
+    people and may be wrong without changing what she does."""
+    data = host.load_json(Path(__file__).resolve().parent / PROBLEMS)
+    if type(data) is not dict or data.get('schema') != PROBLEMS_SCHEMA: raise host.Refused('problem library schema')
+    problems, catalog, needs = data.get('problems'), data.get('catalog'), data.get('needs')
+    if type(problems) is not list or type(catalog) is not list or type(needs) is not dict:
+        raise host.Refused('problem library shape')
+    seen = set()
+    for e in problems + catalog:
+        if type(e) is not dict or type(e.get('id')) is not str or not e['id'] or e['id'] in seen:
+            raise host.Refused('problem library ids')
+        seen.add(e['id'])
+    for e in problems:
+        if e.get('status') not in ('open', 'closed'): raise host.Refused('problem status of ' + e['id'])
+        try:
+            bind(dict(query='autonomous_research', problem=e.get('task')), host, L)
+        except host.Refused as exc:
+            raise host.Refused('library task ' + e['id'] + ': ' + str(exc))
+    for e in catalog:
+        if type(e.get('needs')) is not list or not e['needs'] or not all(n in needs for n in e['needs']):
+            raise host.Refused('catalog needs of ' + e['id'])
+    return problems, catalog, needs
+
+
+def choose(problems, state, gen):
+    """Her ranking of the stated problems, read from her own records only. A problem settled at this generation, or
+    left with no untried move, waits for new instruments. The rest are ranked by CHOICE_RULE: every problem gets a first
+    round, and after that the ones where her rounds keep producing checked results cheaply come first. A scheduling
+    policy over her experience, not a belief about which problem is easier or which answer is true."""
+    records = {rec['task_id']: rec for rec in state['observations'] if rec.get('kind') == 'autonomous_research'}
+    affinity = {}
+    for e in load_library(state)[0]:
+        kind = e['context'].split(':')[0]; affinity[kind] = affinity.get(kind, 0) + e['successes']
+    rows = []
+    for e in problems:
+        rec = records.get(digest(dict(query='autonomous_research', problem=e['task'])))
+        rounds = [r for r in (rec or {}).get('rounds', []) if type(r) is dict]
+        samples = [dict(context='problem', strategy=e['id'], task=str(i), success=bool(r.get('new_checked')), weight=1,
+                        seconds=r['seconds'] if type(r.get('seconds')) in (int, float) and r['seconds'] >= 0 else 0.0)
+                   for i, r in enumerate(rounds)]
+        score = doctrine_score(samples, 'problem', e['id'])
+        here = [r for r in rounds if r.get('generation') == gen[:16]]
+        last = here[-1] if here else {}
+        if last.get('status') == 'CHECKED_RESEARCH':
+            eligible, why = False, 'settled at this generation (' + str(last.get('settled')) + ')'
+        elif last.get('reason') == EXHAUSTED:
+            eligible, why = False, 'no untried move left at this generation; waits for new instruments'
+        elif not rounds:
+            eligible, why = True, UNTRIED if rec is None else 'attempted before rounds were recorded'
+        else:
+            eligible, why = True, (str(sum(1 for x in samples if x['success'])) + ' of ' + str(len(rounds)) +
+                                   ' rounds with new checked results, ' + str(round(sum(x['seconds'] for x in samples))) +
+                                   ' s in all')
+        rows.append(dict(id=e['id'], status=e['status'], type=e['task']['type'], eligible=eligible, why=why,
+                         score=round(score, 6), rounds=len(rounds),
+                         order=(not eligible, -score, e['status'] != 'open', -affinity.get(e['task']['type'], 0), e['id'])))
+    rows.sort(key=lambda r: r['order'])
+    for r in rows: del r['order']
+    return rows
+
+
+def scan(task, state_path, limit, host):
+    """Scan the problem library, choose one stated problem by her own records, and run a round on it."""
+    L = host.local_module('lexicon')
+    if type(task) is not dict or task.get('query') != 'open_problems' or set(task) - {'query', 'moves', 'move_work', 'run'}:
+        raise host.Refused('open problem scan fields')
+    moves = task.get('moves', 200); per = task.get('move_work', 2_000_000); go = task.get('run', True)
+    if type(moves) is not int or not 1 <= moves <= 200_000: raise host.Refused('moves per call 1..200000')
+    if type(per) is not int or not 1 <= per <= 100_000_000: raise host.Refused('move work bound')
+    if type(go) is not bool: raise host.Refused('run is true or false')
+    problems, catalog, needs = load_problems(host, L)
+    gen = generation(); ranking = choose(problems, host.read_state(state_path), gen)
+    tally = {}
+    for e in catalog:
+        for n in e['needs']: tally.setdefault(n, []).append(e['id'])
+    report = dict(query='open_problems', rule=CHOICE_RULE, ranking=ranking,
+                  library=dict(stated=len(problems), open=sum(1 for e in problems if e['status'] == 'open'),
+                               closed=sum(1 for e in problems if e['status'] == 'closed'), catalog=len(catalog)),
+                  backlog=[dict(need=n, problems=len(ids), examples=ids[:4])
+                           for n, ids in sorted(tally.items(), key=lambda kv: (-len(kv[1]), kv[0]))])
+    pick = next((r for r in ranking if r['eligible']), None)
+    if pick is None:
+        return dict(report, status='UNKNOWN', generation=gen,
+                    reason='every stated problem is settled or has no untried move at this generation; the backlog '
+                           'names what her language lacks for the rest')
+    entry = next(e for e in problems if e['id'] == pick['id'])
+    report['choice'] = dict(id=entry['id'], title=entry.get('title'), status=entry['status'], why=pick['why'],
+                            score=pick['score'])
+    if not go: return dict(report, status='SCANNED', generation=gen, reason='choice made; the round was not run')
+    result = run(dict(query='autonomous_research', problem=entry['task'], moves=moves, move_work=per, name=entry['id']),
+                 state_path, limit, host)
+    return dict(result, **report)
 
 
 def result_row(o):

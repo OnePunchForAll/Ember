@@ -909,6 +909,7 @@ python -I -B -X utf8 ember.py examples/agent_choose_lift.json --state lift-insta
 python -I -B -X utf8 tools/verdict.py lift-instance.json
 python -I -B -X utf8 ember.py examples/agent_collatz.json --work 2000000000
 python -I -B -X utf8 ember.py examples/agent_erdos_straus.json --state es-instance.json --work 20000000000
+python -I -B -X utf8 ember.py examples/open_problems.json --state her-instance.json --work 5000000000
 ```
 
 `autonomous_research` states a problem in the typed language:
@@ -919,6 +920,14 @@ python -I -B -X utf8 ember.py examples/agent_erdos_straus.json --state es-instan
   checked polynomial families, refine what stays open, and verify a finite range;
 - `descent_cover`: certify T^j(n) < n class by class for a residue-class map
   such as 3n+1, refine what does not contract, verify a range and search cycles.
+
+A run settles its problem only through checked claims, and then returns
+`CHECKED_RESEARCH` with `settled`. A decide goal is proved or refuted by its
+claim. A cover goal is proved when a checked theorem leaves no residue open
+from the problem's least n. A descent goal is refuted by a checked cycle that
+avoids 1, since the cycle's least member never falls below itself, and proved
+by a descent cover that reaches every class of its modulus together with a
+checked range from 2 to the cover's bound. Every other run returns `UNKNOWN`.
 
 Each step the agent lists the open targets of its goal. It forms candidate moves
 from every operator whose signature accepts a target or an object derived from
@@ -1196,6 +1205,58 @@ identity written once, families named by class, threshold and identity) and
 a larger state, 8 MiB. Each is described, with the
 failure that prompted it, in `CAMPAIGNS.md`.
 
+## The open-problem library
+
+```text
+python -I -B -X utf8 ember.py examples/open_problems.json --state her-instance.json --work 5000000000
+```
+
+`problems.json` is her library. It has two tiers.
+
+- **Stated problems** (16). Each is a task in her language that she can run.
+  Eleven are open: the Erdős–Straus conjecture, Sierpiński's 5/n, Schinzel's
+  conjecture for a/n with a = 6, 7, 8, 9, 10, 11, 13 and 14, and the Collatz
+  conjecture (descent classes to 2^20). Five are closed and calibrate her:
+  the Collatz sieve to 2^18, whose counts are known; 3/n and the halving
+  map, which are true; and the 3n − 1 and 5n + 1 maps, which are false
+  because each has a cycle. A task states the part of its problem her
+  checker can decide, and each entry's `scope` says what a result means for
+  the problem. For the Schinzel instances the least n lies above every
+  exception an exhaustive search here found below 20,000.
+- **The catalog** (141 entries so far). These are open problems she cannot
+  state yet, from the Riemann hypothesis to the Hadamard conjecture. Each
+  entry names what her language lacks (`needs`, 30 kinds described in the
+  file). The catalog is her instrument backlog: every scan reports how many
+  catalog problems each missing kind would open. It is a start, not every
+  open problem.
+
+`open_problems` scans the library, chooses one stated problem and runs one
+round on it. Her choice reads only each stated problem's id, status and
+task, together with her own records in the instance state. Titles,
+statements, known results, sources and the catalog are for people, and a
+package check rewrites them to confirm they change nothing. The rule is the
+doctrine score over her own rounds on each problem: a round with new checked
+results is a success, and its seconds are its cost. An untried problem
+scores p = 1/2 over m = 0.01, so every problem gets a first round. After
+that, the problems where her rounds keep producing checked results cheaply
+come first. Ties go to open problems, then to the problem type her strategy
+library has the most successes with, then to the id.
+
+Every record keeps the rounds it took: generation, status, checked results
+gained, moves and seconds. A problem she settled, or left with no untried
+move, waits until her code changes, and a new fingerprint makes it eligible
+again. `"run": false` returns her ranking and her choice without running.
+When nothing is left, the scan returns `UNKNOWN` with the backlog. The
+library's statuses and prose are not evidence, and she never reads them.
+
+The library grows by editing `problems.json`. A stated problem needs a
+unique id, a status (`open` or `closed`) and a task that
+`autonomous_research` accepts. A catalog entry needs a unique id and at least
+one `needs` kind named in the file. The package checks refuse a library that
+breaks either rule. Editing the library does not change her fingerprint, so
+it does not make an exhausted problem eligible again. Only a change to her
+code does that.
+
 ## Task and result interface
 
 The CLI accepts a JSON task filename, optional `--state`, and optional `--work`.
@@ -1240,6 +1301,7 @@ bound does not impose a child-process disk quota.
 | `certify_minimal_recurrence` | Return a checked all-index recurrence with a nonzero Hankel determinant excluding every lower order. |
 | `certify_eventual_recurrence` | Return a reduced generating function with a Bezout coprimality certificate: the least order of a recurrence valid for all large indices, and where it starts. |
 | `autonomous_research` | Run the offline agent on a problem stated in the typed language: decide, explore, cover unit-fraction classes or certify descent; report only checked results. |
+| `open_problems` | Scan the problem library, choose a stated problem by her own records, and run one round on it; report her ranking and the instrument backlog. |
 
 Exit code `0` means the returned result is closed within its stated scope. Exit
 code `3` with `status: "UNKNOWN"` means the evidence did not settle the request

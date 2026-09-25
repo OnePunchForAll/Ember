@@ -43,6 +43,7 @@ EXAMPLES = ('discover_word_boundary.json', 'graph_count.json',
             'orbit_ranking.json', 'eventual_recurrence.json',
             'recursive_lift.json', 'premise_lift_source.json', 'premise_lift_receiving.json',
             'agent_erdos_straus.json', 'agent_unit_fraction_small.json', 'agent_collatz.json', 'agent_decide.json',
+            'open_problems.json',
             'agent_explore.json', 'agent_choose_lift.json')
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 PRIVATE_PATH = re.compile(rb'(?<![A-Za-z0-9_])[A-Za-z]:[\\/]|/(?:home|Users)/')
@@ -93,7 +94,7 @@ def collect(root):
     paths.update({'LICENSE': 'LICENSE', 'THIRD_PARTY_NOTICES.md': 'THIRD_PARTY_NOTICES.md',
                   'tools/build_public_package.py': 'tools/build_public_package.py',
                   'tools/helper_client.py': 'tools/helper_client.py', 'tools/verdict.py': 'tools/verdict.py',
-                  'CAMPAIGNS.md': 'CAMPAIGNS.md'})
+                  'CAMPAIGNS.md': 'CAMPAIGNS.md', 'problems.json': 'problems.json'})
     files = {name: (root / source).read_bytes() for name, source in paths.items()}
     readme = root / 'PUBLIC_README.md'
     files['README.md'] = (readme if readme.is_file() else root / 'README.md').read_bytes()
@@ -1732,6 +1733,77 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('prime_choice_counts_lifts_exactly', sieve_result.get('lift') is True)
         check('compact_cover_equals_written_cover_and_refuses_a_forged_identity', sieve_result.get('compact') is True)
         check('family_batch_round_trip_and_independent_verdict', sieve_result.get('batch') is True)
+        # The problem library: her choice reads only ids, statuses and tasks; settled and exhausted problems wait for a
+        # new generation; a scan runs her choice and records the round; closed calibrations settle both ways.
+        library_code = r"""import json, pathlib, runpy, types
+root = pathlib.Path.cwd()
+ember = runpy.run_path(str(root / 'ember.py'))
+L = ember['local_module']('lexicon'); A = ember['local_module']('agent')
+host = types.SimpleNamespace(Refused=ember['Refused'], load_json=ember['load_json'])
+problems, catalog, needs = A.load_problems(host, L)
+gen = A.generation(); ident = lambda e: A.digest(dict(query='autonomous_research', problem=e['task']))
+tags = {n for c in catalog for n in c['needs']}
+shape = (len(problems) >= 10 and {e['status'] for e in problems} == {'open', 'closed'} and len(catalog) >= 100
+         and tags <= set(needs) and len({e['id'] for e in problems + catalog}) == len(problems) + len(catalog))
+# Prose never steers her: rewriting every field but id, status and task leaves her ranking unchanged.
+rewrite = lambda e: dict({k: (v if k in ('id', 'status', 'task') else 'rewritten') for k, v in e.items()}, extra='noise')
+fresh = dict(observations=[])
+first = A.choose(problems, fresh, gen)
+prose = first == A.choose([rewrite(e) for e in problems], fresh, gen)
+opened = sorted(e['id'] for e in problems if e['status'] == 'open')
+fresh_order = [r['id'] for r in first][:len(opened)] == opened and all(r['eligible'] and r['score'] == 50.0 for r in first)
+# Settled or exhausted at this generation waits; a new generation, or a round cut short, keeps a problem eligible.
+def record(e, reason, status='UNKNOWN', generation=gen[:16]):
+    return dict(task_id=ident(e), kind='autonomous_research', problem=e['task'], objects=[],
+                rounds=[dict(generation=generation, status=status, reason=reason, settled=None, new_checked=3, moves=10,
+                             seconds=2.0)])
+by = {e['id']: e for e in problems}
+a, b, c, d = opened[:4]
+state = dict(observations=[record(by[a], A.EXHAUSTED), record(by[b], 'goal settled by checked results', 'CHECKED_RESEARCH'),
+                           record(by[c], 'move allowance used'), record(by[d], A.EXHAUSTED, generation='0' * 16)])
+rows = {r['id']: r for r in A.choose(problems, state, gen)}
+waits = (not rows[a]['eligible'] and not rows[b]['eligible'] and rows[c]['eligible'] and rows[d]['eligible']
+         and rows[c]['score'] < 50 and rows[d]['score'] < 50)
+# A state where only the halving calibration is left: the scan must run it, and afterwards report the backlog.
+rest = [record(e, A.EXHAUSTED) for e in problems if e['id'] != 'halving-map']
+(root / 'scan-state.json').write_text(json.dumps(dict(version=ember['VERSION'], observations=rest)))
+(root / 'scan.json').write_text(json.dumps(dict(query='open_problems', moves=500)))
+(root / 'scan-dry.json').write_text(json.dumps(dict(query='open_problems', run=False)))
+for e in problems:
+    if e['id'] in ('three-over-n', 'halving-map', 'map-3n-minus-1', 'map-5n-plus-1'):
+        (root / ('calibration-' + e['id'] + '.json')).write_text(
+            json.dumps(dict(query='autonomous_research', problem=e['task'], moves=2000)))
+print(json.dumps(dict(shape=shape, prose=prose, fresh=fresh_order, waits=waits, first=first[0]['id'],
+                      tags={n: sum(n in c['needs'] for c in catalog) for n in tags})))
+"""
+        began = time.perf_counter_ns()
+        library_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', library_code], cwd=root, capture_output=True,
+                                     text=True, encoding='utf-8', timeout=120,
+                                     creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'problem_library_standalone', 'returncode': library_run.returncode,
+                                   'elapsed_ns': time.perf_counter_ns() - began, 'stderr': library_run.stderr})
+        library = json.loads(library_run.stdout) if library_run.returncode == 0 else {}
+        check('library_tasks_bind_and_catalog_needs_are_named', library.get('shape') is True)
+        check('library_choice_reads_only_ids_statuses_and_tasks', library.get('prose') is True)
+        check('library_fresh_state_tries_every_open_problem_first', library.get('fresh') is True)
+        check('library_waits_on_settled_and_exhausted_until_a_new_generation', library.get('waits') is True)
+        dry = cli('library_scan_dry_run', 'scan-dry.json', ['--state', 'scan-fresh.json'])
+        check('library_scan_names_her_choice_without_running', dry['status'] == 'SCANNED'
+              and dry['choice']['id'] == library.get('first') and not (root / 'scan-fresh.json').exists()
+              and {row['need']: row['problems'] for row in dry['backlog']} == library.get('tags'))
+        ran = cli('library_scan_runs_her_choice', 'scan.json', ['--state', 'scan-state.json'])
+        after = json.loads((root / 'scan-state.json').read_text())
+        halving = next(o for o in after['observations'] if o.get('problem', {}).get('map', {}).get('a') == [1, 1])
+        check('library_scan_runs_her_choice_and_records_the_round', ran['status'] == 'CHECKED_RESEARCH'
+              and ran['settled'] == 'proved' and ran['choice']['id'] == 'halving-map'
+              and halving['rounds'][-1]['settled'] == 'proved' and halving['rounds'][-1]['new_checked'] > 0)
+        empty = cli('library_scan_reports_backlog', 'scan.json', ['--state', 'scan-state.json'], expected_code=3)
+        check('library_scan_reports_backlog_when_nothing_is_left', empty['status'] == 'UNKNOWN' and 'choice' not in empty
+              and bool(empty['backlog']) and all(not row['eligible'] for row in empty['ranking']))
+        calibrations = [cli('calibration_' + name, 'calibration-' + name + '.json') for name in
+                        ('three-over-n', 'halving-map', 'map-3n-minus-1', 'map-5n-plus-1')]
+        check('agent_settles_closed_calibrations', [(r['status'], r['settled']) for r in calibrations]
+              == [('CHECKED_RESEARCH', 'proved')] * 2 + [('CHECKED_RESEARCH', 'refuted')] * 2)
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',
