@@ -1334,13 +1334,18 @@ below 1.18 (with its reflection). What a window shows is exactly its scope: a
 finite range, a box, one construction. It settles nothing about its problem.
 
 `tools/verdict.py` now also judges window claims with `tools/verdict_windows.py`,
-which shares no code with her producers or checkers. It recomputes 49 value
-families and rechecks 35 witness and 2 proof families with its own code (86 of
-the 115 family names). For the other 29 it answers UNRESOLVED and names the
-family: the interval-arithmetic families (zeta, constants, Littlewood, Mandelbrot,
-Kashaev), class numbers, Galois groups, Mahler measures, coset enumeration and a
-few others. So a window verdict's one bit is "verified" only when every family
-it holds has a rule.
+which shares no code with her producers or checkers. It recomputes 59 value
+families and rechecks 37 witness and 2 proof families with its own code (98 of
+the 115 family names), among them its own Todd-Coxeter enumeration, its own
+class numbers of real quadratic fields (reduced-form cycles, with the unit's norm
+from a continued fraction period), exact Laplacian inertia by congruence with
+symmetric pivoting, and its own digits of pi. For the other 17 it answers
+UNRESOLVED and names the family: the interval-arithmetic families (zeta,
+constants, Littlewood, Mandelbrot, Kashaev, divisor errors), Galois groups,
+Mahler measures, Jones polynomials and pebbling numbers. So a window verdict's
+one bit is "verified" only when every family it holds has a rule. On the 125
+windows it verified 137 claims, refuted none and left 21 unresolved, so its bit
+is "verified" for 110 windows.
 Building the tools found four defects that her checks then caught or that the
 package now tests: the N+1 test for k·2^n − 1 was wrong (it would have refused
 every true prime above the Miller-Rabin range); the RUP checker missed unit

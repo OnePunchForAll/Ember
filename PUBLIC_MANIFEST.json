@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 63679,
+      "bytes": 64483,
       "path": "CAMPAIGNS.md",
-      "sha256": "70e14558a4723ee480255295a9c0e9d540bca64caf2fb69705a3fca7b77dbb0f"
+      "sha256": "fa94934f16c55279ab682288bd06973e3e6eaf5a5c720dab5fdb330f7dfb201d"
     },
     {
       "bytes": 10538,
@@ -16,9 +16,9 @@
       "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
     },
     {
-      "bytes": 96730,
+      "bytes": 97116,
       "path": "README.md",
-      "sha256": "97c75b4d9033ef73ab4b7c53ecdcd4259e2bba6aa4588fa0e66c6d10aecbab1e"
+      "sha256": "92238dc237f23da45b1dfe9f4a43723307688df7bc12aca31cc3bae61f117711"
     },
     {
       "bytes": 1633,
@@ -466,9 +466,9 @@
       "sha256": "05c74d86918815187557a3be228bf4df552214e9e3e37ad0e17b740c44826793"
     },
     {
-      "bytes": 62977,
+      "bytes": 79089,
       "path": "tools/verdict_windows.py",
-      "sha256": "f1af3b9729451e95aaee825b92a153a3a4fabc95259ec1e2d478438010f5e709"
+      "sha256": "cfa78858c4b94da0710bb94a896a019598f92a0c4176bc85c5ba3671546b9cfc"
     },
     {
       "bytes": 56896,

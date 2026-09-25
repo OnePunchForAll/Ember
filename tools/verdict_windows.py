@@ -803,6 +803,337 @@ def v_balanced_pair(p):
     return [worst.numerator, worst.denominator]
 
 
+def chromatic(n, E):
+    adj = [set() for _ in range(n)]
+    for e in E: a, b = tuple(e); adj[a].add(b); adj[b].add(a)
+    order = sorted(range(n), key=lambda v: -len(adj[v]))
+    def colorable(k):
+        col = {}
+        def go(i):
+            if i == n: return True
+            v = order[i]; used = {col[u] for u in adj[v] if u in col}
+            for c in range(min(k, max(col.values(), default=-1) + 2)):
+                if c not in used:
+                    col[v] = c
+                    if go(i + 1): return True
+                    del col[v]
+            return False
+        return go(0)
+    return next(k for k in range(1, n + 1) if colorable(k)) if n else 0
+
+
+def v_chromatic(p):
+    n, E = graph_spec(p['graph']); return chromatic(n, E)
+
+
+def pmul(a, b):
+    out = [F(0)] * (len(a) + len(b) - 1)
+    for i, x in enumerate(a):
+        for j, y in enumerate(b): out[i + j] += x * y
+    return out
+
+
+def pgcd_degree(a, b):
+    a = [F(x) for x in a]; b = [F(x) for x in b]
+    while b and b[-1] == 0: b.pop()
+    while b:
+        r = list(a)
+        while len(r) >= len(b):
+            c = r[-1] / b[-1]; shift = len(r) - len(b)
+            for i, x in enumerate(b): r[shift + i] -= c * x
+            r.pop()
+            while r and r[-1] == 0: r.pop()
+        a, b = b, r
+    return len(a) - 1
+
+
+def v_casas_alvero(p):
+    d, H = p['degree'], p['h_max']; out = []
+    for cs in product(range(-H, H + 1), repeat=d):
+        f = list(cs) + [1]; g = f; shares = True
+        for _ in range(1, d):
+            g = [i * c for i, c in enumerate(g)][1:]
+            if pgcd_degree(f, g) < 1: shares = False; break
+        if not shares: continue
+        a = F(-f[d - 1], d); power = [F(1)]
+        for _ in range(d): power = pmul(power, [-a, F(1)])
+        if power != [F(c) for c in f]: out.append(f)
+    return out
+
+
+def squarefree(n): return all(e == 1 for e in factorize(n).values()) if n > 1 else n == 1
+
+
+def core(n):
+    out = 1
+    for q, e in factorize(n).items():
+        if e % 2: out *= q
+    return out
+
+
+def v_congruent(p):
+    N, S = p['n_max'], p['search']
+    def reps(target, a, b, c):
+        count = 0; X = isqrt(target // a)
+        for x in range(-X, X + 1):
+            r = target - a * x * x; Y = isqrt(r // b)
+            for y in range(-Y, Y + 1):
+                t = r - b * y * y
+                if t % c == 0 and isqrt(t // c) ** 2 == t // c: count += 1 if t == 0 else 2
+        return count
+    cores = {}
+    for m in range(2, S + 1):
+        for k in range(1, m):
+            if (m - k) % 2 and gcd(m, k) == 1:
+                cores.setdefault(core(m * k * (m - k) * (m + k)), []).append([m, k])
+    out = dict(not_congruent=[], triangle={}, tunnell_equal_only=[])
+    for n in range(1, N + 1):
+        if not squarefree(n): continue
+        A, B = (reps(n, 2, 1, 8), reps(n, 2, 1, 32)) if n % 2 else (reps(n // 2, 4, 1, 8), reps(n // 2, 4, 1, 32))
+        if A != 2 * B: out['not_congruent'].append(n)
+        elif n in cores: out['triangle'][str(n)] = cores[n]
+        else: out['tunnell_equal_only'].append(n)
+    return out
+
+
+def check_congruent(p, claimed):
+    """The value names one pair (m, k) per triangle; any pair of hers from the full list verifies it."""
+    got = v_congruent(p)
+    if got['not_congruent'] != claimed['not_congruent'] or got['tunnell_equal_only'] != claimed['tunnell_equal_only']:
+        return False
+    return set(got['triangle']) == set(claimed['triangle']) and all(
+        claimed['triangle'][n] in got['triangle'][n] for n in got['triangle'])
+
+
+def real_class_number(d):
+    """h(Q(sqrt d)): the number of cycles of reduced forms of discriminant D under the reduction operator (the narrow
+    class number), halved when the fundamental unit has norm +1 (an even continued fraction period)."""
+    D = d if d % 4 == 1 else 4 * d; r = isqrt(D)
+    forms = set()
+    for b in range(1, r + 1):
+        if (b - D) % 2: continue
+        prod_ = (D - b * b) // 4  # = -a c > 0
+        for a in range(1, prod_ + 1):
+            if prod_ % a: continue
+            # reduced: sqrt D - b < 2|a| < sqrt D + b
+            lo_ok = 2 * a + b > r  # 2|a| > sqrt D - b
+            hi_ok = 2 * a - b < 0 or (2 * a - b) ** 2 < D  # 2|a| < sqrt D + b
+            if lo_ok and hi_ok:
+                c = prod_ // a
+                forms.add((a, b, -c)); forms.add((-a, b, c))
+    def rho(f):
+        a, b, c = f; m = 2 * abs(c)
+        bb = (-b) % m
+        # the b' = -b (mod 2|c|) with sqrt D - 2|c| < b' < sqrt D
+        bb += m * ((r - bb) // m)
+        if bb > r: bb -= m
+        return (c, bb, (bb * bb - D) // (4 * c))
+    seen = set(); cycles = 0
+    for f in sorted(forms):
+        if f in seen: continue
+        cycles += 1; g = f
+        while g not in seen:
+            seen.add(g); g = rho(g)
+            if g not in forms: raise ValueError('reduction left the reduced forms at d = ' + str(d))
+    # the norm of the fundamental unit: the parity of the continued fraction period of omega
+    if d % 4 == 1: P, Q_, = 1, 2  # omega = (1 + sqrt d) / 2 = (P + sqrt d) / Q
+    else: P, Q_ = 0, 1
+    # expansion of (P + sqrt d)/Q with the reduced-period detection on (P, Q) pairs
+    if (d - P * P) % Q_: d2, P, Q_ = d * Q_ * Q_, P * Q_, Q_ * Q_
+    else: d2 = d
+    seen_pq = {}; step = 0; s = isqrt(d2)
+    while (P, Q_) not in seen_pq:
+        seen_pq[(P, Q_)] = step
+        a = (P + s) // Q_; P = a * Q_ - P; Q_ = (d2 - P * P) // Q_; step += 1
+    period = step - seen_pq[(P, Q_)]
+    return cycles if period % 2 else cycles // 2
+
+
+def v_class_numbers(p):
+    hist = {}
+    for d in range(2, p['d_max'] + 1):
+        if not squarefree(d): continue
+        h = real_class_number(d); hist[h] = hist.get(h, 0) + 1
+    return {str(h): c for h, c in sorted(hist.items())}
+
+
+def v_erdos_hajnal(p):
+    Hn, HE = graph_spec(p['H']); n = p['n']; pairs = list(combinations(range(n), 2))
+    Hdeg = sorted(sum(v in e for e in HE) for v in range(Hn)); Hm = len(HE)
+    def iso_to_H(S, E):
+        # small H: compare by trying every bijection
+        sub = {frozenset((a, b)) for a, b in combinations(S, 2) if frozenset((a, b)) in E}
+        if len(sub) != Hm: return False
+        return any(all((frozenset((S[i], S[j])) in sub) == (frozenset((i, j)) in HE) for i, j in combinations(range(Hn), 2))
+                   for S in permutations(S))
+    best = None; count = 0
+    for mask in range(1 << len(pairs)):
+        E = {frozenset(pairs[i]) for i in range(len(pairs)) if mask >> i & 1}
+        if any(iso_to_H(list(S), E) for S in combinations(range(n), Hn)): continue
+        count += 1
+        clique = max(len(S) for r in range(1, n + 1) for S in combinations(range(n), r)
+                     if all(frozenset(e) in E for e in combinations(S, 2)))
+        indep = max(len(S) for r in range(1, n + 1) for S in combinations(range(n), r)
+                    if all(frozenset(e) not in E for e in combinations(S, 2)))
+        m = max(clique, indep); best = m if best is None or m < best else best
+    return dict(graphs=count, least_max_clique_or_independent=best)
+
+
+def coset_order(k, rels, limit):
+    """Todd-Coxeter coset enumeration (the HLT strategy with coincidence handling) of the trivial subgroup."""
+    letters = [g for i in range(1, k + 1) for g in (i, -i)]
+    table = [dict()]; rep_ = [0]
+    def find(c):
+        while rep_[c] != c: rep_[c] = rep_[rep_[c]]; c = rep_[c]
+        return c
+    def define(c, x):
+        if len(table) >= limit: raise OverflowError('coset limit')
+        d = len(table); table.append(dict()); rep_.append(d); table[c][x] = d; table[d][-x] = c
+    def coincidence(a, b):
+        queue = []
+        def merge(u, v):
+            u, v = find(u), find(v)
+            if u == v: return
+            if u > v: u, v = v, u
+            rep_[v] = u; queue.append(v)
+        merge(a, b); i = 0
+        while i < len(queue):
+            e = queue[i]; i += 1
+            for x, f in list(table[e].items()):
+                table[f].pop(-x, None)
+                e1, f1 = find(e), find(f)
+                if x in table[e1]: merge(f1, table[e1][x])
+                elif -x in table[f1]: merge(e1, table[f1][-x])
+                else: table[e1][x] = f1; table[f1][-x] = e1
+            table[e] = {}
+    def scan_fill(c, w):
+        f = b = c; i, j = 0, len(w) - 1
+        while True:
+            while i <= j and w[i] in table[f]: f = table[f][w[i]]; i += 1
+            if i > j:
+                if f != b: coincidence(f, b)
+                return
+            while j >= i and -w[j] in table[b]: b = table[b][-w[j]]; j -= 1
+            if j < i: coincidence(f, b); return
+            if i == j: table[f][w[i]] = b; table[b][-w[i]] = f; return
+            define(f, w[i])
+    c = 0
+    while c < len(table):
+        if find(c) == c:
+            for w in rels:
+                scan_fill(c, w)
+                if find(c) != c: break
+            if find(c) == c:
+                for x in letters:
+                    if x not in table[c]: define(c, x)
+        c += 1
+    return sum(1 for c in range(len(table)) if find(c) == c)
+
+
+def v_coset_order(p):
+    try: return coset_order(p['ngens'], [list(r) for r in p['relators']], p['limit'])
+    except OverflowError: return None
+
+
+def v_packing(p):
+    B = p['basis']; R = p['box']; d = len(B); best = None
+    for c in product(range(-R, R + 1), repeat=d):
+        if any(c):
+            v = [sum(c[i] * B[i][j] for i in range(d)) for j in range(d)]; n2 = sum(x * x for x in v)
+            best = n2 if best is None or n2 < best else best
+    # the determinant by cofactor expansion (d <= 8)
+    def det(M):
+        if len(M) == 1: return M[0][0]
+        return sum((-1) ** j * M[0][j] * det([r[:j] + r[j + 1:] for r in M[1:]]) for j in range(len(M)) if M[0][j])
+    return dict(min_norm2=best, det=abs(det(B)))
+
+
+def inertia_negative(S):
+    """The number of negative eigenvalues of a rational symmetric matrix, by congruence with symmetric pivoting: a
+    nonzero diagonal pivot, or a 2 x 2 block [[0, b], [b, c]] (b != 0) that holds one eigenvalue of each sign."""
+    M = [[F(x) for x in r] for r in S]; neg = 0
+    while M:
+        n = len(M)
+        k = next((i for i in range(n) if M[i][i] != 0), None)
+        if k is not None:
+            piv = M[k][k]; neg += piv < 0
+            rest = [i for i in range(n) if i != k]
+            M = [[M[i][j] - M[i][k] * M[k][j] / piv for j in rest] for i in rest]
+            continue
+        pair = next(((i, j) for i in range(n) for j in range(i + 1, n) if M[i][j] != 0), None)
+        if pair is None: break  # the rest is zero: zero eigenvalues
+        i, j = pair; neg += 1
+        # eliminate rows and columns i and j with the 2 x 2 block's inverse
+        a, b, c = M[i][i], M[i][j], M[j][j]; det = a * c - b * b
+        inv = [[c / det, -b / det], [-b / det, a / det]]
+        rest = [r for r in range(n) if r not in (i, j)]
+        M = [[M[r][t] - sum(M[r][u] * inv[x][y] * M[w][t] for x, u in enumerate((i, j)) for y, w in enumerate((i, j)))
+              for t in rest] for r in rest]
+    return neg
+
+
+def v_eigen_counts(p):
+    cells = [tuple(c) for c in p['cells']]; index = {c: i for i, c in enumerate(cells)}; n = len(cells)
+    L = [[0] * n for _ in range(n)]
+    for (x, y), i in index.items():
+        for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if nb in index: L[i][index[nb]] = -1; L[i][i] += 1
+    return [inertia_negative([[L[i][j] - (rat(t) if i == j else 0) for j in range(n)] for i in range(n)])
+            for t in p['thresholds']]
+
+
+def check_eigen_counts(p, claimed):
+    """A null in the claim abstains (the producer's elimination met a zero pivot); every number must be exact."""
+    got = v_eigen_counts(p)
+    return len(got) == len(claimed) and all(c is None or c == g for c, g in zip(claimed, got))
+
+
+def canonical_code(n, E):
+    """The least edge bit string over the relabelings that respect a refined vertex invariant."""
+    adj = [set() for _ in range(n)]
+    for e in E: a, b = tuple(e); adj[a].add(b); adj[b].add(a)
+    inv = [(len(adj[v]), tuple(sorted(len(adj[u]) for u in adj[v]))) for v in range(n)]
+    classes = [sorted(v for v in range(n) if inv[v] == key) for key in sorted(set(inv))]
+    pairs = list(combinations(range(n), 2)); best = None
+    for parts in product(*[permutations(c) for c in classes]):
+        order = [v for part in parts for v in part]; pos = {v: i for i, v in enumerate(order)}
+        code = sum(1 << pairs.index((min(pos[a], pos[b]), max(pos[a], pos[b]))) for a, b in map(tuple, E))
+        best = code if best is None or code < best else best
+    return best
+
+
+def v_reconstruction(p):
+    n = p['n']; pairs = list(combinations(range(n), 2)); graphs = {}
+    for mask in range(1 << len(pairs)):
+        E = [frozenset(pairs[i]) for i in range(len(pairs)) if mask >> i & 1]
+        graphs.setdefault(canonical_code(n, E), E)
+    decks = set()
+    for E in graphs.values():
+        deck = []
+        for v in range(n):
+            keep = [u for u in range(n) if u != v]; idx = {u: i for i, u in enumerate(keep)}
+            deck.append(canonical_code(n - 1, [frozenset(idx[x] for x in e) for e in E if v not in e]))
+        decks.add(tuple(sorted(deck)))
+    return dict(graphs=len(graphs), distinct_decks=len(decks) == len(graphs))
+
+
+def pi_interval(digits=40):
+    d = pi_digits(digits)
+    return F(int('3' + d), 10 ** digits), F(int('3' + d) + 1, 10 ** digits)
+
+
+def check_circle(p, claimed):
+    R = p['r_max']; lo_pi, hi_pi = pi_interval(); best_lo = F(0); uppers = {}; N = 0
+    for r in range(1, R + 1):
+        N = sum(2 * isqrt(r * r - x * x) + 1 for x in range(-r, r + 1))
+        e1, e2 = N - lo_pi * r * r, N - hi_pi * r * r
+        top = max(abs(e1), abs(e2)); bottom = F(0) if e1 * e2 <= 0 else min(abs(e1), abs(e2))
+        s_lo = F(isqrt(r * 10 ** 40), 10 ** 20); s_hi = s_lo + F(1, 10 ** 20)
+        uppers[r] = top / s_lo; best_lo = max(best_lo, bottom / s_hi)
+    U = F(claimed['max_ratio_upper'])
+    return (claimed['last_count'] == N and max(uppers.values()) <= U and uppers[claimed['at']] >= best_lo)
+
+
 VALUE_RULES = {
     'tally': v_tally, 'members': v_members, 'gap_records': v_gap_records, 'goldbach': v_goldbach,
     'gilbreath': v_gilbreath, 'totient_singletons': v_totient_singletons, 'erdos_moser': v_erdos_moser,
@@ -817,7 +1148,9 @@ VALUE_RULES = {
     'distinct_cover_search': v_distinct_cover, 'chromatic_index': v_chromatic_index, 'isomorphic': v_isomorphic,
     'hadamard_orders': v_hadamard_orders, 'oriented_census': v_oriented, 'circuit_sizes': v_circuit_sizes,
     'lienard': v_lienard, 'mahler_z': v_mahler_z, 'erdos_gyarfas_gp': v_erdos_gyarfas, 'sidorenko': v_sidorenko,
-    'hadwiger_small': v_hadwiger_small, 'balanced_pair': v_balanced_pair,
+    'hadwiger_small': v_hadwiger_small, 'balanced_pair': v_balanced_pair, 'chromatic': v_chromatic,
+    'casas_alvero': v_casas_alvero, 'class_numbers': v_class_numbers, 'erdos_hajnal': v_erdos_hajnal,
+    'coset_order': v_coset_order, 'packing': v_packing, 'reconstruction': v_reconstruction,
 }
 
 
@@ -1358,6 +1691,29 @@ def tree_code(n, edges):
     return min(enc(c, -1) for c in centers)
 
 
+def w_unit_distance_graph(p, w):
+    a, b, k = p['a'], p['b'], p['colors']
+    def mul(x, y):
+        return (x[0] * y[0] + a * x[1] * y[1] + b * x[2] * y[2] + a * b * x[3] * y[3],
+                x[0] * y[1] + x[1] * y[0] + b * (x[2] * y[3] + x[3] * y[2]),
+                x[0] * y[2] + x[2] * y[0] + a * (x[1] * y[3] + x[3] * y[1]),
+                x[0] * y[3] + x[3] * y[0] + x[1] * y[2] + x[2] * y[1])
+    # the four coordinates are independent over Q only when a, b and ab are not squares
+    must(all(isqrt(v) ** 2 != v for v in (a, b, a * b)), 'Q(sqrt a, sqrt b) is not of degree 4')
+    pts = [[tuple(rat(x) for x in c) for c in pt] for pt in w['points']]; n = len(pts)
+    E = set()
+    for u, v in w['edges']:
+        dx = tuple(x - y for x, y in zip(pts[u][0], pts[v][0])); dy = tuple(x - y for x, y in zip(pts[u][1], pts[v][1]))
+        s2 = tuple(x + y for x, y in zip(mul(dx, dx), mul(dy, dy)))
+        must(s2 == (1, 0, 0, 0), 'an edge is not of length 1'); E.add(frozenset((u, v)))
+    must(chromatic(n, E) >= k, 'colorable with fewer colors')
+
+
+def w_rational_points(p, w):
+    for pt in w:
+        x, y = rat(pt[0]), rat(pt[1]); must(y * y == x ** 3 + p['a'] * x + p['b'], 'a point is off the curve')
+
+
 WITNESS_RULES = {
     'ham_path': w_ham_path, 'coloring': w_coloring, 'total_coloring': w_total_coloring, 'ramsey_coloring': w_ramsey,
     'cycle_double_cover': w_cycle_double_cover, 'prime_ap': w_prime_ap, 'sidon_set': w_sidon,
@@ -1368,7 +1724,8 @@ WITNESS_RULES = {
     'inscribed_square': w_square, 'polynomial_inverse': w_polynomial_inverse, 'heilbronn': w_heilbronn,
     'no_three_in_line': w_no_three, 'convex_free': w_convex_free, 'kissing': w_kissing, 'unit_distances': w_unit_distances,
     'rational_distances': w_rational_distances, 'borsuk': w_borsuk, 'illumination': w_illumination,
-    'sphere_energy': w_sphere_energy, 'graceful_trees': w_graceful,
+    'sphere_energy': w_sphere_energy, 'graceful_trees': w_graceful, 'unit_distance_graph': w_unit_distance_graph,
+    'rational_points': w_rational_points,
 }
 PROOF_RULES = {'unsat': w_unsat, 'pratt': w_pratt}
 
@@ -1381,6 +1738,13 @@ def verdict(kind, data):
     try:
         family, params = data['family'], data['params']
         if kind == 'value':
+            if family in ('eigen_counts', 'circle_errors'):
+                ok = (check_eigen_counts if family == 'eigen_counts' else check_circle)(params, data['value'])
+                return ('VERIFIED', 'independent recomputation agrees') if ok else \
+                    ('REFUTED', 'independent exact recomputation disagrees')
+            if family == 'congruent':
+                return (('VERIFIED', 'independent recomputation agrees') if check_congruent(params, data['value'])
+                        else ('REFUTED', 'independent Tunnell counts or triangle cores differ'))
             rule = VALUE_RULES.get(family)
             if rule is None: return 'UNRESOLVED', 'no independent rule for the family ' + family
             got = rule(params)

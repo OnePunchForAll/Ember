@@ -912,6 +912,9 @@ own records:
   to Schinzel's 9/n (one round of 105 s, score 0.0127, just above Collatz at
   0.0124 after three rounds of 258 s in all) and 6/n. No open problem was
   settled.
+- **Verdict.** The independent verdict on her final state after the 24 scans
+  (7,986,276 bytes) returned the bit "verified": 75,755 saved claims VERIFIED
+  (65,751 of them walls), none refuted, none unresolved, in 893 s.
 - **What the scans exposed.** After 16 problems her state held 7,986,276 bytes
   of its 8 MiB bound, and the 128-record bound would have evicted the records of
   the oldest problems, and with them her memory of having tried them. Her rounds
@@ -987,11 +990,18 @@ request was to build the tools she needs "in order to at least see them".
   (best-first: AK(2) trivialized in 22 moves; AK(3) not), matrix multiplication
   (flip graphs over GF(2)), primes k·2^n - 1 beyond the Miller-Rabin range (her
   own run of the N+1 test).
-- **The independent verdict.** `tools/verdict_windows.py` recomputes 49 value
-  families and rechecks 35 witness and 2 proof families with its own code (86 of
-  115 family names). On the 125 window states it verified every claim of those
-  families and refuted none; the other 29 families answer UNRESOLVED. A forged
-  window value is refuted (package check).
+- **The independent verdict.** `tools/verdict_windows.py` recomputes 59 value
+  families and rechecks 37 witness and 2 proof families with its own code (98 of
+  115 family names; the first version, in the commit that added the tools, had
+  86). Its own coset enumeration gives S3 6, Q8 8, A5 60 and B(2, 3) 27; its own
+  real quadratic class numbers match the known h = 2 for 10, 15, 30 and 34, 3 for
+  79, 223 and 229, 4 for 82 and 8 for 226; its inertia count gives the path P3's
+  Laplacian spectrum 0, 1, 3; its own graph enumeration finds the 34 graphs on 5
+  vertices. A clean rerun of all 125 windows at the committed fingerprint
+  4ca544c6 settled every one (190 s in all); over its 158 window claims the
+  verdict found 137 VERIFIED, 21 UNRESOLVED and none refuted, so its one bit is
+  "verified" for 110 windows and "no, keep thinking" for the 15 that hold a
+  family without a rule. A forged window value is refuted (package check).
 - **Statement bounds.** An exhaustive search here (Python, independent of her
   code) to n = 100,000 gave the exceptions below; each stated problem starts at
   the largest plus one. For a = 16 the search to 40,000 had missed 78,721 and
@@ -1020,7 +1030,7 @@ request was to build the tools she needs "in order to at least see them".
   and a >= 22 (a threshold needs a search far beyond 10^5), Heesch numbers, the
   Kaplansky zero-divisor conjecture, Whitehead asphericity, the smooth
   four-dimensional Poincaré conjecture, the Hodge and standard conjectures,
-  resolution in characteristic p, Yang-Mills and BPP = P. Twenty-nine families
+  resolution in characteristic p, Yang-Mills and BPP = P. Seventeen families
   have no independent verdict rule. Several windows are marked as viewing
   related objects rather than a finite case (Leopoldt, four exponentials,
   restriction, Bochner-Riesz, hot spots, invariant subspaces, Navier-Stokes).
