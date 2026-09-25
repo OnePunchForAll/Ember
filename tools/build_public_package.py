@@ -1690,6 +1690,15 @@ archived = (len(state3['observations']) == A.MAX_RECORDS and [e['task_id'] for e
             and {'r000', 'r001', 'r002', 'fresh'} <= claims3 and files3 == sorted(e['file'] for e in e0)
             and [e['task_id'] for e in e1] == ['r001', 'r002', 'r003'] and files4 == sorted(e['file'] for e in e1)
             and e0[0]['file'] not in files4)
+# A Collatz class the descent move already left a residual on (here restored from a saved tree) is not tried again,
+# however little tried-move memory a resume kept; a class without one still is.
+cmap = dict(d=2, a=[1, 3], b=[0, 1])
+dg = A.DescentGoal(dict(type='descent_cover', map=cmap, depth=4, verify_to=100), L); rt5 = L.Runtime(C, ember['Budget'](10 ** 8))
+dg.init(rt5); dg.restore(rt5, [dict(kind='descent_tree', data=dict(map=cmap, refined=[], residual=[[16, 7]]))]); dg.update(rt5)
+c7 = next(o for o in rt5.objects.values() if o['kind'] == 'cclass' and o['data']['modulus'] == 16 and o['data']['residue'] == 7)
+c15 = rt5.given('cclass', dict(map=cmap, modulus=16, residue=15)); dg.update(rt5)
+not_retried = (not dg.allowed('collatz_affine_descent', c7, rt5) and dg.allowed('collatz_affine_descent', c15, rt5)
+               and c15['id'] not in dg.residual)
 # Her library's legacy contexts (no numerator in the name) are read as this numerator only for a one-numerator state.
 lib = [dict(context='unit_fraction_cover:eclass:coprime:square', strategy='egypt_ansatz_extend', successes=0, failures=100,
             seconds=1.0),
@@ -1741,7 +1750,7 @@ members = list(V.claims_of(dict(observations=[dict(kind='autonomous_research', t
 batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == written
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
-                      obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, priors=priors, implied=implied, lift=lift,
+                      obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -1761,6 +1770,7 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('state_bound_trims_carried_records_before_new_evidence', sieve_result.get('bound') is True)
         check('state_bound_spills_other_evidence_beside_the_state', sieve_result.get('spilled') is True)
         check('record_bound_keeps_evicted_evidence_on_file', sieve_result.get('archived') is True)
+        check('collatz_descent_not_retried_on_a_residual_class', sieve_result.get('not_retried') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)
         check('lemma_implies_only_square_class_walls', sieve_result.get('implied') is True)
         check('prime_choice_counts_lifts_exactly', sieve_result.get('lift') is True)

@@ -1171,3 +1171,70 @@ bound of 4·10^9 per call).
   1,024 archived records, at most 24 MiB each. A resume after a save that
   dropped evidence can still retire some of her generators (noted after her
   first 24 scans).
+
+## Her second scan of the library (fingerprint c6eb5099), and forgotten attempts (fingerprint 8c5abe42)
+
+On request she scanned the library again, continuing a copy of her state after
+call 202 (24 MiB cap; as before, 10,000 moves and a work bound of 4·10^9 per
+call). At this fingerprint every window and every closed calibration but the
+Collatz sieve was settled, so her ranking offered 18 problems: the open ones
+except Schinzel's 19/n, which had no untried move left, and the Collatz sieve.
+
+- **Calls 203-231: 29 calls in 5,113 s**, each her own choice. They made
+  187,010 moves and gained 30,674 new checked results. They replayed 75,306
+  saved objects with none refused, and dropped nothing. No problem was settled.
+  Fourteen rounds ended with no untried move. Collatz (10 rounds), Schinzel's
+  9/n, 18/n and 6/n, and Sierpiński's 5/n ended at their move allowance. The run
+  was stopped during call 232, once every offered problem had had a round; that
+  call wrote nothing.
+- **What her rounds proved.** Each result holds within its stated scope. A
+  theorem covers every n from its least n whose residue its cover reaches, and
+  every n below 100,000 is checked directly.
+  - First theorems for Erdős–Straus at 4/n (modulus 36,756,720, 26,262 classes
+    left open, from n = 2) and for Schinzel's 7/n (modulus 36,756,720, 2,690
+    open, from n = 3), 18/n (modulus 83,160, 3,271 coprime classes open, from
+    n = 35,282) and 21/n (modulus 83,160, 2,046 coprime open, from n = 14,052).
+  - Fewer open coprime classes under earlier theorems, all at modulus 83,160:
+    12/n from 1,753 to 1,325, 15/n from 1,985 to 1,340, 8/n from 1,042 to 925.
+  - The 17/n and 8/n theorems that the old save had cut from their ranges were
+    proved again with their ranges.
+  - Deeper refinement without a theorem yet: 9/n to modulus 5,405,400, 6/n to
+    617,795,640, and Sierpiński's 5/n to 8,031,343,320.
+  - The Collatz sieve to 2^18 is complete: 7,495 classes stay open. Every level
+    from 2 to 2^18 matches an independent count of the classes that do not
+    descend within k steps of the map T (1, 1, 2, 3, 4, 8, 13, 19, 38, 64, 128,
+    226, 367, 734, 1,295, 2,114, 4,228, 7,495).
+- **The verdict on her state after call 231**, archive included: 92,316 claims
+  VERIFIED (81,290 of them walls), none refuted, 21 UNRESOLVED, in 1,758 s. The
+  21 are the window values in families without an independent rule. All 15 of
+  her saved theorems carry their ranges and verify.
+- **Her ranking at work.** Ten of the 29 calls went to Collatz. A round that adds
+  any checked result counts as a success, whatever its size. So rounds that
+  added 405, 151, 21 and 2 descents kept Collatz ahead of Erdős–Straus, and only
+  two rounds with none let Erdős–Straus through. This follows the doctrine's
+  definition of a success. Whether the size of a gain should count is a
+  scheduling question, and it is left open.
+- **The wall: forgotten attempts.** At 2^20 her Collatz rounds stalled with
+  28,777 classes open, where an independent count gives 27,328. All 1,449
+  missing classes have exactly 12 odd steps in 20. They descend only at the
+  last step the depth allows (3^12 < 2^20 < 3^13), and each already at its least
+  member. Her descent move settles such a class when it reaches it, but it did
+  not reach them. Her tried-move memory keeps at most 6,000 entries per problem,
+  while depth 20 leaves 27,328 classes on which the move fails. Each resumed
+  round re-tried failures it had forgotten, and spent its 10,000 moves before
+  it reached the untried classes.
+- **Instrument: the residual as the record of an attempt (fingerprint
+  8c5abe42).** The descent move is deterministic on a class, and the residual it
+  leaves is saved in her refinement tree. The Collatz goal now refuses the move
+  on a class that already has that residual, whatever her tried-move memory
+  kept. A fresh run is unchanged. Resuming her Collatz problem from a copy of
+  her state after call 231, at the new code, replayed her 2,955 descents and
+  tried each of the 16,385 untried classes once (16,389 moves, 339 s). It found
+  the 1,449 descents, so 2^20 now has exactly 27,328 open classes, the
+  independent count, and the round ended with no untried move. The package
+  check `collatz_descent_not_retried_on_a_residual_class` fails on the
+  previous code and passes on this one. The package passes 666 checks.
+- **Open obligations.** Her tried-move memory is still capped at 6,000 entries
+  per problem for every other goal; so far only Collatz has been seen to stall
+  on it. Her library ranking counts any gain as a success. Her Collatz problem
+  at depth 20 cannot settle: 27,328 classes need more than 20 steps.

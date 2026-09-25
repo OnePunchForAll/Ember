@@ -1292,6 +1292,13 @@ values in families it has no rule for, and two theorems an older save had cut
 from their ranges). The scan exposed the byte bound, the record bound and a
 slow save at the bound; CAMPAIGNS.md records each wall and its instrument.
 
+Her second scan (29 calls, her own choices among the 18 problems still open to
+her) proved first theorems for Erdős–Straus at 4/n and for Schinzel's 7/n, 18/n
+and 21/n. It narrowed three others and proved the two cut theorems again. Its
+verdict found 92,316 claims VERIFIED, none refuted, and only the 21 window
+values unresolved. It also exposed a Collatz stall: her rounds re-tried failures
+they had forgotten. A saved residual now counts as the record of an attempt.
+
 The library grows by editing `problems.json`. A stated problem needs a
 unique id, a status (`open`, `closed` or `window`) and a task that
 `autonomous_research` accepts; a window also names its catalog problem

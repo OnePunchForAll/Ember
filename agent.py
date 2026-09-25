@@ -947,6 +947,10 @@ class DescentGoal(Goal):
     def allowed(self, strategy, target, rt):
         if strategy == 'collatz_split':
             return target['kind'] == 'cclass' and target['data']['modulus'] < self.top and target['id'] in self.residual
+        if strategy == 'collatz_affine_descent':
+            # The move is deterministic on a class, so a residual it left there (in this run or restored from the saved
+            # tree) is its outcome: it is not tried again, whatever part of the tried-move memory a resume kept.
+            return target['id'] not in self.residual
         return True
 
     def capped_key(self, rt, target, retired_in):

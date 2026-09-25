@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 73922,
+      "bytes": 78635,
       "path": "CAMPAIGNS.md",
-      "sha256": "d3aed1d062daf32ef92c02edc0f0b14bda8482497b6d21c58c4162a40553c9cb"
+      "sha256": "a5a1b1c8cb4b3804689940ab67ab10275269954149cb52d0b99c5c688a3e9ccf"
     },
     {
       "bytes": 10538,
@@ -16,9 +16,9 @@
       "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
     },
     {
-      "bytes": 98572,
+      "bytes": 99046,
       "path": "README.md",
-      "sha256": "4bd04a74551e9049eb453bee3aff4317fa6619cb0bae635a8871fdb4bef71e1b"
+      "sha256": "9239da6d979c880fc10e83481e494c42718d8e29663a0f03b6ce8ffeb4346679"
     },
     {
       "bytes": 1633,
@@ -26,9 +26,9 @@
       "sha256": "88b621357e7f2677281eca67b3a3c825e590c74764a438e790eeb2935db6805a"
     },
     {
-      "bytes": 115504,
+      "bytes": 115839,
       "path": "agent.py",
-      "sha256": "b3c8a4ba92aa61da7c827722e19134fff00e8ccf47acfaf2c74acfda565f3ac1"
+      "sha256": "e09211d353f3c98773776ea3381fb61345917e37e3e0e9dcee846dcbabfacec5"
     },
     {
       "bytes": 64204,
@@ -451,9 +451,9 @@
       "sha256": "d8f776736b224d423db3909d370b18cf8b7c7cb14b71264f02cb28ca21faa157"
     },
     {
-      "bytes": 175830,
+      "bytes": 176828,
       "path": "tools/build_public_package.py",
-      "sha256": "f4b2640cea68037bd5315d6ffb018e4cb6cb336bcbd37b92d121750ed22433fc"
+      "sha256": "dd56b9e3e8a0d4eb73258e0a31550f6c0d37f5111d9878d007bf28c35a78d9ab"
     },
     {
       "bytes": 12128,
@@ -501,7 +501,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 and -17 were verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 1198917,
+  "runtime_source_bytes": 1199252,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",
