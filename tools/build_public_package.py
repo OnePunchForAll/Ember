@@ -1735,7 +1735,18 @@ rt7u = L.Runtime(C, ember['Budget'](10 ** 9)); esq7u = E2['_two_ranges_level'](r
 union = next(o for o in rt7u.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked')
 admitted6 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt6.objects.values() if o['status'] == 'checked'}
 admitted7 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt7u.objects.values() if o['status'] == 'checked'}
-derivations = (grown['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
+# Closure under multiples: on a cover of 4/n at modulus 8 with one family (the class 3 mod 4) the open residue 6 reduces
+# to 3 mod 4 by the prime 2 and the other five stay open; a wrong count is refused by the checker and by the verdict.
+rt8 = L.Runtime(C, ember['Budget'](10 ** 9)); esq8 = E2['_multiples_level'](rt8)[0]
+closed8 = E2['egypt_theorem_multiples'](rt8, esq8)
+closure = closed8[0] if closed8 else None
+forged_closure = rt8.propose('derived', dict(closure['data'], statement=dict(closure['data']['statement'], open_residues=6))) if closure else None
+admitted8 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt8.objects.values() if o['status'] == 'checked'}
+multiples = (closure is not None and closure['status'] == 'checked' and closure['data']['statement']['open_residues'] == 5
+             and closure['data']['statement']['open_coprime'] == 2 and closure['evidence']['reduced'] == 1
+             and not rt8.check(forged_closure) and V.derived_verdict(closure['data'], admitted8)[0] == 'VERIFIED'
+             and V.derived_verdict(forged_closure['data'], admitted8)[0] == 'REFUTED')
+derivations = (multiples and grown['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
                and grown['evidence']['via_divisor'] > 0 and grown['evidence']['via_witness'] > 0
                and ext['data']['statement']['range_hi'] == 798 and ext['data']['statement']['modulus'] == 24
                and union['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=800)

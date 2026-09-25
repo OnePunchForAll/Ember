@@ -42,9 +42,9 @@ COMPANIONS = 4
 # Operators that read the workspace: an attempt is new whenever the goal's progress has changed since.
 READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift',
                              'egypt_classical_sweep', 'egypt_wall_sweep', 'egypt_range_chunk', 'egypt_range_union',
-                             'egypt_theorem_range'))
+                             'egypt_theorem_range', 'egypt_theorem_multiples'))
 # Moves tried once per state of what they read, not once per target and call: each chunk, union or extension is new.
-REPEATABLE = frozenset(('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range'))
+REPEATABLE = frozenset(('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples'))
 MACRO_STEPS = 4
 PROPOSE_EVERY = 25
 # A move that fails only for lack of work is retried once with this many times the allocation.
@@ -567,7 +567,7 @@ class CoverGoal(Goal):
         if strategy in ('egypt_classical_sweep', 'egypt_wall_sweep'):
             return (self.fam_count, len(self.classical_miss), len(self.classes), len(self.lemmas),
                     sum(len(v) for v in self.walled.values()))
-        if strategy in ('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range'):
+        if strategy in ('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples'):
             # The range moves depend on the admitted ranges, derivations, theorems and covers.
             return tuple(sum(1 for o in self.results if o['kind'] == k and o['status'] == 'checked')
                          for k in ('finite', 'derived', 'theorem', 'cover'))
@@ -2082,8 +2082,10 @@ def visible_results(checked):
     rows = [o for o in checked if o['kind'] in RESULT_KINDS]
     unions = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'range_union']
     extensions = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_range']
+    closures = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_multiples']
     keep = {id(o) for o in (max(unions, key=lambda o: o['data']['statement']['hi'], default=None),
-                            max(extensions, key=lambda o: o['data']['statement']['range_hi'], default=None)) if o is not None}
+                            max(extensions, key=lambda o: ('closure' in o['data']['statement'], o['data']['statement']['range_hi']), default=None),
+                            min(closures, key=lambda o: o['data']['statement']['open_residues'], default=None)) if o is not None}
     base_lo = min((o['data']['lo'] for o in rows if o['kind'] == 'finite'), default=None)
     shown = [o for o in rows if not (o['kind'] == 'finite' and o['data']['lo'] != base_lo)
              and not (o['kind'] == 'derived' and id(o) not in keep)]

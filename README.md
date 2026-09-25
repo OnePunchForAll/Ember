@@ -915,7 +915,7 @@ each premise's kind and data) and the statement that follows. The checker takes
 one more thing for this kind only: a way to look up an admitted claim by its
 identity, which the runtime supplies from its own workspace. The checker never
 verifies the premises again; it verifies that the statement is exactly what the
-rule gives from what the premises state. Three rules exist. `range_union`: two
+rule gives from what the premises state. Four rules exist. `range_union`: two
 admitted ranges of one question that touch or overlap give the range from the
 lower start to the further end. `theorem_range`: a theorem whose range ends at
 h, and an admitted range that starts at or before h and reaches past it, give
@@ -928,9 +928,26 @@ from a/d, and d lies in the premise or earlier in the new part). So a proof
 part carries witnesses only for the primes and the few numbers whose divisors
 lie below lo; on Schinzel's 11/n, where the cover leaves 34,611 of 83,160
 residues open, a plain chunk claim had to witness 42 percent of its numbers
-and took twenty minutes, and the extension takes seconds. A derivation is
-sound in a workspace whose admissions are sound; on a resume every derivation
-is admitted again after its premises, and one whose premise is gone is refused.
+and took twenty minutes, and the extension takes seconds. `theorem_multiples`
+closes a theorem under divisors: a/(p n') follows from a/n', so a residue the
+cover leaves open is still represented when a prime p of the modulus divides it
+and the residue x/p modulo M/p is reached (or reduces further), as long as the
+factor taken out keeps n/t >= lo for every n past the checked range. The
+premises are the theorem and its cover, named by identity; the statement
+carries the open counts after closure, which the checker and the independent
+verdict recount. A derivation is sound in a workspace whose admissions are
+sound; on a resume every derivation is admitted again after its premises, and
+one whose premise is gone is refused.
+
+The closure rule came from a contest. Asked to compete against her and hand
+over whatever I used, I took her fifteen saved theorems and applied, with my
+own code, the first thing a mathematician reaches for that her language could
+not state: the set of n with a representation is closed under multiples. It
+leaves the coprime open classes untouched (for 4/n and 7/n every open class is
+coprime, the quadratic-residue wall) but cuts the rest: 10/n from 40,047 open
+residues of 83,160 to 18,724, 21/n from 44,220 to 21,936, 11/n from 34,611 to
+26,969. The rule is that method in her language; `egypt_theorem_multiples`
+derives it from her own theorem and cover, and the verdict recounts it.
 
 The rules let her verified range grow past the checker's bound on one claim
 (2,000,000 numbers). `egypt_range_chunk` extends the admitted range from the

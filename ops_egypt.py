@@ -992,17 +992,54 @@ def egypt_range_union(rt, esq):
     return [claim] if rt.check(claim) else []
 
 
+def rt_statement(o):
+    """What an admitted theorem object states, in the form the derivation rules compose (a theorem or a derived one)."""
+    if o['kind'] == 'derived': return o['data']['statement']
+    f = o['data']['finite']
+    return dict(kind='theorem', a=o['data']['a'], terms=o['data']['terms'], lo=o['data']['lo'], modulus=f['cover']['modulus'],
+                range_hi=f['hi'], cover_id=L.digest(dict(kind='cover', data=f['cover'])))
+
+
+def theorem_object(rt, a, terms, lo):
+    """The strongest admitted theorem of the question from lo (closed under multiples first, then the widest range),
+    its statement and the admitted cover object it names, or None."""
+    rows = [row for row in theorem_statements(rt, a, terms) if row[0] == lo and 'cover_id' in rt_statement(row[3])]
+    if not rows: return None
+    best = max(rows, key=lambda row: ('closure' in rt_statement(row[3]), row[1], row[2]))
+    T = best[3]; s = rt_statement(T); cover = rt.objects.get(s.get('cover_id'))
+    if cover is None or cover['status'] != 'checked': return None
+    return T, s, cover
+
+
+@op('egypt_theorem_multiples', 'NS', ('esq',), ('derived',),
+    'Close her theorem under divisors: a residue the cover leaves open but which reduces, by primes of the modulus, '
+    'to a reached residue is represented too. A theorem_multiples derivation from the theorem and its cover.')
+def egypt_theorem_multiples(rt, esq):
+    d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
+    found = theorem_object(rt, a, terms, lo)
+    if found is None: return []
+    T, s, cover = found
+    if 'closure' in s: return []
+    opened, closed = rt.checker.closure_open(cover['data'], s['lo'], s['range_hi'], rt.budget)
+    if not closed: return []
+    M = cover['data']['modulus']
+    statement = dict(s, closure='multiples', open_residues=len(opened), open_coprime=sum(1 for x in opened if gcd(x, M) == 1))
+    claim = rt.propose('derived', dict(rule='theorem_multiples', premises=[T['id'], cover['id']], statement=statement), (T, cover))
+    return [claim] if rt.check(claim) else []
+
+
 @op('egypt_theorem_range', 'NS', ('esq',), ('derived',),
     'Extend the admitted theorem to the admitted range past its own: a derivation by the theorem_range rule.')
 def egypt_theorem_range(rt, esq):
     d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
     theorems = [row for row in theorem_statements(rt, a, terms) if row[0] == lo]
     if not theorems: return []
-    t_lo, t_hi, modulus, T = max(theorems, key=lambda row: (row[1], row[2]))
+    # The theorem closed under multiples is preferred, so its extension keeps the closure.
+    t_lo, t_hi, modulus, T = max(theorems, key=lambda row: ('closure' in rt_statement(row[3]), row[1], row[2]))
     ranges = range_statements(rt, a, terms)
     beyond = max(((hi, o) for l, hi, o in ranges if t_lo <= l <= t_hi < hi), key=lambda x: x[0], default=None)
     if beyond is None: return []
-    statement = dict(kind='theorem', a=a, terms=terms, lo=t_lo, modulus=modulus, range_hi=beyond[0])
+    statement = dict(rt_statement(T), range_hi=beyond[0])
     claim = rt.propose('derived', dict(rule='theorem_range', premises=[T['id'], beyond[1]['id']], statement=statement),
                        (T, beyond[1]))
     return [claim] if rt.check(claim) else []
@@ -1163,6 +1200,15 @@ def _theorem_level(rt):
     egypt_reduction_theorem(rt, base); return [esq]
 
 
+def _multiples_level(rt):
+    """A cover of 4/n at modulus 8 with one family, on the class 3 mod 4, its range and theorem: the open residue 6
+    reduces to 3 mod 4 by the prime 2, the others do not."""
+    esq = rt.given('esq', dict(a=4, terms=3, min=2, modulus=8, verify_to=400))
+    _fam(rt, 4, 3); egypt_cover_assemble(rt, esq); L.drive(egypt_finite_verify(rt, esq))
+    base = next(o for o in rt.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked')
+    egypt_reduction_theorem(rt, base); return [esq]
+
+
 def _four_term_level(rt):
     """A four-term question whose base range is checked by hand; the chunk past it finds no witness (a residual)."""
     esq = rt.given('esq', dict(a=4, terms=4, min=2, modulus=24, verify_to=5))
@@ -1212,6 +1258,7 @@ FIXTURES = {
                                 if _classical_cover(rt, 24) else [], _sieved_range],
     'egypt_range_chunk': [_ranged_level, _four_term_level],
     'egypt_range_union': [_two_ranges_level],
+    'egypt_theorem_multiples': [_multiples_level],
     'egypt_theorem_range': [_theorem_level],
     'egypt_choose_lift': [_lift_inputs],
 }

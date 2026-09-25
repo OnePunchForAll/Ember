@@ -547,8 +547,10 @@ def statement_of(kind, data):
     if kind == 'finite': return dict(kind='range', a=data['a'], terms=data['terms'], lo=data['lo'], hi=data['hi'])
     if kind == 'theorem':
         return dict(kind='theorem', a=data['a'], terms=data['terms'], lo=data['lo'],
-                    modulus=data['finite']['cover']['modulus'], range_hi=data['finite']['hi'])
+                    modulus=data['finite']['cover']['modulus'], range_hi=data['finite']['hi'],
+                    cover_id=digest(dict(kind='cover', data=data['finite']['cover'])))
     if kind == 'derived': return data['statement']
+    if kind == 'cover': return dict(kind='cover', a=data['a'], terms=data['terms'], modulus=data['modulus'])
     return None
 
 
@@ -575,6 +577,32 @@ def extension_verdict(a, terms, lo, h, hi, cover, witnesses):
         p = least_prime_factor(n)
         if p == n or n // p < lo: return 'REFUTED', 'no class, witness or divisor in range for ' + str(n)
     return 'VERIFIED', 'extension verified number by number'
+
+
+def closure_count(cover, lo, range_hi):
+    """This tool's own count: residues the cover leaves open and no chain of primes of the modulus (total factor at
+    most range_hi // lo) reduces to a reached residue; and how many of those are coprime to the modulus."""
+    M = cover['modulus']; reached = bytearray(M)
+    fams = [(e['family']['m'], e['family']['r'] % e['family']['m']) for e in cover['entries']]
+    for m, r0 in fams:
+        for x in range(r0, M, m): reached[x] = 1
+    primes = []; m_ = M; p = 2
+    while p * p <= m_:
+        if m_ % p == 0:
+            primes.append(p)
+            while m_ % p == 0: m_ //= p
+        p += 1
+    if m_ > 1: primes.append(m_)
+    limit = range_hi // max(lo, 1); memo = {}
+    def reducible(x, Mx, t):
+        key = (x, Mx)
+        if key in memo: return memo[key]
+        memo[key] = False
+        ok = any(Mx % m == 0 and x % m == r0 for m, r0 in fams) or any(
+            x % p == 0 and Mx % p == 0 and t * p <= limit and reducible(x // p, Mx // p, t * p) for p in primes)
+        memo[key] = ok; return ok
+    opened = [x for x in range(M) if not reached[x] and not any(x % p == 0 and p <= limit and reducible(x // p, M // p, p) for p in primes)]
+    return len(opened), sum(1 for x in opened if gcd(x, M) == 1)
 
 
 def least_prime_factor(n):
@@ -610,6 +638,16 @@ def derived_verdict(d, admitted):
                 or not R['hi'] < s['hi'] <= R['hi'] + 2_000_000:
             return 'REFUTED', 'the stated range does not extend the premise range within the bound'
         return extension_verdict(R['a'], R['terms'], R['lo'], R['hi'], s['hi'], proof['cover'], proof['witnesses'])
+    if d['rule'] == 'theorem_multiples':
+        T = [q for q in premises if q['kind'] == 'theorem']
+        if len(premises) != 2 or len(T) != 1: return 'REFUTED', 'theorem_multiples takes a theorem and its cover'
+        T = T[0]; row = admitted.get(T.get('cover_id'))
+        if row is None or row[0] != 'cover' or T['cover_id'] not in d['premises']: return 'REFUTED', 'the cover is not an admitted premise'
+        if row[2] != 'VERIFIED': return 'UNRESOLVED', 'the cover did not verify'
+        if 'closure' in T: return 'REFUTED', 'already closed'
+        opened = closure_count(row[1], T['lo'], T['range_hi'])
+        expected = dict(T, closure='multiples', open_residues=opened[0], open_coprime=opened[1])
+        return ('VERIFIED', 'closure recounted') if s == expected else ('REFUTED', 'the open counts are not those of the closure')
     if d['rule'] == 'range_union':
         if len(premises) != 2 or any(q['kind'] != 'range' for q in premises): return 'REFUTED', 'range_union takes two ranges'
         first, second = sorted(premises, key=lambda q: (q['lo'], q['hi']))
@@ -623,8 +661,8 @@ def derived_verdict(d, admitted):
         T, R = T[0], R[0]
         if (T['a'], T['terms']) != (R['a'], R['terms']): return 'REFUTED', 'a theorem and a range of different questions'
         if not (T['lo'] <= R['lo'] <= T['range_hi'] < R['hi']): return 'REFUTED', 'the range does not extend the theorem range'
-        expected = dict(T, range_hi=R['hi'])
-        return ('VERIFIED', 'theorem extended over an admitted range') if s == expected else ('REFUTED', 'the statement is not the extension')
+        expected = dict(T, range_hi=R['hi']); older = {k: v for k, v in expected.items() if k != 'cover_id'}
+        return ('VERIFIED', 'theorem extended over an admitted range') if s in (expected, older) else ('REFUTED', 'the statement is not the extension')
     return 'UNRESOLVED', 'no independent rule for derivation ' + str(d['rule'])
 
 
@@ -696,6 +734,8 @@ def self_test():
         'theorem range claiming more refuted': derivation_case(theorem=True, more=True)[0] == 'REFUTED',
         'range extension verifies number by number': extension_case()[0] == 'VERIFIED',
         'range extension with a bad witness refuted': extension_case(bad=True)[0] == 'REFUTED',
+        'theorem closure under multiples verifies': multiples_case()[0] == 'VERIFIED',
+        'theorem closure with a wrong count refuted': multiples_case(bad=True)[0] == 'REFUTED',
     }
     return all(checks.values()), checks
 
@@ -728,6 +768,17 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 
+def multiples_case(bad=False):
+    """A cover of 4/n at modulus 8 with one family on the class 3 mod 4 (x = k+1, y = z = 2(4k+3)(k+1)): the open
+    residue 6 reduces to 3 mod 4 by the prime 2, so 5 of the 6 stay open."""
+    family = dict(a=4, m=4, r=3, k0=0, x=[[['num', 1, 1], ['num', 1, 1]], [['num', 6, 1], ['num', 8, 1]], [['num', 6, 1], ['num', 8, 1]]])
+    cover = dict(a=4, terms=3, modulus=8, bound=3, entries=[dict(family=family)])
+    T = dict(kind='theorem', a=4, terms=3, lo=2, modulus=8, range_hi=400, cover_id=digest(dict(kind='cover', data=cover)))
+    admitted = {digest(dict(kind='cover', data=cover)): ('cover', cover, 'VERIFIED'), 'T' * 64: ('derived', dict(statement=T), 'VERIFIED')}
+    s = dict(T, closure='multiples', open_residues=6 if bad else 5, open_coprime=2)
+    return derived_verdict(dict(rule='theorem_multiples', premises=['T' * 64, T['cover_id']], statement=s), admitted)
+
+
 def extension_case(bad=False):
     """The range [2, 100) of 4/n extended to [2, 110): the primes in the part need a witness (two denominators whose
     remainder is a unit fraction, found by a small search here), and every composite reduces to a divisor at or past 2."""
@@ -753,7 +804,7 @@ def derivation_case(gap=False, theorem=False, more=False):
     T = dict(a=4, terms=3, lo=2, finite=dict(base, cover=dict(modulus=24)))
     admitted[digest(dict(kind='theorem', data=T))] = ('theorem', T, 'VERIFIED')
     ext = dict(rule='theorem_range', premises=[digest(dict(kind='theorem', data=T)), digest(dict(kind='derived', data=union))],
-               statement=dict(kind='theorem', a=4, terms=3, lo=2, modulus=24, range_hi=300 if more else 200))
+               statement=dict(statement_of('theorem', T), range_hi=300 if more else 200))
     return derived_verdict(ext, admitted)
 
 

@@ -1040,7 +1040,8 @@ def class_thresholds(cover, budget):
 
 # ------------------------------------------------------------- derivations: claims that follow from admitted claims
 
-DERIVATION_RULES = ('range_union', 'theorem_range', 'range_extend')
+DERIVATION_RULES = ('range_union', 'theorem_range', 'range_extend', 'theorem_multiples')
+CLOSURE_RESIDUES = 40_000_000  # residues a closure statement may enumerate
 MAX_PREMISES = 8
 
 
@@ -1061,8 +1062,9 @@ def statement_of(kind, data):
     if kind == 'theorem':
         f = data['finite']
         return dict(kind='theorem', a=data['a'], terms=data['terms'], lo=data['lo'], modulus=f['cover']['modulus'],
-                    range_hi=f['hi'])
+                    range_hi=f['hi'], cover_id=digest(dict(kind='cover', data=f['cover'])))
     if kind == 'derived': return data['statement']
+    if kind == 'cover': return dict(kind='cover', a=data['a'], terms=data['terms'], modulus=data['modulus'])
     raise Invalid('a ' + str(kind) + ' claim is not a premise a derivation rule composes')
 
 
@@ -1119,6 +1121,26 @@ def check_derived(data, budget, admitted=None):
                     proof='Below the premise range end by the premise; from it, each n by a checked family whose class '
                           'contains n at or above its threshold, an exact witness with a unit remainder, or a proper divisor '
                           'd >= lo of n (in the premise, or earlier in this part) scaled by n/d.')
+    if rule == 'theorem_multiples':
+        # Closure under divisors: a/(p n') follows from a/n'. A residue x the cover leaves open is still represented
+        # when a prime p divides both x and the modulus and x/p modulo M/p is reached (or reduces further), as long as
+        # the factor t taken out keeps n/t >= lo for every n >= range_hi, i.e. t <= range_hi // lo.
+        need(len(premises) == 2, 'theorem_multiples takes a theorem and its cover')
+        T = next((q for q in premises if q['kind'] == 'theorem'), None); need(T is not None, 'a theorem premise')
+        cover_row = admitted(T.get('cover_id')); need(cover_row is not None and cover_row[0] == 'cover', 'the theorem names an admitted cover')
+        need(T['cover_id'] in ids, 'the cover is a premise'); cover = cover_row[1]
+        need('closure' not in T, 'the theorem is already closed under multiples')
+        M = cover['modulus']; need(M <= CLOSURE_RESIDUES, 'closure residue bound')
+        opened, closed = closure_open(cover, T['lo'], T['range_hi'], budget)
+        expected = dict(T, closure='multiples', open_residues=len(opened), open_coprime=sum(1 for x in opened if gcd(x, M) == 1))
+        need(s == expected, 'the stated open counts are not those of the closure')
+        return dict(ok=True, kind='derived', rule=rule, modulus=M, open_residues=len(opened), reduced=closed,
+                    scope='For every integer n >= lo whose residue modulo the cover modulus is reached by the cover, or '
+                          'reduces to a reached residue by dividing out primes of the modulus with total factor at most '
+                          'range_hi / lo, a/n is a sum of the stated number of unit fractions; the open residues are the rest.',
+                    proof='If p divides n and the modulus, n/p lies in the class x/p modulo M/p; when that class is reached, '
+                          'a/(n/p) = sum 1/x_i gives a/n = sum 1/(p x_i), and n/t >= lo holds for n >= range_hi, while '
+                          'lo <= n < range_hi is in the checked range.')
     if rule == 'range_union':
         need(len(premises) == 2 and all(q['kind'] == 'range' for q in premises), 'range_union takes two ranges')
         first, second = sorted(premises, key=lambda q: (q['lo'], q['hi']))
@@ -1134,13 +1156,37 @@ def check_derived(data, budget, admitted=None):
     need(T is not None and R is not None, 'theorem_range takes a theorem and a range')
     need(T['a'] == R['a'] and T['terms'] == R['terms'], 'a theorem and a range of one question')
     need(T['lo'] <= R['lo'] <= T['range_hi'] < R['hi'], 'the range must start inside the theorem range and reach past it')
-    need(s == dict(T, range_hi=R['hi']), 'the stated theorem differs from the premise beyond its range')
+    expected = dict(T, range_hi=R['hi'])
+    need(s == expected or s == {k: v for k, v in expected.items() if k != 'cover_id'},  # statements before cover_id existed
+         'the stated theorem differs from the premise beyond its range')
     return dict(ok=True, kind='derived', rule=rule, modulus=T['modulus'], lo=T['lo'], range_hi=R['hi'],
                 scope='For every integer n >= lo whose residue modulo the cover modulus is covered by the cover of the '
                       'premise theorem, a/n is a sum of the stated number of unit fractions; and every n in [lo, range_hi) '
                       'is, whatever its residue.',
                 proof='Members of covered classes below the old range bound are represented by the theorem, above it '
                       'by its families; every n up to the new bound lies in the theorem range or in the admitted range.')
+
+
+def closure_open(cover, lo, range_hi, budget):
+    """The residues of the cover modulus that neither the cover reaches nor reduce by primes of the modulus to a reached
+    residue (with the total factor bounded by range_hi // lo), and the number the closure reduced."""
+    M = cover['modulus']; families = [(e['family']['m'], e['family']['r'] % e['family']['m']) for e in cover['entries']]
+    primes = sorted(_prime_powers(M)); limit = range_hi // max(lo, 1); memo = {}
+    def reached(x, Mx):
+        budget.use(len(families))
+        return any(Mx % m == 0 and x % m == r0 for m, r0 in families)
+    def reducible(x, Mx, t):
+        key = (x, Mx)
+        if key in memo: return memo[key]
+        memo[key] = False
+        ok = reached(x, Mx) or any(x % p == 0 and Mx % p == 0 and t * p <= limit and reducible(x // p, Mx // p, t * p)
+                                   for p in primes)
+        memo[key] = ok; return ok
+    opened = []; closed = 0
+    for x in unreached(cover, budget):
+        if any(x % p == 0 and p <= limit and reducible(x // p, M // p, p) for p in primes): closed += 1
+        else: opened.append(x)
+    return opened, closed
 
 
 def check_reduction(data, budget):
