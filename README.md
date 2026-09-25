@@ -1209,7 +1209,7 @@ priors from her own library, a refinement prime chosen on exact counts,
 carried walls settled by her lemma, a Type II index in the checker, and a
 state bound that keeps her newest results; then a compact proof format (each
 identity written once, families named by class, threshold and identity) and
-a larger state, 8 MiB. Each is described, with the
+a larger state, 8 MiB, since raised to 24 MiB. Each is described, with the
 failure that prompted it, in `CAMPAIGNS.md`.
 
 ## The open-problem library
@@ -1265,9 +1265,17 @@ the id.
 
 Her rounds are kept in one ledger record per instance state: for each problem,
 the generation, status, checked results gained, moves and seconds of each round.
-The ledger sits beside her strategy library, so her memory of which problems she
-tried survives when the state bound drops a problem's evidence or the
-128-record bound drops an old record. A problem she settled, or left with no
+The ledger sits beside her strategy library and is never evicted. When her records
+outgrow the 24 MiB instance state, the evidence of her largest other records moves
+into files beside the state, one per record (`<state>.evidence/`, each named by
+its content's digest and bounded like a state); a record keeps its file's name,
+digest and object count. When the 128-record bound evicts her oldest record, its
+evidence moves to such a file as well and the ledger keeps the reference, so a
+library larger than the bound loses no checked result. A later round on the
+problem reads its evidence back when the digest matches, the independent verdict
+does the same with its own code, and a missing or altered file is refused: the
+problem's search is then simply done again. Files the state no longer names are
+removed after it is written. A problem she settled, or left with no
 untried move, waits until her code changes, and a new fingerprint makes it
 eligible again. A window settles when every one of its objects has a checked
 answer. `"run": false` returns her ranking and her choice without running. When
@@ -1421,7 +1429,9 @@ defaults because the apex chooses routes itself.
 
 `--work` limits charged search and checking operations, not operating-system time,
 memory or integer bit complexity. A task file is bounded to 1 MiB, one claim to
-4 MiB and an instance state to 8 MiB;
+4 MiB and an instance state to 24 MiB (her evidence beyond it moves to files of at
+most 24 MiB each beside the state, and her ledger keeps the files of up to 1,024
+agent records the observation bound evicted);
 at most 128 observations and bounded scheduling samples are retained. These limits
 make incomplete work explicit. Do not let two processes write the same instance
 file simultaneously. Changing a task can invalidate reuse; a saved status flag

@@ -634,10 +634,41 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 
-def claims_of(state):
-    """Every checked claim an agent record saved, expanded from compact rows."""
-    for record in state.get('observations', []):
-        if record.get('kind') != 'autonomous_research': continue
+def saved_rows(record, state_path):
+    """A record's saved objects: inline, or read back from the file its evidence was spilled to beside the state (the
+    file must match the digest the record names)."""
+    rows = record.get('objects', [])
+    ref = record.get('spilled')
+    if rows or type(ref) is not dict or state_path is None: return rows, None
+    name = ref.get('file')
+    if type(name) is not str or Path(name).name != name: return [], 'spilled evidence has no plain file name'
+    path = Path(str(state_path) + '.evidence') / name
+    if not path.is_file(): return [], 'spilled evidence file is missing'
+    import hashlib
+    raw = path.read_bytes()
+    if hashlib.sha256(raw.rstrip(b'\n')).hexdigest() != ref.get('digest'): return [], 'spilled evidence file does not match its digest'
+    try: body = json.loads(raw.decode('utf-8'))
+    except ValueError: return [], 'spilled evidence file is not JSON'
+    if type(body) is not dict or body.get('task_id') != record.get('task_id') or type(body.get('objects')) is not list:
+        return [], 'spilled evidence belongs to another record'
+    return body['objects'], None
+
+
+def claims_of(state, state_path=None):
+    """Every checked claim an agent record saved, expanded from compact rows (spilled evidence included, and the
+    evidence of records the record bound evicted, which her rounds ledger names in its archive)."""
+    records = [r for r in state.get('observations', []) if r.get('kind') == 'autonomous_research']
+    live = {r.get('task_id') for r in records}
+    for row in state.get('observations', []):
+        if row.get('task_id') == 'problem-rounds' and type(row.get('archive')) is list:
+            records += [dict(task_id=e['task_id'], kind='autonomous_research', objects=[], spilled=e)
+                        for e in row['archive'] if type(e) is dict and type(e.get('task_id')) is str
+                        and e['task_id'] not in live]
+    for record in records:
+        rows, problem = saved_rows(record, state_path)
+        if problem:
+            yield record['task_id'], 'spilled', dict(unresolvable=problem); continue
+        record = dict(record, objects=rows)
         covers = {digest(row['data']): row['data'] for row in record.get('objects', []) if row.get('kind') == 'cover'}
         for row in record.get('objects', []):
             kind, data = row.get('kind'), row.get('data')
@@ -675,7 +706,7 @@ def main(argv):
     if len(argv) != 2: print(__doc__); return 2
     state = json.loads(Path(argv[1]).read_text(encoding='utf-8'))
     ok, tests = self_test(); rows = []
-    for task, kind, data in claims_of(state):
+    for task, kind, data in claims_of(state, argv[1]):
         v, detail = verdict(kind, data) if ok else ('UNRESOLVED', 'the verifier failed its own self-test')
         rows.append(dict(task_id=task[:16], kind=kind, verdict=v, detail=detail))
     counts = {k: sum(r['verdict'] == k for r in rows) for k in ('VERIFIED', 'REFUTED', 'UNRESOLVED')}

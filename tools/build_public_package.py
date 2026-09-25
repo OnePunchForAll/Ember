@@ -1644,9 +1644,10 @@ obstruction = (C.check_obstruction(lemma, B())['ok'] and V.verdict('obstruction'
                and admits_kind('obstruction', counter) is False and V.verdict('obstruction', counter)[0] == 'REFUTED'
                and refutes(counter, dict(modulus=5, residue=4, params=['II', 1, 1, 1]))
                and not refutes(counter, dict(modulus=5, residue=3, params=['II', 1, 1, 2])))
-# The state bound trims records whose claims a run carried over before the run's own evidence.
+# The state bound trims records whose claims a run carried over before the run's own evidence; other records'
+# evidence is spilled to a file beside the state, read back on resume and by the verdict, and refused if altered.
 import os, tempfile, types
-host = types.SimpleNamespace(canonical=ember['canonical'], STATE_LIMIT=ember['STATE_LIMIT'])
+host = types.SimpleNamespace(canonical=ember['canonical'], STATE_LIMIT=ember['STATE_LIMIT'], load_json=ember['load_json'])
 p4 = dict(type='unit_fraction_cover', a=4, terms=3); p5 = dict(p4, a=5)
 def record(tid, problem, n):
     return dict(task_id=tid, kind='autonomous_research', problem=problem, tried=['t' * 40] * 200, rederivable=[], log=[],
@@ -1656,11 +1657,39 @@ def saved(carried):
     state = dict(observations=[record('old', dict(p4, extra_lifts=1), n_old)]); new = record('new', dict(p4, extra_lifts=3), n_new)
     path = os.path.join(tempfile.mkdtemp(), 'state.json')
     A.save(host, state, path, new, dict(task_id=A.LIBRARY_ID, kind='strategy_library', entries=[]), carried)
-    return state, new, os.path.getsize(path)
-s1, n1, z1 = saved({'old'}); s2, n2, z2 = saved(set())
+    return state, new, os.path.getsize(path), path
+s1, n1, z1, _ = saved({'old'}); s2, n2, z2, path2 = saved(set())
 old1 = next(o for o in s1['observations'] if o['task_id'] == 'old')
+old2 = next(o for o in s2['observations'] if o['task_id'] == 'old')
 bound = (n1['dropped_objects'] == 0 and len(n1['objects']) == n_new and 0 < len(old1['objects']) < n_old
-         and old1['tried'] == [] and z1 <= host.STATE_LIMIT and n2['dropped_objects'] > 0 and z2 <= host.STATE_LIMIT)
+         and old1['tried'] == [] and z1 <= host.STATE_LIMIT and z2 <= host.STATE_LIMIT)
+back = A.evidence(host, path2, old2); verdict_rows, problem = V.saved_rows(old2, path2)
+spill_file = A.spill_dir(path2) / old2['spilled']['file']
+text = spill_file.read_text(); spill_file.write_text(text.replace('"i":0,', '"i":1,', 1))
+spilled = (n2['dropped_objects'] == 0 and len(n2['objects']) == n_new and old2['objects'] == []
+           and old2['spilled']['objects'] == n_old and len(back) == n_old and back[0]['data']['i'] == 0
+           and len(verdict_rows) == n_old and problem is None and A.evidence(host, path2, old2) == []
+           and V.saved_rows(old2, path2)[1] is not None)
+# The record bound evicts her oldest records; their evidence stays on file, named in her ledger's archive, and both
+# the agent and the verdict read it back. A later round on an evicted problem takes its evidence back, and the file
+# is removed once the state no longer names it.
+path3 = os.path.join(tempfile.mkdtemp(), 'state.json'); shelf_lib = dict(task_id=A.LIBRARY_ID, kind='strategy_library', entries=[])
+def small(tid):
+    return dict(task_id=tid, kind='autonomous_research', problem=dict(p4, extra_lifts=1), tried=[], rederivable=[], log=[],
+                samples=[], objects=[dict(kind='value', data=dict(tag=tid))])
+state3 = dict(observations=[small('r%03d' % i) for i in range(A.MAX_RECORDS)])
+ledger3 = dict(task_id=A.LEDGER_ID, kind='problem_rounds', entries={}, archive=[])
+A.save(host, state3, path3, small('fresh'), shelf_lib, set(), ledger3)
+e0 = A.load_archive(state3); back3 = [A.evidence(host, path3, dict(task_id=e['task_id'], spilled=e)) for e in e0]
+claims3 = {t_ for t_, k_, d_ in V.claims_of(json.loads(pathlib.Path(path3).read_text()), path3)}
+files3 = sorted(os.listdir(A.spill_dir(path3)))
+A.save(host, state3, path3, small('r000'), shelf_lib, set(), dict(ledger3, archive=[e for e in e0 if e['task_id'] != 'r000']))
+e1 = A.load_archive(state3); files4 = sorted(os.listdir(A.spill_dir(path3)))
+archived = (len(state3['observations']) == A.MAX_RECORDS and [e['task_id'] for e in e0] == ['r000', 'r001', 'r002']
+            and all(len(b) == 1 and b[0]['data']['tag'] == e['task_id'] for b, e in zip(back3, e0))
+            and {'r000', 'r001', 'r002', 'fresh'} <= claims3 and files3 == sorted(e['file'] for e in e0)
+            and [e['task_id'] for e in e1] == ['r001', 'r002', 'r003'] and files4 == sorted(e['file'] for e in e1)
+            and e0[0]['file'] not in files4)
 # Her library's legacy contexts (no numerator in the name) are read as this numerator only for a one-numerator state.
 lib = [dict(context='unit_fraction_cover:eclass:coprime:square', strategy='egypt_ansatz_extend', successes=0, failures=100,
             seconds=1.0),
@@ -1712,7 +1741,7 @@ members = list(V.claims_of(dict(observations=[dict(kind='autonomous_research', t
 batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == written
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
-                      obstruction=obstruction, bound=bound, priors=priors, implied=implied, lift=lift,
+                      obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -1730,6 +1759,8 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('complete_classical_enumeration_reaches_past_the_old_bound', sieve_result.get('complete') is True)
         check('classical_obstruction_proved_for_4_and_refuted_for_5', sieve_result.get('obstruction') is True)
         check('state_bound_trims_carried_records_before_new_evidence', sieve_result.get('bound') is True)
+        check('state_bound_spills_other_evidence_beside_the_state', sieve_result.get('spilled') is True)
+        check('record_bound_keeps_evicted_evidence_on_file', sieve_result.get('archived') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)
         check('lemma_implies_only_square_class_walls', sieve_result.get('implied') is True)
         check('prime_choice_counts_lifts_exactly', sieve_result.get('lift') is True)

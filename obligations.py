@@ -153,7 +153,7 @@ def checkpoint(state,path,record,host):
     while len(host.canonical(updated).encode())+1>host.STATE_LIMIT and len(updated['observations'])>1:
         updated['observations'].pop(0)
     if len(host.canonical(updated).encode())+1>host.STATE_LIMIT:
-        raise host.Refused('active obligation checkpoint exceeds 1 MiB')
+        raise host.Refused('active obligation checkpoint exceeds the state bound')
     destination=Path(path);destination.parent.mkdir(parents=True,exist_ok=True)
     temporary=destination.with_suffix(destination.suffix+'.tmp')
     temporary.write_text(host.canonical(updated)+'\n',encoding='utf-8',newline='\n');temporary.replace(destination)

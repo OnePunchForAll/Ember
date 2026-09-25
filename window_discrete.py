@@ -1318,8 +1318,9 @@ def fam_borsuk(params, witness, budget):
 
 
 @family('config_q', 'packing', 'value',
-        'For the lattice with the listed integer basis: its minimal squared norm (exhaustive search in a box), its '
-        'determinant, and bounds on its packing density pi^(d/2) / Gamma(d/2 + 1) (r / 2)^d / det.')
+        'For the lattice with the listed integer basis: the least squared norm of a nonzero vector whose coefficients '
+        'lie in the box [-box, box] (a shortest vector when the box holds one), and the absolute determinant. Its '
+        'packing density is then pi^(d/2) / Gamma(d/2 + 1) (sqrt(min) / 2)^d / det.')
 def fam_packing(params, budget):
     need(set(params) == {'basis', 'box'}, 'lattice fields'); B = params['basis']; R = integer(params['box'], 1, 6)
     need(type(B) is list and 1 <= len(B) <= 8 and all(type(r) is list and len(r) == len(B) and all(type(x) is int for x in r)

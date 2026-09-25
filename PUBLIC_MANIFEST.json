@@ -16,9 +16,9 @@
       "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
     },
     {
-      "bytes": 97116,
+      "bytes": 97954,
       "path": "README.md",
-      "sha256": "92238dc237f23da45b1dfe9f4a43723307688df7bc12aca31cc3bae61f117711"
+      "sha256": "62584dbbe979749ea011afa81a8111e079518f01b6c1cd2bcb4cf317d211b48e"
     },
     {
       "bytes": 1633,
@@ -26,9 +26,9 @@
       "sha256": "88b621357e7f2677281eca67b3a3c825e590c74764a438e790eeb2935db6805a"
     },
     {
-      "bytes": 108748,
+      "bytes": 115504,
       "path": "agent.py",
-      "sha256": "9e2cc1c111f04313a55770eb967b211567751c5b9228dbdbde8fcbcab28da3ad"
+      "sha256": "b3c8a4ba92aa61da7c827722e19134fff00e8ccf47acfaf2c74acfda565f3ac1"
     },
     {
       "bytes": 64204,
@@ -51,14 +51,14 @@
       "sha256": "9338861a808893e9137ebbed52c52587fb12867c5d0eacc108950bcdba515e7d"
     },
     {
-      "bytes": 31290,
+      "bytes": 31300,
       "path": "campaign.py",
-      "sha256": "1e2304b810355aaaff2d6c025f1d85f674f7f8a13a451f2f8a5df11fbb0f7762"
+      "sha256": "99b4248133d18200f71168ffda5e8b41772397be6b01738a44b187749d64094d"
     },
     {
-      "bytes": 50897,
+      "bytes": 50907,
       "path": "ember.py",
-      "sha256": "504435b326124a516136d26ef9b3f5e52cf0cf5a4643bb2e95b9ab83b6221e53"
+      "sha256": "f5bfca1b0cd66e9dc5087a9b8812551db054e9554e2989de937d995e26f72bcc"
     },
     {
       "bytes": 370,
@@ -361,9 +361,9 @@
       "sha256": "9a1aa35235cecd0134b0ac2ef49127edaeee49ec7ce9b8c0e3528d9a918a7c7a"
     },
     {
-      "bytes": 19699,
+      "bytes": 19709,
       "path": "obligations.py",
-      "sha256": "c1e03b1971b411e5df6229ed9638ef8891331e326046419fc0167489118a68e8"
+      "sha256": "1a923b344decf7c758cd8b688e8134ac8b1fe005b4df5e16a80abec2d06b672d"
     },
     {
       "bytes": 12379,
@@ -416,9 +416,9 @@
       "sha256": "83a6d6eec0234f0c12ef0b627c47a03b08d948220393297c881e5775bead33cb"
     },
     {
-      "bytes": 234283,
+      "bytes": 234340,
       "path": "problems.json",
-      "sha256": "cc1a8cc4565b8337f62fc92a074c04fc6fcab9823fcb2484508877f870fb0795"
+      "sha256": "59b0b7d23b245258ece7260b21836a5490d8806df9a07ab324a5726817e01cda"
     },
     {
       "bytes": 72756,
@@ -446,14 +446,14 @@
       "sha256": "059bccf70002d226e07d40d1ecb30526eff149b98e21287aaaef42cca8de4beb"
     },
     {
-      "bytes": 37919,
+      "bytes": 37929,
       "path": "source_episode.py",
-      "sha256": "e3e63b4643c2e622e3c106250208eead4f234af4a325418f603c20a0c2267715"
+      "sha256": "d8f776736b224d423db3909d370b18cf8b7c7cb14b71264f02cb28ca21faa157"
     },
     {
-      "bytes": 172975,
+      "bytes": 175830,
       "path": "tools/build_public_package.py",
-      "sha256": "5060f074d0e4395effeacdda4738b890943109b8df1b7e99c79691b624710e35"
+      "sha256": "f4b2640cea68037bd5315d6ffb018e4cb6cb336bcbd37b92d121750ed22433fc"
     },
     {
       "bytes": 12128,
@@ -461,9 +461,9 @@
       "sha256": "f860bd1961f445a93bc42d5514111d3caf40a4fbd8ac66b7eb3ace6f46d66a4b"
     },
     {
-      "bytes": 35859,
+      "bytes": 37809,
       "path": "tools/verdict.py",
-      "sha256": "05c74d86918815187557a3be228bf4df552214e9e3e37ad0e17b740c44826793"
+      "sha256": "d0a9c7d5e8c950b1e2cc9cb87d1b317fa5d68df1b4765a3bbf4a6b555364016e"
     },
     {
       "bytes": 79089,
@@ -476,9 +476,9 @@
       "sha256": "789981d28426b8c6f81ff99dcd97a6103de5e6623063dc8a1dadca86d919910e"
     },
     {
-      "bytes": 90065,
+      "bytes": 90169,
       "path": "window_discrete.py",
-      "sha256": "4165c36e1f5c1ec1197ad51cee4e33ff898ae44b025d221ab09586827a1674a6"
+      "sha256": "8d471be765ef75b2f1cad3466e4e6196f8b3d708748c808e22b6171dcce7845b"
     },
     {
       "bytes": 50200,
@@ -501,7 +501,7 @@
   "manifest_self_hash": "Omitted to avoid circular hashing. The archive hash belongs in a separate receipt.",
   "packaging": "Explicit allowlist; fixed ZIP member metadata and order; no source corpus or instance state.",
   "python_requirement": "External standard-library Python. Generations through ember-pyramid-15 were tested with Python 3.14.6 on Windows; ember-pyramid-16 and -17 were verified with Python 3.11.15 on Linux x86_64 only.",
-  "runtime_source_bytes": 1192017,
+  "runtime_source_bytes": 1198917,
   "schema": "ember.public_source_manifest.v1",
   "standing": "EXPERIMENTAL / SELF_ISOLATED",
   "task_api": "ember.task.v1",

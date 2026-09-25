@@ -216,7 +216,7 @@ def checkpoint(candidate,path,record,accounts,common,host):
     raw=host.canonical(updated).encode('utf-8')+b'\n';common.use(len(raw))
     updated['observations'][-1]['accounts']=copy.deepcopy(accounts)
     raw=host.canonical(updated).encode('utf-8')+b'\n'
-    if len(raw)>host.STATE_LIMIT:raise Capacity('complete source checkpoint exceeds 1 MiB')
+    if len(raw)>host.STATE_LIMIT:raise Capacity('complete source checkpoint exceeds the state bound')
     if path is not None:
         target=Path(path);target.parent.mkdir(parents=True,exist_ok=True)
         temporary=target.with_suffix(target.suffix+'.tmp');temporary.write_bytes(raw);temporary.replace(target)

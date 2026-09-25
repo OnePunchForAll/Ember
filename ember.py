@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 VERSION='ember-pyramid-17'
 INPUT_LIMIT=1_048_576  # a task file
-STATE_LIMIT=8_388_608  # an instance state file: her saved research records
+STATE_LIMIT=25_165_824  # an instance state file (24 MiB): her saved research records
 # Exact answers can exceed Python's default 4300-digit decimal conversion limit.
 INT_DIGITS=100_000
 _MODULES={}

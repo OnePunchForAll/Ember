@@ -258,7 +258,7 @@ def checkpoint(state,path,record,host):
     while len(host.canonical(state).encode())+1>host.STATE_LIMIT and len(state['observations'])>1:
         state['observations'].pop(0)
     if len(host.canonical(state).encode())+1>host.STATE_LIMIT:
-        raise host.Refused('active campaign checkpoint exceeds 1 MiB')
+        raise host.Refused('active campaign checkpoint exceeds the state bound')
     target=Path(path); target.parent.mkdir(parents=True,exist_ok=True)
     temp=target.with_suffix(target.suffix+'.tmp')
     temp.write_text(host.canonical(state)+'\n',encoding='utf-8',newline='\n'); temp.replace(target)

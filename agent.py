@@ -60,6 +60,8 @@ PRIOR_PROBES = 8  # a strategy her library has seen fail in a context gets this 
 LEVEL_STEPS = ('egypt_classical_obstruction', 'egypt_classical_sweep', 'egypt_wall_sweep')
 MAX_ROUNDS = 32  # rounds remembered per problem: what each call obtained and cost, for her choice among problems
 LEDGER_ID = 'problem-rounds'  # one record keeping every problem's rounds, so her choice survives evicted evidence
+MAX_RECORDS = 128  # records one instance state holds (the host's bound); the oldest are evicted first
+ARCHIVE_ENTRIES = 1024  # evicted records whose evidence file her ledger still names, oldest dropped first
 EXHAUSTED = 'no untried move for any open target'
 
 
@@ -1500,26 +1502,103 @@ def compact(obj):
     return obj if set(obj) == {'kind', 'data'} else dict(kind=obj['kind'], data=obj['data'])
 
 
+SPILL_SUFFIX = '.evidence'  # a directory beside the state file: evidence the state bounds cannot hold, one file per record
+
+
+def spill_dir(state_path): return Path(state_path).with_name(Path(state_path).name + SPILL_SUFFIX)
+
+
+def spill(host, state_path, record):
+    """Move a record's evidence into its own file beside the state, bounded like a state (the least valuable end is
+    dropped only if one record's evidence alone exceeds it). The file is named by its content's digest, so a state
+    written earlier never names a file that was overwritten; the record keeps the file's name, digest and count, so a
+    resume or the verdict can load it back. Returns the number of objects dropped."""
+    rows = record.get('objects', [])
+    if not rows: return 0
+    body = dict(task_id=record['task_id'], objects=list(rows)); dropped = 0
+    while len(host.canonical(body).encode()) + 1 > host.STATE_LIMIT and body['objects']:
+        body['objects'].pop(); dropped += 1
+    folder = spill_dir(state_path); folder.mkdir(parents=True, exist_ok=True)
+    text = host.canonical(body); key = hashlib.sha256(text.encode()).hexdigest(); name = key[:32] + '.json'
+    temp = folder / (name + '.tmp'); temp.write_text(text + '\n', encoding='utf-8', newline='\n'); temp.replace(folder / name)
+    record['spilled'] = dict(file=name, objects=len(body['objects']), digest=key)
+    record['objects'] = []
+    return dropped
+
+
+def evidence(host, state_path, record):
+    """A record's saved evidence: its inline objects, or its spilled file when the file's digest matches the record.
+    A missing or altered file gives no evidence, and the problem's search is simply done again."""
+    rows = [o for o in record.get('objects', []) if type(o) is dict and type(o.get('data')) is dict]
+    ref = record.get('spilled')
+    if rows or type(ref) is not dict or state_path is None: return rows
+    name = ref.get('file')
+    if type(name) is not str or Path(name).name != name or not name.endswith('.json'): return rows
+    path = spill_dir(state_path) / name
+    if not path.is_file() or path.stat().st_size > host.STATE_LIMIT + 1: return rows
+    raw = path.read_bytes()
+    if hashlib.sha256(raw.rstrip(b'\n')).hexdigest() != ref.get('digest'): return rows
+    body = host.load_json(path, host.STATE_LIMIT + 1)
+    if type(body) is not dict or body.get('task_id') != record['task_id'] or type(body.get('objects')) is not list: return rows
+    return [o for o in body['objects'] if type(o) is dict and type(o.get('data')) is dict]
+
+
+def load_archive(state):
+    """Records the record bound evicted whose evidence stays on file, oldest first: [{task_id, file, objects,
+    digest}], kept in her ledger, which is never evicted."""
+    row = next((o for o in state['observations'] if o.get('task_id') == LEDGER_ID), None)
+    shelf = (row or {}).get('archive')
+    if type(shelf) is not list: return []
+    return [dict(task_id=e['task_id'], file=e['file'], objects=e['objects'], digest=e['digest']) for e in shelf
+            if type(e) is dict and type(e.get('task_id')) is str and type(e.get('file')) is str
+            and type(e.get('objects')) is int and type(e.get('digest')) is str][-ARCHIVE_ENTRIES:]
+
+
 def save(host, state, state_path, record, library=None, carried=(), ledger=None):
-    """Write the record within the state bound, trimming what is worth least first: this record's scheduling memory,
+    """Write the record within the state bound, moving what is worth least first: this record's scheduling memory,
     then the scheduling memory of other records (it serves only a resume of their problem), then the evidence of
-    records whose claims this run carried over and checked again (carried: their task ids; a record left with no
-    evidence is removed), and this record's own evidence only as a last resort. Evidence is dropped from the least
-    valuable end; the number this record dropped is recorded and returned."""
+    records whose claims this run carried over and checked again (carried: their task ids; that evidence now lives in
+    this record, so it is dropped, and a record left with none is removed), then the evidence of the largest other
+    records, which is spilled to its own file beside the state (see spill), and last this record's own evidence, also
+    spilled. Only evidence beyond one file's bound is dropped; the number this record dropped is recorded and
+    returned. When the record bound evicts her oldest records, their evidence stays on file and the ledger keeps
+    where (see load_archive); files no longer named by the state are removed once it is written."""
     if state_path is None: return 0
     ids = {record['task_id']} | ({library['task_id']} if library else set()) | ({ledger['task_id']} if ledger else set())
     others = [o for o in state['observations'] if o['task_id'] not in ids]
-    state['observations'] = (others + ([library] if library else []) + ([ledger] if ledger else []) + [record])[-128:]
+    rows = others + ([library] if library else []) + ([ledger] if ledger else []) + [record]
+    state['observations'] = rows[-MAX_RECORDS:]
+    if ledger is not None:
+        shelf = ledger.setdefault('archive', [])
+        for o in rows[:-MAX_RECORDS]:
+            if o.get('kind') != 'autonomous_research': continue
+            if o.get('objects'): spill(host, state_path, o)
+            ref = o.get('spilled')
+            if type(ref) is dict and type(ref.get('file')) is str and type(ref.get('objects')) is int \
+                    and type(ref.get('digest')) is str:
+                shelf[:] = [e for e in shelf if e['task_id'] != o['task_id']] + [
+                    dict(task_id=o['task_id'], file=ref['file'], objects=ref['objects'], digest=ref['digest'])]
+        del shelf[:-ARCHIVE_ENTRIES]
     record['dropped_objects'] = 0
-    size = lambda: len(host.canonical(state).encode()) + 1
+    # The canonical state's exact length, from each record's cached length: only a record that changed is serialized
+    # again (a whole-state serialization per step made a save at the bound cost a minute).
+    base = len(host.canonical(dict(state, observations=[])).encode()) + 1; weights = {}
+    def size():
+        rows = state['observations']
+        for o in rows:
+            if id(o) not in weights: weights[id(o)] = len(host.canonical(o).encode())
+        return base + sum(weights[id(o)] for o in rows) + max(0, len(rows) - 1)
+    def changed(o): weights.pop(id(o), None)
     if size() > host.STATE_LIMIT:
         record['tried'] = record['tried'][-500:]; record['rederivable'] = record['rederivable'][-500:]
-        record['log'] = record['log'][-8:]; record['samples'] = record['samples'][-200:]
+        record['log'] = record['log'][-8:]; record['samples'] = record['samples'][-200:]; changed(record)
     older = [o for o in state['observations'] if o is not record and o.get('kind') == 'autonomous_research']
     for o in older:
         if size() <= host.STATE_LIMIT: break
-        for key in ('tried', 'rederivable', 'log', 'samples'):
-            if key in o: o[key] = []
+        if any(o.get(key) for key in ('tried', 'rederivable', 'log', 'samples')):
+            for key in ('tried', 'rederivable', 'log', 'samples'):
+                if key in o: o[key] = []
+            changed(o)
     def trim(row):
         # Drop from the least valuable end until the state fits, then put back, most valuable first, every dropped
         # object that still fits: one large object must not take the smaller ones behind it along.
@@ -1531,17 +1610,33 @@ def save(host, state, state_path, record, library=None, carried=(), ledger=None)
         for o in reversed(gone):
             extra = len(host.canonical(o).encode()) + 1
             if current + extra <= host.STATE_LIMIT: row['objects'].append(o); current += extra
-        while size() > host.STATE_LIMIT and row['objects']: row['objects'].pop()  # separators make the sum inexact
+        changed(row)
+        while size() > host.STATE_LIMIT and row['objects']: row['objects'].pop(); changed(row)  # separators
         return before - len(row['objects'])
     for o in older:
-        if size() <= host.STATE_LIMIT: break
         if o['task_id'] not in carried: continue
-        o['dropped_objects'] = o.get('dropped_objects', 0) + trim(o)
-        if not o['objects']: state['observations'].remove(o)
-    dropped = trim(record); record['dropped_objects'] = dropped
+        if size() <= host.STATE_LIMIT: break
+        o['dropped_objects'] = o.get('dropped_objects', 0) + trim(o); changed(o)
+        if not o['objects'] and not o.get('spilled'): state['observations'].remove(o)
+    for o in sorted(older, key=lambda o: -len(host.canonical(o.get('objects', [])))):
+        if size() <= host.STATE_LIMIT: break
+        if o in state['observations'] and o.get('objects'):
+            o['dropped_objects'] = o.get('dropped_objects', 0) + spill(host, state_path, o); changed(o)
+    dropped = 0
+    if size() > host.STATE_LIMIT: dropped = spill(host, state_path, record); changed(record)
+    dropped += trim(record); record['dropped_objects'] = dropped; changed(record)
+    while size() > host.STATE_LIMIT and record['objects']:  # the count itself can add a digit
+        record['objects'].pop(); dropped += 1; record['dropped_objects'] = dropped; changed(record)
     target = Path(state_path); target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix(target.suffix + '.tmp')
     temp.write_text(host.canonical(state) + '\n', encoding='utf-8', newline='\n'); temp.replace(target)
+    folder = spill_dir(state_path)
+    if folder.is_dir():
+        # Only after the state is written: a file the state no longer names (superseded or dropped) is removed.
+        keep = {o['spilled'].get('file') for o in state['observations'] if type(o.get('spilled')) is dict}
+        keep |= {e['file'] for e in load_archive(state)}
+        for f in folder.iterdir():
+            if f.is_file() and f.name not in keep and f.name.endswith(('.json', '.json.tmp')): f.unlink()
     return dropped
 
 
@@ -1552,6 +1647,8 @@ def run(task, state_path, limit, host):
     registry, _ = L.load_ops(); gen = generation()
     state = host.read_state(state_path)
     old = next((o for o in state['observations'] if o.get('task_id') == identity and o.get('kind') == 'autonomous_research'), None)
+    archive = load_archive(state)
+    shelved = next((e for e in archive if e['task_id'] == identity), None) if old is None else None
     rt = L.Runtime(checker, budget)
     goal = GOALS[problem['type']](problem, L); goal.init(rt)
     library, retained = load_library(state)
@@ -1568,15 +1665,19 @@ def run(task, state_path, limit, host):
                 unseen = old.get('unseen', 0) if type(old.get('unseen')) is int else 0
             for m in old.get('macros', []):
                 if type(m) is dict and all(s in registry for s in m.get('steps', [])) and m.get('steps'): macros.append(m)
-            saved = [o for o in old.get('objects', []) if type(o) is dict and type(o.get('data')) is dict]
+            saved = evidence(host, state_path, old)
             replayed, invalid = goal.restore(rt, saved)
             if invalid:
                 # Refused evidence invalidates the scheduling memory built on it; the search is redone.
                 tried = set()
+        elif shelved is not None:
+            # The record bound evicted this problem's record; its evidence stayed on file and is admitted again.
+            replayed, invalid = goal.restore(rt, evidence(host, state_path, dict(task_id=identity, spilled=shelved)))
         else:
             # A new problem starts from what related problems already proved about the same equation.
             rows = [o for rec in state['observations'] if rec.get('kind') == 'autonomous_research'
-                    for o in rec.get('objects', []) if type(o) is dict and type(o.get('data')) is dict]
+                    and type(rec.get('problem')) is dict and rec['problem'].get('type') == problem['type']
+                    for o in evidence(host, state_path, rec)]
             carried = goal.transfer(rt, rows)
         # Checked results replayed or carried over are not this round's; what the round adds is counted from here.
         baseline = sum(1 for o in rt.objects.values() if o['status'] == 'checked')
@@ -1609,7 +1710,8 @@ def run(task, state_path, limit, host):
                    if rec.get('kind') == 'autonomous_research' and rec is not old and goal.carries(rec)}
     ledger[identity] = rounds
     dropped = save(host, state, state_path, record, dict(task_id=LIBRARY_ID, kind='strategy_library', entries=entries),
-                   carried_ids, dict(task_id=LEDGER_ID, kind='problem_rounds', entries=ledger))
+                   carried_ids, dict(task_id=LEDGER_ID, kind='problem_rounds', entries=ledger,
+                                     archive=[e for e in archive if e['task_id'] != identity]))
     checked = [o for o in rt.objects.values() if o['status'] == 'checked']
     by_kind = {}
     for o in checked: by_kind[o['kind']] = by_kind.get(o['kind'], 0) + 1

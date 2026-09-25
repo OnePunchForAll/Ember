@@ -5078,7 +5078,7 @@
     ]
    },
    "scope": "A finite exact view: her tools compute or verify exactly what the statement says, and it settles nothing about the open problem.",
-   "known": "Known for n up to 4 in many settings and asymptotically in weaker forms.",
+   "known": "Proved for n = 3 (Chan, 1995); asymptotic versions are known (Pokrovskiy, 2020; Montgomery and Sauermann, 2025); open in general.",
    "source": "Rota (1989)."
   },
   {
