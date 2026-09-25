@@ -606,6 +606,48 @@ The same statement as the third attempt, from the same round-4 state.
   (mod 278,460); her open classes are consistent with that statement. The
   problem stays open here.
 
+### Round 6, resume attempt (commit bb040bf, fingerprint f20d30b7, one call: 2,474 moves, 152 s)
+
+The round-5 statement, resumed from her round-5 state, with the compact
+format and the 8 MiB bound.
+
+- **Result.** She replayed 11,453 saved objects and for the first time
+  assembled a cover at 8,031,343,320 (2,883 families). Her theorem moved
+  there, but with 3,999 open classes rather than 821. The round-5 save had
+  dropped 3,556 families, and she did not find them again.
+- **Failure mining.** At 8,031,343,320 her divisor ansatz and its extension
+  were retired in the non-square context after 64 misses each (moves 701
+  and 702). Of the open classes there, 2,231 carry only a classical miss:
+  the ansatz never ran on them. Retirement counts the misses of the current
+  run only, so the successes the lossy save removed did not count. Not
+  fixed: her saves in these campaigns no longer drop anything (below), and
+  the round was rerun from the round-4 state. Open obligation: a resume
+  after a lossy save should not retire a generator on a level whose
+  earlier successes were lost. This state was not given to the verdict.
+
+### Round 6 (commit bb040bf, fingerprint f20d30b7, one call: 21,029 moves, 738 s)
+
+The round-5 statement, from the round-4 state as in round 5, with the
+compact format and the larger bounds.
+
+- **Result.** The same choices as round 5: primes 13, 19, 23 and 17, and
+  821 open classes at 8,031,343,320 (114 coprime squares and 707
+  non-squares). This time the cover there fits (6,061 families), and her
+  theorem moved down one level: every n >= 2 outside 821 residue classes
+  mod 8,031,343,320 has a representation 5/n = 1/x + 1/y + 1/z. That is an
+  open fraction of 1.02 × 10^-7, against 1.04 × 10^-6 in round 5.
+- **Saving.** 1,661,284 of 8,388,608 bytes, and nothing dropped. Her record
+  holds the finest cover in the compact form (392,806 bytes), her range,
+  theorem and refutation, 126 templates, walls in 8 batches, her refinement
+  tree, and the 942 families outside the cover in 2 batches.
+- **Verdict.** Self-test passed (22 cases). 11,903 claims VERIFIED across
+  the three records in the state, among them the theorem at
+  8,031,343,320, its cover, the refutation, the 942 families and 10,945
+  walls; none REFUTED or UNRESOLVED. Bit: verified. The verdict took 635 s.
+- **What this establishes.** A checked reduction of 5/n to 821 residue
+  classes mod 8,031,343,320, with every n in [2, 100,000) checked
+  directly. The problem stays open here.
+
 ## Campaign 3: the Collatz stopping-time sieve to 2^18 (a closed check)
 
 **Problem supplied.** The map T(n) = n/2 or (3n+1)/2: certify descent class
@@ -840,4 +882,7 @@ shorter, then the bounds were raised.
   and one cover 65,536 families instead of 4,096 (about 2.9 MB in the
   compact form). The state-bound package check now sizes its test records
   to the host's bound.
+- **First use.** Campaign 2 round 6 ran with both. Her cover at
+  8,031,343,320 (6,061 families) takes 392,806 bytes, her state 1.66 MB,
+  and her theorem now stands at that level.
 

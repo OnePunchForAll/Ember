@@ -1158,14 +1158,13 @@ simulation she never sees.
   fixed-parameter family reaches. The other 342 are non-residues at 11, 13
   or 17, where she certified walls. The round took 370 s; the same round
   on the code before the upgrade took 4,852 s.
-- **Sierpiński, 5/n.** In round 5 she chose 13, 19, 23 and 17, counting
-  every lift exactly, and proved that every n >= 2 outside 492 residue
-  classes mod 472,431,960 has a representation: about one open class in a
-  million, against 2.7 in round 4. Her finest level, 8,031,343,320, has 821
-  open classes, but a cover there needs more families than her checker
-  admits in one claim, so her theorem stands one level up. At 472,431,960
-  every open class is 1 mod 5, 7 and 13, 1 mod 9, and 1 mod 4. For 5/n the square classes
-  are not the obstruction. She stated the obstruction lemma that holds for
+- **Sierpiński, 5/n.** In round 6 she chose 13, 19, 23 and 17, counting
+  every lift exactly, and proved that every n >= 2 outside 821 residue
+  classes mod 8,031,343,320 has a representation: about one open class in
+  ten million (1.02 × 10^-7), against 1.04 × 10^-6 in round 5, when a cover
+  at that level did not fit her checker's bounds. The round took 738 s. At
+  472,431,960 every open class is 1 mod 5, 7 and 13, 1 mod 9, and 1 mod 4.
+  For 5/n the square classes are not the obstruction. She stated the obstruction lemma that holds for
   4/n, and her checker refuted it with her own witness: Type II (1, 1, 1)
   reaches the square class 4 mod 5.
 - **Collatz sieve to 2^18 (closed).** In a first run her open counts
