@@ -1043,6 +1043,77 @@ def class_thresholds(cover, budget):
 DERIVATION_RULES = ('range_union', 'theorem_range', 'range_extend', 'theorem_multiples')
 CLOSURE_RESIDUES = 40_000_000  # residues a closure statement may enumerate
 MAX_PREMISES = 8
+# ------------------------------------------------------------- divisor families
+# A Type I solution of a/n = 1/x + 1/y + 1/z with n | x: x = n e, q = a e - 1, y = (n e + f)/q, z = n e y/f for any
+# f | e^2, and (1 + q)/(n e) = a/n for every e, f and q = a e - 1. Her classical families fix e and f; a divisor family
+# leaves q free and ties it to a divisor of a linear form in n, so it is a classical family for every q at once:
+#   plus h:   q | n + h,   q = -1 (mod a h): f = h e    (x, y, z) = (n e, e (n + h)/q, n (e/h) (n + h)/q)
+#   times h:  q | h n + 1, q = -1 (mod a h): f = e/h    (x, y, z) = (n e, (e/h) (h n + 1)/q, n e (h n + 1)/q)
+#   square:   q | a n + 1, q = -1 (mod a):   f = e^2    (x, y, z) = (n e, e (n + e)/q, n (n + e)/q)
+DFAM_SHAPES = ('plus', 'times', 'square')
+MAX_DFAM_H = 64
+MAX_DFAM_SHAPES = 24
+
+
+def dfam_form(a, shape, h):
+    """The linear form and divisor class of a divisor family: q | alpha n + beta with q = -1 (mod t)."""
+    if shape == 'plus': return 1, h, a * h
+    if shape == 'times': return h, 1, a * h
+    return a, 1, a
+
+
+def dfam_terms(a, shape, h, n, q):
+    """The three denominators a family gives n from its divisor q, or Invalid when a condition fails. Integrality:
+    e = (q + 1)/a is an integer since a | t; h | e since q = -1 (mod a h); the quotients by q are integers by the
+    divisor condition (for square, a (n + e) = a n + q + 1 and gcd(a, q) = 1). Every use is also checked exactly."""
+    need(type(q) is int and q >= 1 and (q + 1) % a == 0, 'family divisor class')
+    e = (q + 1) // a
+    if shape == 'plus':
+        need((n + h) % q == 0 and e % h == 0, 'family divisor condition')
+        return n * e, e * (n + h) // q, n * (e // h) * (n + h) // q
+    if shape == 'times':
+        need((h * n + 1) % q == 0 and e % h == 0, 'family divisor condition')
+        return n * e, (e // h) * (h * n + 1) // q, n * e * (h * n + 1) // q
+    need((a * n + 1) % q == 0 and (n + e) % q == 0, 'family divisor condition')
+    return n * e, e * (n + e) // q, n * (n + e) // q
+
+
+def dfam_rational(a, shape, h, n, q):
+    """The denominators as rational functions of n and q, nothing assumed about divisibility: the identity check."""
+    e = Q(q + 1, a)
+    if shape == 'plus': return n * e, e * (n + h) / q, n * (e / h) * (n + h) / q
+    if shape == 'times': return n * e, (e / h) * (h * n + 1) / q, n * e * (h * n + 1) / q
+    return n * e, e * (n + e) / q, n * (n + e) / q
+
+
+def check_dfam(data, budget):
+    """A divisor family: for every n >= 1 and every divisor q of alpha n + beta with q = -1 (mod t), a/n is the sum of
+    the three unit fractions the shape gives. With denominators cleared the identity is a polynomial identity in n and
+    q of degree at most 4 in n and 3 in q, so vanishing on an 8 by 8 grid proves it; integrality is the lemma at
+    dfam_terms; and the first instances of the family are computed and checked exactly as a guard on the forms."""
+    need(set(data) == {'a', 'terms', 'shape', 'h'}, 'divisor family fields')
+    a = integer(data['a'], 2, 64); need(data['terms'] == 3, 'three unit fractions'); shape = data['shape']
+    need(shape in DFAM_SHAPES, 'divisor family shape'); h = integer(data['h'], 1, MAX_DFAM_H)
+    need(shape != 'times' or h >= 2, 'times 1 is plus 1'); need(shape != 'square' or h == 1, 'square takes no h')
+    alpha, beta, t = dfam_form(a, shape, h)
+    for n in range(1, 9):
+        for q in range(1, 9):
+            budget.use(8); x, y, z = dfam_rational(a, shape, h, Q(n), Q(q))
+            need(Q(1) / x + Q(1) / y + Q(1) / z == Q(a, n), 'family identity fails')
+    instances = 0
+    for k in range(1, 7):
+        q = t * k - 1; budget.use(q)
+        n = next(n for n in range(1, q + 1) if (alpha * n + beta) % q == 0)  # gcd(alpha, q) = 1: some n works
+        x, y, z = dfam_terms(a, shape, h, n, q)
+        need(min(x, y, z) >= 1 and Q(1, x) + Q(1, y) + Q(1, z) == Q(a, n), 'family instance fails at n = ' + str(n))
+        instances += 1
+    return dict(ok=True, kind='dfam', shape=shape, h=h, form=[alpha, beta, t], instances=instances,
+                scope='For every n >= 1 and every divisor q of %d n + %d with q = -1 (mod %d), a/n = 1/x + 1/y + 1/z '
+                      'with the denominators the shape gives (x = n e, e = (q + 1)/a).' % (alpha, beta, t),
+                proof='Type I identity (1 + q)/(n e) = a/n with q = a e - 1, verified as a polynomial identity on an 8 by '
+                      '8 grid; integrality from a | t, h | e and the divisor condition; the first instances checked exactly.')
+
+
 
 
 def least_factor(n):
@@ -1065,6 +1136,7 @@ def statement_of(kind, data):
                     range_hi=f['hi'], cover_id=digest(dict(kind='cover', data=f['cover'])))
     if kind == 'derived': return data['statement']
     if kind == 'cover': return dict(kind='cover', a=data['a'], terms=data['terms'], modulus=data['modulus'])
+    if kind == 'dfam': return dict(kind='dfam', a=data['a'], terms=data['terms'], shape=data['shape'], h=data['h'])
     raise Invalid('a ' + str(kind) + ' claim is not a premise a derivation rule composes')
 
 
@@ -1093,20 +1165,38 @@ def check_derived(data, budget, admitted=None):
         # itself (a/(t*d) = sum 1/(t*x_i) whenever a/d = sum 1/x_i, and d lies in the premise or earlier in this part).
         need(len(premises) == 1 and premises[0]['kind'] == 'range', 'range_extend takes one range')
         R = premises[0]; a, terms, lo, h = R['a'], R['terms'], R['lo'], R['hi']
-        proof = data['proof']; need(type(proof) is dict and set(proof) == {'cover', 'witnesses'}, 'range_extend proof')
+        proof = data['proof']
+        need(type(proof) is dict and set(proof) in ({'cover', 'witnesses'}, {'cover', 'witnesses', 'families'}), 'range_extend proof')
         need(s == dict(kind='range', a=a, terms=terms, lo=lo, hi=s.get('hi')) and type(s['hi']) is int and h < s['hi'] <= h + MAX_RANGE,
              'the stated range must extend the premise range by at most the checker bound')
         cover, witnesses = proof['cover'], proof['witnesses']; need(type(witnesses) is dict, 'witness table')
+        # A number may also be represented by a divisor family: the proof names the shapes it uses and, per number,
+        # the shape and the divisor; the checker computes the denominators and verifies the sum exactly.
+        families = proof.get('families') or dict(shapes=[], table={})
+        need(type(families) is dict and set(families) == {'shapes', 'table'} and type(families['shapes']) is list
+             and len(families['shapes']) <= MAX_DFAM_SHAPES and type(families['table']) is dict, 'family table')
+        shapes = []
+        for row in families['shapes']:
+            need(type(row) is list and len(row) == 2 and row[0] in DFAM_SHAPES and type(row[1]) is int
+                 and 1 <= row[1] <= MAX_DFAM_H, 'family shape')
+            shapes.append((row[0], row[1]))
+        need(not shapes or terms == 3, 'divisor families give three unit fractions')
         thresholds = {}
         if cover is not None:
             check_cover(cover, budget); need(cover['a'] == a and cover['terms'] == terms, 'cover belongs to another question')
             for entry in cover['entries']:
                 f = entry['family']; row = thresholds.setdefault(f['m'], {})
                 row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
-        via_cover = via_witness = via_divisor = 0
+        via_cover = via_witness = via_divisor = via_family = 0
         for n in range(h, s['hi']):
             budget.use(1 + len(thresholds))
             if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): via_cover += 1; continue
+            fam = families['table'].get(str(n))
+            if fam is not None:
+                need(type(fam) is list and len(fam) == 2 and type(fam[0]) is int and 0 <= fam[0] < len(shapes), 'family entry')
+                x, y, z = dfam_terms(a, shapes[fam[0]][0], shapes[fam[0]][1], n, fam[1]); budget.use(terms + 4)
+                need(min(x, y, z) >= 1 and Q(1, x) + Q(1, y) + Q(1, z) == Q(a, n), 'family divisor at ' + str(n) + ' gives no representation')
+                via_family += 1; continue
             xs = witnesses.get(str(n))
             if xs is not None:
                 need(type(xs) is list and len(xs) == terms - 1 and all(type(x) is int and x >= 1 for x in xs), 'witness shape')
@@ -1116,11 +1206,12 @@ def check_derived(data, budget, admitted=None):
             need(p < n and n // p >= lo, 'no cover class, witness or divisor in the range for ' + str(n))
             via_divisor += 1
         return dict(ok=True, kind='derived', rule=rule, lo=lo, hi=s['hi'], via_cover=via_cover, via_witness=via_witness,
-                    via_divisor=via_divisor,
+                    via_divisor=via_divisor, via_family=via_family,
                     scope='Every integer n with lo <= n < hi has a representation of a/n with the stated number of terms.',
                     proof='Below the premise range end by the premise; from it, each n by a checked family whose class '
-                          'contains n at or above its threshold, an exact witness with a unit remainder, or a proper divisor '
-                          'd >= lo of n (in the premise, or earlier in this part) scaled by n/d.')
+                          'contains n at or above its threshold, a divisor family (its denominators computed and summed '
+                          'exactly), an exact witness with a unit remainder, or a proper divisor d >= lo of n (in the '
+                          'premise, or earlier in this part) scaled by n/d.')
     if rule == 'theorem_multiples':
         # Closure under divisors: a/(p n') follows from a/n'. A residue x the cover leaves open is still represented
         # when a prime p divides both x and the modulus and x/p modulo M/p is reached (or reduces further), as long as
@@ -1805,7 +1896,7 @@ def question(kind, data):
     if kind == 'en': return digest(dict(q='en', a=data.get('a'), n=data.get('n'), terms=data.get('terms')))
     if kind == 'pattern': return digest(dict(q='esq', a=data['cover'].get('a'), terms=data['cover'].get('terms')))
     if kind == 'obstruction': return digest(dict(q='esq', a=data.get('a'), terms=data.get('terms')))
-    if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem'):
+    if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem', 'dfam'):
         body = data.get('cover', data) if kind == 'density' else data
         return digest(dict(q='esq', a=body.get('a'), terms=body.get('terms')))
     if kind == 'derived':
@@ -1838,7 +1929,7 @@ CHECKS = dict(law=check_law, gf=check_gf, closed=check_closed, period=check_peri
               rootmod=check_rootmod, nosolmod=check_nosolmod, nosol=check_nosol, descent=check_descent,
               introot=check_introot, eigen=check_eigen, cycle=check_cycle,
               dcover=check_dcover, cfinite=check_cfinite, refutation=check_refutation, nofamily=check_nofamily,
-              theorem=check_theorem, obstruction=check_obstruction)
+              theorem=check_theorem, obstruction=check_obstruction, dfam=check_dfam)
 
 
 def window_kind(tool, name):

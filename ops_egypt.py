@@ -37,7 +37,7 @@ LIFT_CAP = 10 ** 7
 LIFT_CLASSES = 60_000
 WALL_CAP = 10 ** 12
 SWEEP_CLASSES = 4000
-RANGE_FRONTIER = 10  # she extends a checked range in chunks of its own size, up to this multiple of verify_to
+RANGE_FRONTIER = 20  # she extends a checked range in chunks of its own size, up to this multiple of verify_to
 BREATH = 64  # an anytime move breathes after this many n
 
 
@@ -956,22 +956,71 @@ def egypt_range_chunk(rt, esq):
     for entry in (cover['data']['entries'] if cover else []):
         f = entry['family']; row = thresholds.setdefault(f['m'], {})
         row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
-    witnesses, missing = {}, []
+    witnesses, table, missing = {}, {}, []
+    shapes = divisor_families(rt, a, terms)
     for n in range(start, hi):
         if (n - start) % BREATH == 0: yield  # a breath: the scheduler may suspend the move here
         rt.budget.use(1 + len(thresholds))
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): continue
         p = L.factor(n); p = min(p) if p else n
         if p < n and n // p >= lo: continue  # the checker finds this divisor itself
+        # A divisor family before any search: a divisor of n + h, h n + 1 or a n + 1 in the family's class represents n.
+        hit = next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [dfam_divisor(rt, a, shape, h, n)] if q is not None), None)
+        if hit is not None: table[str(n)] = [hit[0], hit[1]]; continue
         xs = witness(a, n, rt.budget, max_excess=4 * a * 256) if terms == 3 else None
         if xs is None: missing.append(n); continue
         witnesses[str(n)] = sorted(xs)[:-1]
     if missing: return [rt.residual(esq, missing[:4096], 'no witness found within the search bound past ' + str(start))]
+    proof = dict(cover=cover['data'] if cover else None, witnesses=witnesses)
+    if shapes: proof['families'] = dict(shapes=[[shape, h] for shape, h in shapes], table=table)
     claim = rt.propose('derived', dict(rule='range_extend', premises=[base['id']],
-                                       statement=dict(kind='range', a=a, terms=terms, lo=lo, hi=hi),
-                                       proof=dict(cover=cover['data'] if cover else None, witnesses=witnesses)),
+                                       statement=dict(kind='range', a=a, terms=terms, lo=lo, hi=hi), proof=proof),
                        (esq, base) + ((cover,) if cover else ()))
     return [claim] if rt.check(claim) else []
+
+
+DFAM_H = 6  # the divisor families she states: plus 1..6, times 2..6 and square
+
+
+def dfam_list():
+    return [('plus', h) for h in range(1, DFAM_H + 1)] + [('times', h) for h in range(2, DFAM_H + 1)] + [('square', 1)]
+
+
+def divisor_families(rt, a, terms):
+    """The admitted divisor families of the question as (shape, h), the ones that cover most first."""
+    rows = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values() if o['kind'] == 'dfam'
+            and o['status'] == 'checked' and o['data']['a'] == a and o['data']['terms'] == terms}
+    return sorted(rows, key=lambda r: (r != ('plus', 1), r[0] == 'square', r[0] != 'times', r[1]))
+
+
+def dfam_divisor(rt, a, shape, h, n):
+    """A divisor q = -1 (mod t) of the family's linear form at n, from the prime factorization of that value (one
+    divisor kept per residue class, which decides every reachable residue), or None."""
+    alpha, beta, t = rt.checker.dfam_form(a, shape, h)
+    value = alpha * n + beta; rt.budget.use(value.bit_length()); found = {1: 1}
+    for p, k in L.factor(value).items():
+        for res, d in list(found.items()):
+            for j in range(1, k + 1):
+                rt.budget.use(); dj = d * p ** j
+                if dj % t not in found or dj < found[dj % t]: found[dj % t] = dj
+    return found.get((-1) % t)
+
+
+@op('egypt_divisor_families', 'NS', ('esq',), ('dfam',),
+    'State the divisor families of the question: Type I solutions with the parameter free, one family for every '
+    'divisor q = -1 (mod a h) of n + h or of h n + 1 (h up to 6), and for every divisor q = -1 (mod a) of a n + 1. The '
+    'checker verifies each identity; the range chunk then represents a number by a divisor of its linear form.')
+def egypt_divisor_families(rt, esq):
+    d = esq['data']; a, terms = d['a'], d['terms']
+    if terms != 3: return []
+    have = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values()
+            if o['kind'] == 'dfam' and o['status'] == 'checked' and o['data']['a'] == a}
+    out = []
+    for shape, h in dfam_list():
+        if (shape, h) in have: continue
+        claim = rt.propose('dfam', dict(a=a, terms=3, shape=shape, h=h), (esq,))
+        if rt.check(claim): out.append(claim)
+    return out
 
 
 @op('egypt_range_union', 'NS', ('esq',), ('derived',),
@@ -1242,6 +1291,11 @@ def _extended_closure_level(rt):
     return [esq]
 
 
+def _families_level(rt):
+    """A level with its base range checked and its divisor families stated: the chunk past it uses them first."""
+    esq = _ranged_level(rt)[0]; egypt_divisor_families(rt, esq); return [esq]
+
+
 def _four_term_level(rt):
     """A four-term question whose base range is checked by hand; the chunk past it finds no witness (a residual)."""
     esq = rt.given('esq', dict(a=4, terms=4, min=2, modulus=24, verify_to=5))
@@ -1289,7 +1343,8 @@ FIXTURES = {
     'egypt_local_pattern': [lambda rt: [_classical_cover(rt)], lambda rt: [_sieved_cover(rt)]],
     'egypt_reduction_theorem': [lambda rt: L.drive(egypt_finite_verify(rt, _esq(rt, 24, verify_to=400)))
                                 if _classical_cover(rt, 24) else [], _sieved_range],
-    'egypt_range_chunk': [_ranged_level, _four_term_level],
+    'egypt_range_chunk': [_ranged_level, _four_term_level, _families_level],
+    'egypt_divisor_families': [_ranged_level, lambda rt: [_esq(rt, 24, terms=4, verify_to=5)]],
     'egypt_range_union': [_two_ranges_level],
     'egypt_theorem_multiples': [_multiples_level, _extended_closure_level],
     'egypt_theorem_range': [_theorem_level],

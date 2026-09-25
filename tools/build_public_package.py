@@ -1760,6 +1760,24 @@ reclosed_ok = (reclosure is not None and reclosure['status'] == 'checked'
                and V.derived_verdict(reclosure['data'], admitted8b)[0] == 'VERIFIED'
                and not rt8.check(stale) and V.derived_verdict(stale['data'], admitted8b)[0] == 'REFUTED'
                and E2['egypt_theorem_multiples'](rt8, esq8) == [] and E2['egypt_theorem_range'](rt8, esq8) == [])
+# Divisor families: stated for the question and verified (a misnamed shape is refused), the chunk past the base range
+# represents by a family divisor every number it would otherwise have witnessed, the verdict verifies the proof with
+# its own denominators, and a wrong divisor is refused by both.
+rt9 = L.Runtime(C, ember['Budget'](10 ** 9)); esq9 = E2['_families_level'](rt9)[0]
+dfams9 = [o for o in rt9.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked']
+bad_dfam = rt9.propose('dfam', dict(a=4, terms=3, shape='times', h=1))
+L.drive(E2['egypt_range_chunk'](rt9, esq9))
+chunk9 = next((o for o in rt9.objects.values() if o['kind'] == 'derived' and o['data']['rule'] == 'range_extend'), None)
+admitted9 = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt9.objects.values() if o['status'] == 'checked'}
+table9 = chunk9['data']['proof']['families']['table'] if chunk9 else {}
+wrong9 = rt9.propose('derived', dict(chunk9['data'], proof=dict(chunk9['data']['proof'], families=dict(
+    chunk9['data']['proof']['families'], table={k: [v[0], v[1] + 1] for k, v in table9.items()})))) if table9 else None
+families = (len(dfams9) == 12 and not rt9.check(bad_dfam) and V.verdict('dfam', dfams9[0]['data'])[0] == 'VERIFIED'
+            and V.verdict('dfam', bad_dfam['data'])[0] == 'REFUTED' and chunk9 is not None and chunk9['status'] == 'checked'
+            and chunk9['evidence']['via_family'] > 0 and chunk9['evidence']['via_family'] + chunk9['evidence']['via_witness'] == grown['evidence']['via_witness']
+            and chunk9['evidence']['via_witness'] < grown['evidence']['via_witness']
+            and V.derived_verdict(chunk9['data'], admitted9)[0] == 'VERIFIED'
+            and wrong9 is not None and not rt9.check(wrong9) and V.derived_verdict(wrong9['data'], admitted9)[0] == 'REFUTED')
 derivations = (multiples and reclosed_ok and grown['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
                and grown['evidence']['via_divisor'] > 0 and grown['evidence']['via_witness'] > 0
                and ext['data']['statement']['range_hi'] == 798 and ext['data']['statement']['modulus'] == 24
@@ -1859,7 +1877,7 @@ batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == wri
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
                       obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, anytime=anytime,
-                      derivations=derivations, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
+                      derivations=derivations, families=families, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -1882,6 +1900,7 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('collatz_descent_not_retried_on_a_residual_class', sieve_result.get('not_retried') is True)
         check('anytime_moves_wait_resume_and_switch_under_a_small_bound', sieve_result.get('anytime') is True)
         check('derivations_admit_unions_and_extensions_and_refuse_forgeries', sieve_result.get('derivations') is True)
+        check('divisor_families_verify_and_carry_a_chunk', sieve_result.get('families') is True)
         check('residual_records_the_attempt_of_a_deterministic_move', sieve_result.get('attempt_recorded') is True)
         check('problem_choice_weighs_gains_and_inherits_widened_windows', sieve_result.get('choice') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)

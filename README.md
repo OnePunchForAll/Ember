@@ -9,7 +9,7 @@ API key, downloaded weights, third-party package or source archive. Python itsel
 is an external prerequisite and is **not** included. Generations through
 `ember-pyramid-15` were tested on Windows with Python 3.14.6. Generation
 `ember-pyramid-16` added the apex layer; this generation, `ember-pyramid-17`,
-adds a typed operator language (now 215 executed operators), a move bench, an
+adds a typed operator language (now 217 executed operators), a move bench, an
 autonomous research agent, an open-problem library and 29 window tools that give
 her a finite exact view of 125 catalogued open problems. Both were verified on Linux x86_64 with Python 3.11.15
 only; they have not been rerun on the Windows host. Other Python versions,
@@ -629,9 +629,9 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 372 implemented moves across
+`--pyramid` prints the map. Its base is a catalog of 374 implemented moves across
 34 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 215 operators of the typed language described below. The
+or replay work) and the 217 operators of the typed language described below. The
 base holds 169 moves with an N component, 118 with W, 313 with S and 105 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
@@ -876,7 +876,7 @@ code, has its own exact arithmetic (its window checkers live in `window_check.py
 `window_real.py` and `window_discrete.py`), and binds every claim to the question
 stated in its own data.
 
-215 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+217 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
 `ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`, `ops_wnum`, `ops_wdisc`)
 consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
@@ -901,8 +901,8 @@ The move bench runs every operator on its fixtures in a fresh runtime. It counts
 only the events that produced the objects the operator returned. An operator
 passes when its declared directions equal the union observed over its fixtures,
 every returned checked object is admitted again by a fresh checker call, and its
-argument and output kinds match its signature. All 215 pass: 114 have an N
-component, 53 W, 207 S and 79 E. Together with the subreasoner moves, every
+argument and output kinds match its signature. All 217 pass: 116 have an N
+component, 53 W, 209 S and 79 E. Together with the subreasoner moves, every
 direction of the pyramid now has more than one hundred moves. A package check
 changes one operator's declared directions and requires the bench to fail.
 Directions are observed on fixtures, not proved for every input. Five operators
@@ -954,6 +954,16 @@ residues of 83,160 to 18,724, 21/n from 44,220 to 21,936, 11/n from 34,611 to
 26,969. The rule is that method in her language; `egypt_theorem_multiples`
 derives it from her own theorem and cover, and the verdict recounts it.
 
+The divisor families came from the second contest. The primes her theorems
+leave in open classes are the numbers her range chunks must witness one by one.
+With my own code, over the ranges she had verified, 257,837 such primes across
+thirteen problems had each been witnessed; twelve divisor families (h up to 6)
+represent all but 15,474 of them, and all but 13,392 of the 294,755 in the
+next million. For Erdős–Straus that is all but 2 of the 260 below a million
+and all but 5 of the 229 in the next; for 7/n all 19. So the families are the
+statement, for all n at once, of what her witnesses said number by number, and
+they leave the search to a residual of a few percent of the open-class primes.
+
 The rules let her verified range grow past the checker's bound on one claim
 (2,000,000 numbers). `egypt_range_chunk` extends the admitted range from the
 least n past its frontier, by a chunk as long as the base range and up to ten
@@ -971,6 +981,27 @@ one per cover it was verified with, is persisted with its theorems, so a finer
 theorem survives a resume. The independent verdict checks derivations with its
 own reading of the rules, after the claims they rest on, and the chunk proofs
 number by number.
+
+A `dfam` claim is a divisor family: a Type I solution of a/n = 1/x + 1/y + 1/z
+with its parameter left free. Her classical families fix the parameters and
+cover one residue class each; a divisor family ties q = ae - 1 to a divisor of
+a linear form in n and so is a classical family for every q at once. `plus h`
+represents every n such that n + h has a divisor q = -1 (mod ah), with
+denominators ne, e(n + h)/q and n(e/h)(n + h)/q where e = (q + 1)/a; `times h`
+every n such that hn + 1 has such a divisor; `square` every n such that an + 1
+has a divisor q = -1 (mod a). The checker verifies the identity as a polynomial
+identity in n and q on a grid larger than its degree, states the integrality
+lemma (a | q + 1, h | e, and the divisor condition), and computes and sums the
+first instances exactly. `egypt_divisor_families` states twelve of them (h up
+to 6). A range chunk then represents a number by a divisor of its linear form
+before it searches for a witness; its proof names the shapes it uses and, per
+number, the shape and the divisor, and the checker and the verdict recompute
+the denominators and the sum exactly, so a chunk proof stands on its own even
+where the family claim is not in the workspace. With her theorem the families
+say where the hard cases are: n is unresolved only if it lies in an open class
+and none of n + h, hn + 1 (h <= 6) and an + 1 has a divisor in the family's
+class. By the usual sieve estimate that is a set of density zero among the
+primes; her language does not state that, and nothing here proves it.
 
 ## Autonomous research agent
 

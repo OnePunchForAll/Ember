@@ -578,7 +578,7 @@ class CoverGoal(Goal):
         if strategy in ('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples'):
             # The range moves depend on the admitted ranges, derivations, theorems and covers.
             return tuple(sum(1 for o in self.results if o['kind'] == k and o['status'] == 'checked')
-                         for k in ('finite', 'derived', 'theorem', 'cover'))
+                         for k in ('finite', 'derived', 'theorem', 'cover', 'dfam'))
         return sum(len(rs) for rs in self.fam.values())
 
     def allowed(self, strategy, target, rt):
@@ -682,6 +682,8 @@ class CoverGoal(Goal):
         claims_first = ([chain] + chained + claims[id(chain)] if chain is not None else chained)
         claims_first += [row for head in heads[1:] for row in [head] + claims[id(head)]]
         # Range chunks past the base range and the derivations built on them (the chunk's cover is named by digest).
+        # Divisor families stand alone; the chunk proofs that use them name their shapes and are checked exactly.
+        claims_first += [dict(kind='dfam', data=o['data']) for o in rt.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked']
         claims_first += [compact_range(self.L, o, chain, heads) for o in chunks]
         claims_first += [compact_proof(self.L, o, chain, heads) for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
         lemmas = [o for o in rt.objects.values() if (o['kind'] == 'obstruction' and o['status'] == 'checked') or
@@ -2083,7 +2085,7 @@ def scan(task, state_path, limit, host):
     return dict(result, **report)
 
 
-RESULT_KINDS = ('cover', 'finite', 'pattern', 'density', 'theorem', 'derived', 'dcover', 'cfinite', 'cycle', 'exclusion',
+RESULT_KINDS = ('cover', 'finite', 'pattern', 'density', 'theorem', 'derived', 'dfam', 'dcover', 'cfinite', 'cycle', 'exclusion',
                 'value', 'witness', 'proof')
 
 
@@ -2094,12 +2096,13 @@ def visible_results(checked):
     unions = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'range_union']
     extensions = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_range']
     closures = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_multiples']
+    dfams = [o for o in rows if o['kind'] == 'dfam']  # one row stands for the family list; the count is in checked_objects
     keep = {id(o) for o in (max(unions, key=lambda o: o['data']['statement']['hi'], default=None),
                             max(extensions, key=lambda o: ('closure' in o['data']['statement'], o['data']['statement']['range_hi']), default=None),
                             min(closures, key=lambda o: (o['data']['statement']['open_residues'], -o['data']['statement']['closed_at']), default=None)) if o is not None}
     base_lo = min((o['data']['lo'] for o in rows if o['kind'] == 'finite'), default=None)
     shown = [o for o in rows if not (o['kind'] == 'finite' and o['data']['lo'] != base_lo)
-             and not (o['kind'] == 'derived' and id(o) not in keep)]
+             and not (o['kind'] == 'derived' and id(o) not in keep) and not (o['kind'] == 'dfam' and o is not dfams[0])]
     # The range chain's rows are kept whatever the cut; the other rows fill the rest from the newest.
     chain = [o for o in shown if o['kind'] in ('finite', 'theorem', 'derived')]
     others = [o for o in shown if o['kind'] not in ('finite', 'theorem', 'derived')]
@@ -2118,10 +2121,11 @@ def result_row(o):
                                           open_coprime=ev.get('open_coprime'), lo=d['lo'], range_hi=ev.get('range_hi'))
     if o['kind'] == 'dcover': row.update(modulus=d['modulus'], covered=ev.get('covered'))
     if o['kind'] == 'cfinite': row.update(lo=d['lo'], hi=d['hi'])
+    if o['kind'] == 'dfam': row.update(shape=d['shape'], h=d['h'], form=ev.get('form'))
     if o['kind'] == 'derived':
         row.update(rule=d['rule'], premises=len(d['premises']), **{k: v for k, v in d['statement'].items() if k != 'kind'},
                    statement=d['statement']['kind'])
-        if d['rule'] == 'range_extend': row.update(via_cover=ev.get('via_cover'), via_witness=ev.get('via_witness'), via_divisor=ev.get('via_divisor'))
+        if d['rule'] == 'range_extend': row.update(via_cover=ev.get('via_cover'), via_witness=ev.get('via_witness'), via_divisor=ev.get('via_divisor'), via_family=ev.get('via_family'))
     if o['kind'] == 'cycle': row.update(start=d['start'], length=d['length'])
     if o['kind'] in ('value', 'witness', 'proof'):
         # a window's answer: the value itself, or the checker's summary of a witness or proof, cut for the report

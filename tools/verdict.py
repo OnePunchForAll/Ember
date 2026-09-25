@@ -551,13 +551,59 @@ def statement_of(kind, data):
                     cover_id=digest(dict(kind='cover', data=data['finite']['cover'])))
     if kind == 'derived': return data['statement']
     if kind == 'cover': return dict(kind='cover', a=data['a'], terms=data['terms'], modulus=data['modulus'])
+    if kind == 'dfam': return dict(kind='dfam', a=data['a'], terms=data['terms'], shape=data['shape'], h=data['h'])
     return None
 
 
-def extension_verdict(a, terms, lo, h, hi, cover, witnesses):
-    """Every n in [h, hi) by a cover class at or above its family threshold, a witness leaving a unit fraction, or a
-    proper divisor at or past lo (found here by trial division, and itself in the premise or earlier in the part)."""
+def dfam_denominators(a, shape, h, n, q):
+    """This tool's own reading of a divisor family: the three denominators for n and its divisor q, or None. Type I
+    with x = n e, e = (q + 1)/a, q = a e - 1, y = (n e + f)/q and z = n e y/f, f = h e, e/h or e^2 by shape."""
+    if q < 1 or (q + 1) % a: return None
+    e = (q + 1) // a
+    f = h * e if shape == 'plus' else (e // h if shape == 'times' and e % h == 0 else (e * e if shape == 'square' else None))
+    if f is None or (n * e + f) % q: return None
+    y = (n * e + f) // q
+    if (n * e * y) % f: return None
+    return n * e, y, n * e * y // f
+
+
+def dfam_verdict(d):
+    """VERIFIED when the family's identity holds as a polynomial identity in n and q (checked on a 9 by 9 grid,
+    more points than its degree in either variable), its shape is one this tool knows with the parameter in range,
+    and its first six instances give positive integers summing to a/n; REFUTED otherwise."""
+    if set(d) != {'a', 'terms', 'shape', 'h'} or d['terms'] != 3: return 'REFUTED', 'divisor family fields'
+    a, shape, h = d['a'], d['shape'], d['h']
+    if type(a) is not int or not 2 <= a <= 64 or type(h) is not int or not 1 <= h <= 64: return 'REFUTED', 'parameters out of range'
+    if shape not in ('plus', 'times', 'square') or (shape == 'times' and h < 2) or (shape == 'square' and h != 1):
+        return 'REFUTED', 'not a family shape this tool knows'
+    alpha, beta, t = (1, h, a * h) if shape == 'plus' else ((h, 1, a * h) if shape == 'times' else (a, 1, a))
+    for n in range(1, 10):
+        for q in range(1, 10):
+            e = F(q + 1, a); f = h * e if shape == 'plus' else (e / h if shape == 'times' else e * e)
+            x = n * e; y = (n * e + f) / q; z = n * e * y / f
+            if 1 / x + 1 / y + 1 / z != F(a, n): return 'REFUTED', 'the identity fails at n = %d, q = %d' % (n, q)
+    for k in range(1, 7):
+        q = t * k - 1; n = next((n for n in range(1, q + 1) if (alpha * n + beta) % q == 0), None)
+        if n is None: return 'REFUTED', 'no n has a divisor ' + str(q)
+        xs = dfam_denominators(a, shape, h, n, q)
+        if xs is None or min(xs) < 1 or sum(F(1, x) for x in xs) != F(a, n): return 'REFUTED', 'instance fails at n = ' + str(n)
+    return 'VERIFIED', 'identity on a grid, integrality by the divisor condition, six instances exact'
+
+
+def extension_verdict(a, terms, lo, h, hi, cover, witnesses, families=None):
+    """Every n in [h, hi) by a cover class at or above its family threshold, a divisor family (denominators computed
+    here and summed exactly), a witness leaving a unit fraction, or a proper divisor at or past lo (found here by
+    trial division, and itself in the premise or earlier in the part)."""
     thresholds = {}
+    shapes = []
+    if families is not None:
+        if type(families) is not dict or set(families) != {'shapes', 'table'} or type(families['table']) is not dict:
+            return 'REFUTED', 'family table'
+        for row in families['shapes']:
+            if type(row) is not list or len(row) != 2 or row[0] not in ('plus', 'times', 'square') or type(row[1]) is not int:
+                return 'REFUTED', 'family shape'
+            shapes.append((row[0], row[1]))
+        if shapes and terms != 3: return 'REFUTED', 'divisor families give three unit fractions'
     if cover is not None:
         v, detail = cover_verdict(cover)
         if v != 'VERIFIED': return v, 'cover: ' + detail
@@ -565,8 +611,16 @@ def extension_verdict(a, terms, lo, h, hi, cover, witnesses):
         for entry in cover['entries']:
             f = entry['family']; row = thresholds.setdefault(f['m'], {})
             row[f['r']] = min(row.get(f['r'], f['m'] * f['k0'] + f['r']), f['m'] * f['k0'] + f['r'])
+    table = families['table'] if families is not None else {}
     for n in range(h, hi):
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): continue
+        fam = table.get(str(n))
+        if fam is not None:
+            if type(fam) is not list or len(fam) != 2 or type(fam[0]) is not int or not 0 <= fam[0] < len(shapes) or type(fam[1]) is not int:
+                return 'REFUTED', 'family entry at ' + str(n)
+            xs = dfam_denominators(a, shapes[fam[0]][0], shapes[fam[0]][1], n, fam[1])
+            if xs is None or min(xs) < 1 or sum(F(1, x) for x in xs) != F(a, n): return 'REFUTED', 'family divisor at ' + str(n) + ' gives no representation'
+            continue
         xs = witnesses.get(str(n)) if type(witnesses) is dict else None
         if xs is not None:
             if type(xs) is not list or len(xs) != terms - 1 or not all(type(x) is int and x >= 1 for x in xs):
@@ -634,11 +688,11 @@ def derived_verdict(d, admitted):
     if d['rule'] == 'range_extend':
         if len(premises) != 1 or premises[0]['kind'] != 'range': return 'REFUTED', 'range_extend takes one range'
         R = premises[0]; proof = d.get('proof')
-        if type(proof) is not dict or set(proof) != {'cover', 'witnesses'}: return 'REFUTED', 'range_extend proof fields'
+        if type(proof) is not dict or set(proof) not in ({'cover', 'witnesses'}, {'cover', 'witnesses', 'families'}): return 'REFUTED', 'range_extend proof fields'
         if s != dict(kind='range', a=R['a'], terms=R['terms'], lo=R['lo'], hi=s.get('hi')) or type(s['hi']) is not int \
                 or not R['hi'] < s['hi'] <= R['hi'] + 2_000_000:
             return 'REFUTED', 'the stated range does not extend the premise range within the bound'
-        return extension_verdict(R['a'], R['terms'], R['lo'], R['hi'], s['hi'], proof['cover'], proof['witnesses'])
+        return extension_verdict(R['a'], R['terms'], R['lo'], R['hi'], s['hi'], proof['cover'], proof['witnesses'], proof.get('families'))
     if d['rule'] == 'theorem_multiples':
         T = [q for q in premises if q['kind'] == 'theorem']
         if len(premises) != 2 or len(T) != 1: return 'REFUTED', 'theorem_multiples takes a theorem and its cover'
@@ -672,6 +726,7 @@ def verdict(kind, data):
     if kind in ('value', 'witness', 'proof'): return WINDOWS.verdict(kind, data)
     try:
         if kind == 'ufam': return family_verdict(data)
+        if kind == 'dfam': return dfam_verdict(data)
         if kind == 'cover': return cover_verdict(data)
         if kind == 'finite': return finite_verdict(data)
         if kind == 'pattern': return pattern_verdict(data)
@@ -739,6 +794,10 @@ def self_test():
         'theorem closure with a wrong count refuted': multiples_case(bad=True)[0] == 'REFUTED',
         'theorem closure again at a wider range verifies': multiples_case(again=True)[0] == 'VERIFIED',
         'theorem closure repeated at its own range refuted': multiples_case(stale=True)[0] == 'REFUTED',
+        'divisor family verifies': dfam_verdict(dict(a=4, terms=3, shape='plus', h=1))[0] == 'VERIFIED',
+        'divisor family of a misnamed shape refuted': dfam_verdict(dict(a=4, terms=3, shape='times', h=1))[0] == 'REFUTED',
+        'range extension by family divisors verifies': extension_case(family=True)[0] == 'VERIFIED',
+        'range extension with a wrong family divisor refuted': extension_case(family=True, bad=True)[0] == 'REFUTED',
     }
     return all(checks.values()), checks
 
@@ -784,15 +843,19 @@ def multiples_case(bad=False, again=False, stale=False):
     return derived_verdict(dict(rule='theorem_multiples', premises=['T' * 64, T['cover_id']], statement=s), admitted)
 
 
-def extension_case(bad=False):
+def extension_case(bad=False, family=False):
     """The range [2, 100) of 4/n extended to [2, 110): the primes in the part need a witness (two denominators whose
-    remainder is a unit fraction, found by a small search here), and every composite reduces to a divisor at or past 2."""
+    remainder is a unit fraction, found by a small search here), and every composite reduces to a divisor at or past 2.
+    With family, 101 and 103 are given by divisor families instead: 3 | 101 + 1 (plus 1) and 23 | 2*103 + 1 (times 2)."""
     base = dict(a=4, terms=3, lo=2, hi=100, witnesses={}, divisors={}, cover=None)
     admitted = {digest(dict(kind='finite', data=base)): ('finite', base, 'VERIFIED')}
     witnesses = {'101': [56, 130088], '103': [52, 52], '107': [54, 54], '109': [60, 32700]}
-    if bad: witnesses['103'] = [52, 53]
-    ext = dict(rule='range_extend', premises=list(admitted), statement=dict(kind='range', a=4, terms=3, lo=2, hi=110),
-               proof=dict(cover=None, witnesses=witnesses))
+    proof = dict(cover=None, witnesses=witnesses)
+    if family:
+        del witnesses['101'], witnesses['103']
+        proof['families'] = dict(shapes=[['plus', 1], ['times', 2]], table={'101': [0, 3], '103': [1, 22 if bad else 23]})
+    elif bad: witnesses['103'] = [52, 53]
+    ext = dict(rule='range_extend', premises=list(admitted), statement=dict(kind='range', a=4, terms=3, lo=2, hi=110), proof=proof)
     return derived_verdict(ext, admitted)
 
 
