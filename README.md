@@ -1437,6 +1437,24 @@ verdict found 92,316 claims VERIFIED, none refuted, and only the 21 window
 values unresolved. It also exposed a Collatz stall: her rounds re-tried failures
 they had forgotten. A saved residual now counts as the record of an attempt.
 
+Her later scans (calls 232 to 1,269, at five fingerprints) ran with the
+instruments of the sections above: anytime moves, derivations, attempt records,
+gain-weighted choice, self-widened windows, the closure of a theorem under
+multiples and the divisor families. Each change of her code makes every
+settled problem eligible again, so each scan begins with a re-check wave of
+about two hundred calls of a few seconds. Her theorems now cover Erdős–Straus at
+4/n, Sierpiński's 5/n and thirteen of Schinzel's numerators; their verified
+ranges grew from 100,000 to about two million, each closed under multiples at
+its range, and from call 1,063 each theorem round states the twelve divisor
+families and represents by them all but a few percent of the primes its chunks
+reach in open classes. The verdict on her state after call 646 found 116,552
+claims VERIFIED, none refuted and 27 UNRESOLVED (the window values without an
+independent rule); the verdict on her final state after call 1,269 found
+124,455 claims VERIFIED (101,320 of them walls), none refuted, 27 UNRESOLVED
+(the window values without an independent rule), 37 self-test cases passing,
+in 4,232 s. CAMPAIGNS.md
+records each contest and what it transferred.
+
 The library grows by editing `problems.json`. A stated problem needs a
 unique id, a status (`open`, `closed` or `window`) and a task that
 `autonomous_research` accepts; a window also names its catalog problem

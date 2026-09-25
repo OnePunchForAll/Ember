@@ -1238,3 +1238,366 @@ except Schinzel's 19/n, which had no untried move left, and the Collatz sieve.
   per problem for every other goal; so far only Collatz has been seen to stall
   on it. Her library ranking counts any gain as a success. Her Collatz problem
   at depth 20 cannot settle: 27,328 classes need more than 20 steps.
+
+## What she depended on me for: six instruments (commits e3f9b8f and fa8a22b, fingerprint 47e163c3)
+
+The request was to supply what she still depended on me for, and to go
+further: to let her switch between moves at any time and to make her language
+of mathematics more advanced. Each instrument below names the dependence it
+removes, what was built, and how it was checked.
+
+- **Switching between moves at any time (anytime moves).** Before, a move ran
+  to its end or its work bound; a long search held the whole round, and the
+  only way to stop it was to lose it. Now an operator may be a generator that
+  breathes at natural points: the divisor searches after each parameter pair,
+  the classical sweep after each class, the range verification and the new
+  range chunk after every 64 numbers. A move runs in slices (half its work
+  bound, at most 4,000,000 units). At the first breath past the slice it waits
+  with its own budget and its place in the search. Each step she chooses again,
+  by the same doctrine score, between the best fresh move of the first open
+  target and the waiting moves, a waiting move's score divided by one plus the
+  slices it has run without progress. A search that keeps producing keeps its
+  place; one that stalls yields and resumes when nothing better is left. At
+  most eight moves wait; with the table full she resumes one rather than
+  starting another, so every search she starts runs to its end within the call.
+  A first version abandoned the idlest waiting move when the table filled: on
+  Erdős–Straus it abandoned 37 searches in one round. That version was
+  discarded before it was committed. The move bench runs a breathing operator
+  whole and counts its breaths: 5,895 over the fixtures of the five.
+- **A more advanced language: derivations.** A `derived` claim names a rule,
+  the identities of its premises and the statement that follows. The checker
+  takes, for this kind only, a way to look up an admitted claim by identity
+  (the runtime supplies its own workspace) and verifies the rule, never the
+  premises again. Two rules: `range_union` (two admitted ranges of one
+  question that touch or overlap give the range from the lower start to the
+  further end) and `theorem_range` (a theorem whose range ends at h and an
+  admitted range from at or before h to past it give the theorem with the
+  further end). With them her verified range grows past the checker's bound on
+  one claim: `egypt_range_chunk` verifies the next chunk past the admitted
+  frontier (as long as the base range, up to ten times `verify_to`),
+  `egypt_range_union` joins it to the spine from the least n, and
+  `egypt_theorem_range` extends her theorem over it. Derivations are persisted
+  with the chunks, admitted again after their premises on a resume, refused
+  when a premise is gone, and verified by the independent verdict with its own
+  reading of the rules (four new self-test cases: a union of touching ranges
+  verifies, one with a gap is refuted, a theorem extension verifies, one
+  claiming more is refuted). On the small example (range to 3,000) a
+  three-call chain took the verified range to 29,982 through nine chunks,
+  nine unions and one extension in the first call and replayed all 54 objects
+  in the third with none refused.
+- **A residual is the record of an attempt.** Her tried-move memory keeps
+  6,000 keys per problem and a resume can forget attempts; her Collatz stall
+  at 2^20 came from exactly this. The runtime now stamps every residual with
+  the move that left it, restored refinement trees stamp theirs with the
+  generator whose miss they record, and a deterministic one-argument move is
+  never proposed again on an object that carries its residual. The Collatz
+  rule of the previous section is now a case of this.
+- **Her choice among problems weighs the size of a gain.** A round counts as
+  a success of weight g / (g + 64) for its g new checked results and a failure
+  of the remaining weight, and only her last four rounds on a problem count.
+  On her state after call 231 this puts Schinzel's 11/n first among the open
+  problems (recent gains 1,543 and 101 in 124 s) and Collatz last (21, 2, 0, 0
+  in 894 s), where the previous rule had given Collatz ten of 29 rounds.
+- **She proposes her own problems.** A settled window is offered again with
+  larger bounds, by the widening rule its family already had, up to three
+  times over and one level at a time; it is ranked by the rounds of the window
+  it widens until it has its own, and keeps its own rounds in the ledger. On
+  her state after call 231 she proposes 36 widenings. Her frontier on a
+  catalog problem now grows as far as her rounds keep succeeding.
+- **A derivation with a computed part: `range_extend`.** Her first scan at
+  the new code reached the open problems and stalled on Schinzel's 11/n: the
+  call ran twenty minutes before I stopped it. Two causes. A waiting move's
+  work bound grew by a whole allocation at every resume, so a search that used
+  to end at its bound ran until the call's whole budget was gone; an anytime
+  move's total work is now capped at four times its allocation over all its
+  slices, what an escalated plain move had. And the 11/n theorem leaves 34,611
+  of 83,160 residues open (mostly classes not coprime to the modulus), so a
+  plain chunk claim had to find a witness for 42 percent of its numbers one by
+  one, where the base range had reduced every composite to a verified divisor;
+  a standalone claim cannot name numbers outside itself. The new rule can: a
+  `range_extend` derivation states [lo, hi) from an admitted range [lo, h),
+  and the checker verifies only the new numbers, each by a cover class, by a
+  witness the proof carries, or by a proper divisor d >= lo that the checker
+  finds itself by trial division, d lying in the premise or earlier in the new
+  part. The proof carries witnesses only for the primes in open classes. The
+  same 11/n round now takes 35 s and carries its theorem's range from 100,000
+  to 999,658 through nine extensions and nine theorem extensions, all admitted;
+  the verdict verifies extensions number by number with its own code (two new
+  self-test cases). The widening rule was aligned with each family's bounds in
+  the same change, after 22 of her 54 widening calls had ended on a bound the
+  checker refuses on sight or a count one move could not finish.
+- **Measured on her real problem.** A single round on Erdős–Straus at 4/n from
+  a copy of her state after call 231 (10,000 moves, 4·10^9 work): 948 moves in
+  104 s, 5,596 objects replayed, 118 slices, 118 resumes, 80 switches between
+  moves, none abandoned; nine chunks, nine unions and nine extensions, so her
+  theorem for 4/n now carries a verified range to 999,982 instead of 100,000.
+- **Package checks.** `anytime_moves_wait_resume_and_switch_under_a_small_bound`,
+  `derivations_admit_unions_and_extensions_and_refuse_forgeries`,
+  `residual_records_the_attempt_of_a_deterministic_move`,
+  `problem_choice_weighs_gains_and_inherits_widened_windows`; the checker-only
+  replay of her saved evidence now admits derivations after their premises.
+  670 checks pass; the bench passes 215 of 215 operators (114 N, 53 W, 207 S,
+  79 E); the pyramid binds 372 moves.
+- **Her scans at the new code, from her state after call 231.** At fingerprint
+  417031cb (calls 232-423): every settled problem re-checked in a call each,
+  then her own widenings, 54 calls (32 settled, 22 without a result; levels 2,
+  3 and 4), then Schinzel's 11/n, her first open problem by the new rule, at
+  which the run was stopped as described above. At fingerprint 47e163c3 (calls
+  424-646): 223 calls in 5,789 s, nothing dropped, nothing refused on replay.
+  128 re-checks of settled problems (a call each, no move); 73 widenings, 57
+  settled and 16 without a result, at levels 2 (32), 3 (23) and 4 (18); then
+  21 rounds on open problems by her rule (4,893 s, 80,181 moves, 27,771 new
+  checked results, 473 slices, 288 switches between moves, none abandoned).
+  Her theorems' verified ranges grew from 100,000 (or the problem's least n
+  plus that) to within a chunk of ten times it: 4/n to 999,982, 7/n to
+  999,973, 11/n to 999,658, 13/n to 997,462, 19/n to 996,814, 14/n to 992,422,
+  8/n to 997,822, 10/n to 998,362, 17/n to 981,262, 12/n to 889,822, 21/n to
+  873,532, 15/n to 815,302, 18/n to 682,462 and 16/n to 248,950 (its range
+  starts at 83,450). The rounds on 9/n, 5/n and 6/n, which have no theorem
+  yet, gained 3,260 to 4,348 results each; 9/n got four of the last five
+  calls, since each of its rounds gains thousands. No problem was settled.
+- **The contest, and what it transferred.** Asked to compete against her and
+  hand over what I used, I took her saved theorems and applied, with my own
+  code, the first method her language could not state: the set of n with a
+  representation is closed under multiples, so an open residue x with a prime
+  p of the modulus dividing it is represented whenever x/p modulo M/p is
+  reached, or reduces further, while the factor taken out keeps n/t >= lo past
+  the checked range. My counts from her state after call 623, independent of
+  her code:
+
+| a | modulus | open residues | after closure | coprime open | verified range |
+|---|---|---|---|---|---|
+| 4 | 36,756,720 | 26,262 | 26,262 | 26,262 | 999,982 |
+| 7 | 36,756,720 | 2,690 | 2,690 | 2,684 | 999,973 |
+| 8 | 83,160 | 38,866 | 30,928 | 925 | 997,822 |
+| 10 | 83,160 | 40,047 | 18,724 | 924 | 998,362 |
+| 11 | 83,160 | 34,611 | 26,969 | 51 | 999,658 |
+| 12 | 83,160 | 58,529 | 48,644 | 1,325 | 889,822 |
+| 13 | 9,240 | 7,920 | 7,920 | 1,440 | 997,462 |
+| 14 | 83,160 | 47,485 | 38,738 | 535 | 992,422 |
+| 15 | 83,160 | 35,556 | 25,711 | 1,340 | 815,302 |
+| 16 | 9,240 | 8,952 | 8,952 | 1,680 | 248,950 |
+| 17 | 9,240 | 8,400 | 8,400 | 1,920 | 981,262 |
+| 18 | 83,160 | 63,072 | 43,646 | 3,271 | 682,462 |
+| 19 | 27,720 | 27,261 | 27,261 | 5,416 | 996,814 |
+| 21 | 83,160 | 44,220 | 21,936 | 2,046 | 873,532 |
+
+  It leaves the coprime classes alone (the quadratic-residue wall: for 4/n and
+  7/n every open class is coprime) and the 9,240-modulus theorems, whose
+  reductions land on unreached classes. The method is now hers: the derivation
+  rule `theorem_multiples`, the operator `egypt_theorem_multiples` that derives
+  it from her own theorem and cover, the verdict's own recount (four self-test
+  cases), and a package check. What I would use next and did not transfer:
+  closure under multiples by primes outside the modulus, which needs a lifted
+  modulus, and the known theorem that no polynomial family reaches a
+  quadratic-residue class, which her language can state as a pattern but not
+  prove.
+- **The first measurement, and what it corrected.** One round on each of the
+  fourteen theorem problems from a copy of her state after call 646, in the
+  order of my table: nine closures derived, three equal to my counts, five
+  weaker, one theorem lost. The weaker five were closed at the base range
+  (100,000) and carried, by `theorem_range`, over the range to a million with
+  the counts of the base range, where a factor up to ten times larger may be
+  taken out; the lost one was the finer of 19/n's two base ranges, which the
+  saving kept only the widest of. Three changes. A closed statement now names
+  the range it was closed at, and the checker refuses to close a theorem again
+  at that range, so after every extension the closure at the wider range is
+  due and derived again (a closure that reduces nothing is derived too, as the
+  record of the attempt; before, 7/n tried its empty closure five times in a
+  round). Each operator names what is due: a closure for a theorem that names
+  its cover while no theorem on that cover is closed at its range (widest
+  range first, then fewest open residues); an extension for a theorem no
+  theorem already reaches past that is closed when it is, on the same cover or
+  leaving fewer residues open at the same closed range. And every base range
+  is persisted with its theorems, one per cover. On the same copy of her
+  state: 11/n closes at 100,000, extends to 999,658 and closes again with the
+  same 26,969 (mine; nothing more reduces there); 4/n the same to 999,982 with
+  26,262 (mine); 21/n closes at 100,000 to 27,768, extends to 873,532 and
+  closes again to 21,936 (mine), then finds a finer cover in the same round
+  (44,178 open instead of 44,220), closes it, extends it and closes it again:
+  21,894 open, 2,004 coprime, below my count, which was of her older cover.
+  My recount of the finer theorem with my own code, from her saved cover:
+  21,894 open, 2,004 coprime, hers exactly.
+- **The measurement at fingerprint 0437ea5a (commit f4ef9e4).** One round on
+  each of the fourteen theorem problems, in the order of my table, from a
+  fresh copy of her state after call 646: 987 s, 14,339 moves, 3,109 new
+  checked results, 64 slices and 15 switches between moves, none abandoned.
+  Every round derived the closure at the full verified range (closed at the
+  range end, after the closure at the base range and the extension). Eight
+  equal my table. In the other six she closed a theorem finer than the one I
+  had counted: her rounds verify the base range again with the finest cover
+  they hold and derive its theorem, and that theorem is now saved; my table
+  was of the one theorem her saving used to keep. Recounted with my code from
+  her final state, theorem by theorem, all fourteen closures are exactly my
+  counts of the finest theorem she holds:
+
+| a | open residues before, per theorem | her closure: open, coprime, at | my table | my recount |
+|---|---|---|---|---|
+| 11 | 34,611 | 26,969, 51, at 999,658 | 26,969 | 26,969, 51 |
+| 13 | 7,920 | 7,920, 1,440, at 997,462 | 7,920 | 7,920, 1,440 |
+| 16 | 8,952 | 8,952, 1,680, at 248,950 | 8,952 | 8,952, 1,680 |
+| 19 | 27,261 and 79,986 | 27,261, 5,416, at 996,814 | 27,261 | 27,261, 5,416 |
+| 14 | 47,485 | 38,738, 535, at 992,422 | 38,738 | 38,738, 535 |
+| 17 | 8,400 | 8,400, 1,920, at 981,262 | 8,400 | 8,400, 1,920 |
+| 8 | 38,866 and 38,860 | 30,922, 919, at 997,822 | 30,928 | 30,922, 919 |
+| 10 | 40,047 | 18,724, 924, at 998,362 | 18,724 | 18,724, 924 |
+| 12 | 58,529 and 58,476 | 48,591, 1,272, at 889,822 | 48,644 | 48,591, 1,272 |
+| 21 | 44,220 and 44,178 | 21,894, 2,004, at 873,532 | 21,936 | 21,894, 2,004 |
+| 15 | 35,556 and 35,470 | 25,625, 1,254, at 815,302 | 25,711 | 25,625, 1,254 |
+| 18 | 63,072 and 62,564 | 43,138, 2,763, at 682,462 | 43,646 | 43,138, 2,763 |
+| 7 | 2,690 and 798 | 798, 792, at 999,973 | 2,690 | 798, 792 |
+| 4 | 26,262 | 26,262, 26,262, at 999,982 | 26,262 | 26,262, 26,262 |
+
+  The 7/n row is the one to read twice: the coarser theorem's 2,690 open
+  classes are all but six coprime to the modulus, where closure under
+  multiples cannot reach, and my table said so; her finer theorem leaves 798
+  open, 792 of them coprime, and the closure reduces none of the other six
+  either. So the contest ends with
+  her counts below mine on six problems, for a reason that is hers (the finer
+  cover) and not the method's; the method reduces the same residues in both
+  our hands. The closure on the largest modulus (36,756,720) cost 1.3 million
+  work units and the whole 4/n round 86 s.
+- **Her rounds after the transfer** (calls 856-1062, fingerprint 0437ea5a,
+  3,356 s): the re-check wave first (every settled problem and widening
+  a call each, 203 calls), then her own choices among the open problems by
+  the gain rule: Sierpiński's 5/n (333 new results in 1,108 moves), 6/n
+  (4,424 in the whole move allowance), then Collatz twice (893 and 558). The
+  fifth open round was stopped for the next change of her code. Her
+  theorem problems were not chosen in these four rounds: their recent rounds,
+  the closure rounds of the measurement above, had gained 104 to 524 results
+  each, against thousands on 5/n and 6/n.
+- **The verdict on her state after call 646** (before the transfer), archive
+  included: 116,552 claims VERIFIED (99,520 of them walls), none refuted, 27
+  UNRESOLVED, in 3,848 s. The 27 are window values in families without an
+  independent rule, as before. Every derivation of the scan (270 in the
+  verdict's sample of 4,096 claims) verified after its premises. The verdict
+  on her final state after call 1,269 (fingerprint ab202107, after the second
+  contest below): 124,455 claims VERIFIED (101,320 of them walls), none
+  refuted, 27 UNRESOLVED (the window values without an independent rule), 37
+  self-test cases passing, in 4,232 s.
+- **Open obligations.** Only five operators breathe; a plain move still runs
+  whole. A move waiting when a call ends starts over. Derivations exist for
+  ranges and theorems only; her other claims compose through the fixed forms
+  they always had. A widening is offered only for the 19 families with a
+  widening rule (35 of the 125 windows). The 6,000-key memory is unchanged.
+
+## The second contest: divisor families (commit 1d618fc, fingerprint ab202107)
+
+Asked to compete again, I took the numbers her theorems leave to the witness
+search: the primes in open residue classes, which every range chunk represents
+one by one with a witness her checker verifies. The first thing a
+mathematician reaches for there is not a residue class. A Type I solution of
+a/n = 1/x + 1/y + 1/z with n | x has x = ne, q = ae - 1, y = (ne + f)/q and
+z = ney/f for any f | e^2, and (1 + q)/(ne) = a/n whatever e and f are. Her
+classical families fix e and f and cover one class each. Leave q free and tie
+it to a divisor of a linear form in n, and one statement is a classical family
+for every q at once: `plus h` (q | n + h, q = -1 mod ah, f = he), `times h`
+(q | hn + 1, q = -1 mod ah, f = e/h) and `square` (q | an + 1, q = -1 mod a,
+f = e^2). With my own code (compete2/dfam.py: a segmented factorization of the
+linear forms over each interval, one divisor kept per residue class, every
+representation the formulas give checked exactly, 5,789 of them), on her state
+after the transfer rounds:
+
+| a | modulus | open-class primes, verified range | left after 12 families | in the next million | left |
+|---|---|---|---|---|---|
+| 4 | 36,756,720 | 260 | 2 | 229 | 5 |
+| 7 | 36,756,720 | 8 | 0 | 11 | 0 |
+| 8 | 83,160 | 4,111 | 106 | 3,710 | 66 |
+| 10 | 83,160 | 4,180 | 306 | 3,776 | 140 |
+| 11 | 83,160 | 224 | 18 | 199 | 2 |
+| 12 | 83,160 | 4,974 | 731 | 5,182 | 508 |
+| 13 | 9,240 | 58,664 | 1,172 | 52,814 | 617 |
+| 14 | 83,160 | 2,442 | 396 | 2,191 | 226 |
+| 15 | 83,160 | 4,499 | 653 | 5,135 | 439 |
+| 16 | 9,240 | 12,085 | 1,001 | 65,089 | 3,796 |
+| 17 | 9,240 | 76,841 | 3,012 | 70,466 | 1,775 |
+| 18 | 83,160 | 8,170 | 2,080 | 11,479 | 2,085 |
+| 19 | 27,720 | 73,528 | 4,265 | 66,215 | 2,437 |
+| 21 | 83,160 | 7,851 | 1,732 | 8,259 | 1,296 |
+
+Of 257,837 open-class primes she had witnessed, the families represent all but
+15,474; of 294,755 in the next million, all but 13,392. The first family
+(q | n + 1) alone takes about half; the others each a few percent more. The
+residual primes for 4/n below two million are 351289, 925369, 1083289,
+1423321, 1672609, 1869169 and 1980169. Her 5/n theorem (modulus 8,031,343,320,
+past the bound of the class-counting instruments) has no open-class prime below
+two million to measure on.
+
+- **What transferred.** The claim kind `dfam` (the checker verifies the
+  identity as a polynomial identity in n and q on an 8 by 8 grid, larger than
+  its degree, states the integrality lemma, and computes and sums the first six
+  instances exactly); the operator `egypt_divisor_families`, which states the
+  twelve families (h up to 6) for a three-term question; the chunk prover,
+  which tries the families before any witness search (a divisor of the linear
+  form from its factorization, one divisor kept per residue class) and whose
+  proof now carries a family table, the shapes used and, per number, the shape
+  and the divisor; the checker's and the verdict's own recomputation of the
+  denominators and the exact sum for every such number, so a chunk proof stands
+  without the family claim; persistence of the families with the theorems; the
+  verdict's `dfam` rule and four self-test cases; the bench fixture; and the
+  package check `divisor_families_verify_and_carry_a_chunk` (twelve families
+  stated, a misnamed shape refused, the chunk's witnesses replaced one for one
+  by family divisors, a wrong divisor refused by both).
+- **Her rounds with the families.** One round on each of the fourteen theorem problems from a fresh copy of
+  her state after the closure rounds, with the range frontier raised from ten
+  to twenty times `verify_to` in the same change: 1,415 s in all, 142 new
+  chunks, and in the chunks proved after the families were stated 251,832
+  numbers represented by a family divisor against 14,635 by a witness. The
+  first family (q | n + 1) carried 139,399, `times 2` 43,247, `times 3`
+  19,421, `plus 2` 11,447 and the others between 1,321 and 9,155 each. Every
+  round stated the twelve families, doubled its verified range and closed its
+  theorem again at the new range; four closures came out finer at the wider
+  range (21/n 21,744, 12/n 48,586, 15/n 25,623, 18/n 41,980). A sample of
+  20,162 family entries from her saved proofs (200 per chunk), recomputed with
+  my own closed forms, had none wrong.
+
+| a | seconds | new chunks | family entries | witnesses | verified range | closure at the new range |
+|---|---|---|---|---|---|---|
+| 4 | 118 | 11 | 224 | 5 | 999,982 to 1,999,962 | 26,262, 26,262 coprime, at 1,999,962 |
+| 7 | 150 | 11 | 11 | 0 | 999,973 to 1,999,943 | 798, 792 coprime, at 1,999,943 |
+| 8 | 77 | 10 | 3,245 | 53 | 997,822 to 1,995,402 | 30,922, 919 coprime, at 1,995,402 |
+| 10 | 62 | 10 | 3,284 | 123 | 998,362 to 1,996,542 | 18,724, 924 coprime, at 1,996,542 |
+| 11 | 58 | 10 | 179 | 1 | 999,658 to 1,999,278 | 26,969, 51 coprime, at 1,999,278 |
+| 12 | 137 | 10 | 6,082 | 743 | 889,822 to 1,767,402 | 48,586, 1,272 coprime, at 1,767,402 |
+| 13 | 56 | 10 | 46,717 | 535 | 997,462 to 1,994,642 | 7,920, 1,440 coprime, at 1,994,642 |
+| 14 | 76 | 10 | 1,756 | 198 | 992,422 to 1,984,002 | 38,738, 535 coprime, at 1,984,002 |
+| 15 | 92 | 10 | 6,305 | 648 | 815,302 to 1,610,082 | 25,623, 1,254 coprime, at 1,610,082 |
+| 16 | 51 | 10 | 41,155 | 3,853 | 248,950 to 414,450 | 8,952, 1,680 coprime, at 414,450 |
+| 17 | 72 | 10 | 69,245 | 1,742 | 981,262 to 1,960,442 | 8,400, 1,920 coprime, at 1,960,442 |
+| 18 | 195 | 10 | 12,023 | 2,819 | 682,462 to 1,329,642 | 41,980, 2,763 coprime, at 1,329,642 |
+| 19 | 159 | 10 | 52,499 | 2,173 | 996,814 to 1,993,274 | 27,261, 5,416 coprime, at 1,993,274 |
+| 21 | 112 | 10 | 9,107 | 1,742 | 873,532 to 1,733,012 | 21,744, 2,004 coprime, at 1,733,012 |
+- **Her scan at the new fingerprint** (calls 1,063-1,269, 1,377 s): the
+  re-check wave again, and within it and after it her own choices by the
+  gain rule: nine rounds on theorem problems (11/n, 13/n, 14/n, 10/n, 8/n,
+  16/n, 17/n, 15/n, 21/n; 47 to 97 s each, 574 s in all) and one on the
+  Collatz sieve. Each theorem round stated the twelve families, added ten
+  chunks (the first before the families were stated, nine with a family
+  table), doubled its verified range and closed its theorem again at the new
+  range: 8/n to 1,995,402, 10/n to 1,996,542, 11/n to 1,999,278, 13/n to
+  1,994,642, 14/n to 1,984,002, 15/n to 1,610,082, 16/n to 414,450, 17/n to
+  1,960,442 and 21/n to 1,733,012. Over her 81 chunk proofs with a family
+  table, 180,993 numbers stand on a family divisor and 8,895 on a witness;
+  the first family carried 103,087. The counts per problem are those of the
+  measurement above, as they must be: the same code on the same state, her
+  choice of problem being the only difference. 5/n, 6/n, 4/n, 7/n, 12/n,
+  18/n and 19/n were not reached before the run was stopped for the verdict.
+- **The verdicts.** On the state of the fourteen family rounds, archive
+  included: 119,764 claims VERIFIED (101,920 of them walls), none refuted, 27
+  UNRESOLVED (the window values without an independent rule, as before), 37
+  self-test cases passing, in 4,319 s. Listed in full with the verdict's own
+  rules, every saved claim taken as an admitted premise: all 168 divisor
+  families VERIFIED, all 128 chunk proofs with a family table VERIFIED
+  (251,832 numbers by a family divisor, 14,635 by a witness, each recomputed
+  and summed exactly), all 251 closure derivations VERIFIED, in 350 s. On her
+  final state after call 1,269: 124,455 claims VERIFIED (101,320 of them
+  walls), none refuted, 27 UNRESOLVED (the window values without an
+  independent rule), 37 self-test cases passing, in 4,232 s.
+- **Open obligations.** The families and the theorem are not yet composed into
+  one statement (a `theorem_families` rule would state that an unresolved n
+  lies in an open class and fails every family condition); a range verified
+  to h gives every composite below h^2 for free by the closure under
+  multiples, which her language cannot yet state as a range; Type II solutions
+  with a common factor give further divisor conditions (on agn + 1 with
+  constraints on g); h stops at 6; the density-zero estimate for the residual
+  is not a claim she can make.
