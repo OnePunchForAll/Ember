@@ -1440,6 +1440,7 @@ print(json.dumps(answers))
         saved_cover = next(row for row in agent_record['objects'] if row['kind'] == 'cover')
         saved_family = saved_cover['data']['entries'][0]['family']
         if 'x' in saved_family: saved_family['x'][0] = ['num', 1, 1]
+        elif 's' in saved_family: saved_cover['data']['shapes'][saved_family['s']][0] = [[1, 1]]
         else: saved_family['p'][1] += 1
         (root / 'agent-forged.json').write_bytes(encoded(forged_agent))
         forged_run = cli('agent_forged_cover', 'examples/agent_unit_fraction_small.json',
@@ -1551,8 +1552,10 @@ print(json.dumps([checker['check'](row['kind'], row['data'], Budget())['kind']
               and {row['kind'] for row in verdict['claims']} >= {'cover', 'finite', 'pattern', 'density', 'theorem'})
         forged_lift = json.loads((root / 'lift-state.json').read_bytes())
         lift_record = next(row for row in forged_lift['observations'] if row.get('kind') == 'autonomous_research')
-        forged_family = next(row for row in lift_record['objects'] if row['kind'] == 'cover')['data']['entries'][0]['family']
+        forged_cover = next(row for row in lift_record['objects'] if row['kind'] == 'cover')['data']
+        forged_family = forged_cover['entries'][0]['family']
         if 'x' in forged_family: forged_family['x'][1] = ['num', 7, 1]
+        elif 's' in forged_family: forged_cover['shapes'][forged_family['s']][1] = [[7, 1]]
         else: forged_family['p'][1] += 1
         # A forged wall, or the lemma claimed for 5/n, where Type II (1,1,1) reaches the square class 4 mod 5.
         forged_walls = next((row for row in lift_record['objects'] if row['kind'] == 'nofamily'), None)
@@ -1684,8 +1687,29 @@ cases = [(a, M, [x for x in xs if gcd(x, M) == 1 and not E['classical_search'](a
          for a, M, xs in ((4, 840, [1, 121, 169, 289, 361, 529]), (5, 840, list(range(1, 840, 11))), (4, 24, [1]))]
 lift = all(len(xs) >= 1 for a, M, xs in cases) and all(E['lift_reach'](a, M, p, xs, B()) == direct(a, M, p, xs)
                                                      for a, M, xs in cases for p in (2, 3, 5, 7, 11, 13, 17))
+# The compact proof format: identities written once in n, families named by class, threshold and identity.
+pairs = [(s_, c_) for s_ in E['EXTENDED_S'] for c_ in E['EXTENDED_C']]
+found = [E['ansatz'](4, 840, r_, pairs, B(), limit=1) for r_ in (11, 13, 17, 19, 23, 29, 31, 37, 41, 43)]
+written = [row[0][0] for row in found if row]
+written += [dict(f, m=f['m'] * 7, r=f['r'] + f['m'] * j, x=[[[c.numerator, c.denominator] for c in L.ptrim(L.at_class(
+    L.in_n([V.F(n_, d_) for n_, d_ in e], f['m'], f['r']), f['m'] * 7, f['r'] + f['m'] * j))] for e in f['x']])
+            for f in written[:2] for j in (1, 2)]  # the same identities restated on subclasses
+compact = E['assemble']([dict(data=f) for f in written], 4, 3, 840 * 7)
+full = dict({k: v for k, v in compact.items() if k != 'shapes'},
+            entries=[dict(family=L.unshape(e['family'], compact.get('shapes'))) for e in compact['entries']])
+forged = json.loads(json.dumps(compact)); forged['shapes'][0][0] = [[1, 1]]
+compact_ok = (len(written) >= 8 and 'shapes' in compact and len(compact['shapes']) < len(compact['entries'])
+              and C.check_cover(compact, B())['covered'] == C.check_cover(full, B())['covered']
+              and V.verdict('cover', compact)[0] == 'VERIFIED' and len(json.dumps(compact)) < len(json.dumps(full))
+              and not admits_kind('cover', forged) and V.verdict('cover', forged)[0] == 'REFUTED')
+batches = A.family_batches(L, 4, 3, written)
+back = [row['data'] for row in A.CoverGoal(dict(a=4, terms=3, min=2, modulus=840, lifts=[], verify_to=100), L).expand(batches)]
+members = list(V.claims_of(dict(observations=[dict(kind='autonomous_research', task_id='t', objects=batches)])))
+batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == written
+            and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
-                      obstruction=obstruction, bound=bound, priors=priors, implied=implied, lift=lift)))
+                      obstruction=obstruction, bound=bound, priors=priors, implied=implied, lift=lift,
+                      compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
         sieve_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c', sieve_code], cwd=root, capture_output=True,
@@ -1705,6 +1729,8 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)
         check('lemma_implies_only_square_class_walls', sieve_result.get('implied') is True)
         check('prime_choice_counts_lifts_exactly', sieve_result.get('lift') is True)
+        check('compact_cover_equals_written_cover_and_refuses_a_forged_identity', sieve_result.get('compact') is True)
+        check('family_batch_round_trip_and_independent_verdict', sieve_result.get('batch') is True)
         # Regression checks for defects found while cataloguing generation 15.
         shared_args = ['--state', 'shared-source-recursive.json']
         cli('shared_state_source_first', 'examples/source_research_episode.json',

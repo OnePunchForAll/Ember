@@ -347,6 +347,42 @@ def classical_x(a, m, r, params):
     return [[[c.numerator, c.denominator] for c in ptrim(p)] for p in polys]
 
 
+def in_n(p, m, r):
+    """A polynomial in k on the class n = m*k + r restated in n: p((n - r)/m), by Horner's rule."""
+    out = []
+    for c in reversed(ptrim(p)): out = padd(pmul(out, [Fraction(-r, m), Fraction(1, m)]), [c])
+    return ptrim(out)
+
+
+def at_class(p, m, r):
+    """A polynomial in n restated on the class n = m*k + r: p(m*k + r), by Horner's rule."""
+    out = []
+    for c in reversed(ptrim(p)): out = padd(pmul(out, [Fraction(r), Fraction(m)]), [c])
+    return ptrim(out)
+
+
+def shape_table(families):
+    """Families in the compact form: each identity, written once as its denominators in n, and each family as its
+    class, threshold and the index of its identity. A family x(k) on n = m*k + r has the identity X(n) = x((n - r)/m),
+    and x(k) = X(m*k + r) rebuilds it exactly. Families that name classical parameters keep them."""
+    shapes, index, out = [], {}, []
+    for d in families:
+        if 'p' in d or 'x' not in d or not all(e and type(e[0]) is list for e in d['x']):
+            out.append(d); continue
+        shape = tuple(tuple(in_n([Fraction(n, q) for n, q in e], d['m'], d['r'])) for e in d['x'])
+        if shape not in index:
+            index[shape] = len(shapes); shapes.append([[[c.numerator, c.denominator] for c in poly] for poly in shape])
+        out.append(dict({k: v for k, v in d.items() if k != 'x'}, s=index[shape]))
+    return shapes, out
+
+
+def unshape(d, shapes):
+    """A compact family in working form: its denominators in k rebuilt from its identity in n."""
+    if 's' not in d: return d
+    polys = [at_class([Fraction(n, q) for n, q in e], d['m'], d['r']) for e in shapes[d['s']]]
+    return dict({k: v for k, v in d.items() if k != 's'}, x=[[[c.numerator, c.denominator] for c in p] for p in polys])
+
+
 def classical_params_of(a, m, r, x):
     """Classical parameters [type, u, v, e or w] that rebuild exactly these denominators on n = m*k + r, or None.
     Type II has a linear first denominator: u*v = m/a and e = -r (mod m). Type I has a quadratic first one: u/v is

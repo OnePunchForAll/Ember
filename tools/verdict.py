@@ -97,6 +97,20 @@ def classical_denominators(f):
     return [trim([c * u * v for c in dn]), trim([c * u * z for c in d]), trim([c * v * z for c in d])]
 
 
+def at_class(p, m, r):
+    """p(m*k + r) for a polynomial p in n: the denominators in k of a family named by its identity in n."""
+    out = []
+    for c in reversed(p): out = add(mul(out, [F(r), F(m)]), [c])
+    return trim(out)
+
+
+def unshaped(f, shapes):
+    """A family that names its identity s in a shape table, with its denominators in k written out; else f itself."""
+    if 's' not in f: return f
+    polys = [at_class(expand(e), f['m'], f['r']) for e in shapes[f['s']]]
+    return dict({k: v for k, v in f.items() if k != 's'}, x=[[[c.numerator, c.denominator] for c in p] for p in polys])
+
+
 def denominators(f):
     """A family's denominators: stated, or rebuilt from its named classical parameters."""
     return [expand(e) for e in f['x']] if 'x' in f else classical_denominators(f)
@@ -149,7 +163,7 @@ def covered_residues(cover):
 def cover_verdict(cover):
     M = cover['modulus']
     for e in cover['entries']:
-        f = e['family']
+        f = unshaped(e['family'], cover.get('shapes'))
         if M % f['m']: return 'REFUTED', 'family modulus ' + str(f['m']) + ' does not divide ' + str(M)
         if cover['bound'] < f['m'] * f['k0'] + f['r']: return 'REFUTED', 'bound below a family threshold'
         verdict, detail = family_verdict(f)
@@ -200,7 +214,8 @@ def finite_verdict(d):
         verdict, detail = cover_verdict(d['cover'])
         if verdict != 'VERIFIED': return verdict, 'cover: ' + detail
         for e in d['cover']['entries']:
-            f = e['family']; rows.setdefault(f['m'], []).append((f['r'], f['m'] * f['k0'] + f['r'], denominators(f)))
+            f = unshaped(e['family'], d['cover'].get('shapes'))
+            rows.setdefault(f['m'], []).append((f['r'], f['m'] * f['k0'] + f['r'], denominators(f)))
     done = set()
     for n in range(lo, hi):
         hit = None
@@ -570,6 +585,10 @@ def self_test():
             claim=dict(kind='obstruction', data=dict(a=4, terms=3, m=840, rule='classical_reach_nonsquare')),
             witness=dict(modulus=4, residue=1, params=['II', 1, 1, 1])))[0] == 'REFUTED',
         'broken sieve chain refuted': verdict('cover', dict(theorem_case(good, 0)['finite']['cover'], chain=[3, 4]))[0] == 'REFUTED',
+        'compact cover verifies': verdict('cover', compact_case(False))[0] == 'VERIFIED',
+        'compact cover with a false identity refuted': verdict('cover', compact_case(True))[0] == 'REFUTED',
+        'compact family rebuilds the written one': [trim(expand(e)) for e in unshaped(
+            dict(a=4, m=4, r=3, k0=0, s=0), compact_case(False)['shapes'])['x']] == [trim(expand(e)) for e in good['x']],
     }
     return all(checks.values()), checks
 
@@ -583,6 +602,13 @@ def theorem_case(family, k0):
     if k0: witnesses.update({'3': [1, 4], '7': [2, 15]})
     finite = dict(a=4, terms=3, lo=2, hi=10, witnesses=witnesses, divisors={'6': 3, '8': 4, '9': 3}, cover=cover)
     return dict(a=4, terms=3, lo=2, finite=finite)
+
+
+def compact_case(forged):
+    """The n = 3 (mod 4) family as an identity in n: x = (n+1)/4, y = z = n(n+1)/2; forged, z becomes n(n+2)/2."""
+    z = [[0, 1], [1, 1], [1, 2]] if forged else [[0, 1], [1, 2], [1, 2]]
+    shape = [[[1, 4], [1, 4]], [[0, 1], [1, 2], [1, 2]], z]
+    return dict(a=4, terms=3, modulus=4, bound=3, shapes=[shape], entries=[dict(family=dict(a=4, m=4, r=3, k0=0, s=0))])
 
 
 def sieved(case):
@@ -618,6 +644,9 @@ def claims_of(state):
                 if data['finite_ref'] not in ranges:
                     yield record['task_id'], kind, dict(unresolvable='no saved range has the referenced digest'); continue
                 data = dict({k: v for k, v in data.items() if k != 'finite_ref'}, finite=ranges[data['finite_ref']])
+            if kind == 'ufam' and type(data) is dict and 'members' in data:
+                for f in data['members']: yield record['task_id'], 'ufam', unshaped(f, data['shapes'])
+                continue
             if kind == 'nofamily' and type(data) is dict and 'rs' in data:
                 for r in data['rs']:
                     yield record['task_id'], 'nofamily', dict({k: v for k, v in data.items() if k != 'rs'}, r=r)

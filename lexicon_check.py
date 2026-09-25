@@ -29,6 +29,9 @@ MAX_STEPS = 4096
 MAX_MODULAR_STATES = 1 << 20
 MAX_RANGE = 2_000_000
 MAX_CHAIN = 16
+MAX_COVER_ENTRIES = 4096  # families in one cover claim
+MAX_SHAPES = 4096  # identities in one shape table
+MAX_BATCH_FAMILIES = 4096  # families in one batch claim
 SIEVE_LIFTS = 4_000_000
 QUESTION_KINDS = ('seq', 'words', 'orbit', 'map', 'poly', 'esq', 'eclass', 'en', 'count', 'diophantine', 'modq',
                   'cmap', 'cclass', 'cproblem', 'template', 'residual', 'matrixq')
@@ -738,12 +741,16 @@ def check_ufrac(data, budget):
     return dict(ok=True, kind='ufrac', scope='a/n equals the sum of the listed unit fractions.', proof='Exact arithmetic.')
 
 
-def family_polys(data, budget):
+def family_polys(data, budget, shapes=None):
     """A family's class and denominators. A classical family may name its parameters p = [type, u, v, e or w]: its
-    denominators are then rebuilt here, and must equal x when x is given as well."""
-    need({'a', 'm', 'r', 'k0'} <= set(data) <= {'a', 'm', 'r', 'k0', 'x', 'p'} and ('x' in data or 'p' in data),
-         'family fields')
+    denominators are then rebuilt here, and must equal x when x is given as well. A family in a cover or batch with a
+    shape table may name its identity s instead: its denominators are X(m*k + r) for the table's polynomials X in n."""
+    need({'a', 'm', 'r', 'k0'} <= set(data) <= {'a', 'm', 'r', 'k0', 'x', 'p', 's'}
+         and ('x' in data or 'p' in data or 's' in data), 'family fields')
     a, m, r = class_of(data); k0 = integer(data['k0'], 0, 10 ** 6)
+    if 's' in data:
+        need(shapes is not None and 'x' not in data and 'p' not in data, 'a family names an identity of its own table')
+        return a, m, r, k0, [at_class(p, m, r, budget) for p in shapes[integer(data['s'], 0, len(shapes) - 1)]]
     xs = None
     if 'x' in data:
         need(type(data['x']) is list and 1 <= len(data['x']) <= 6, 'family term count')
@@ -773,6 +780,27 @@ def classical_denominators(a, m, r, params, budget):
     return [u_trim([c * u * v for c in dn]), u_trim([c * u * z for c in d]), u_trim([c * v * z for c in d])]
 
 
+def shape_table(shapes, terms, budget, empty=False):
+    """A table of identities: each a list of `terms` polynomials in n, given as coefficient lists [[num, den], ...]."""
+    need(type(shapes) is list and (empty or shapes) and len(shapes) <= MAX_SHAPES, 'shape table')
+    out = []
+    for shape in shapes:
+        need(type(shape) is list and len(shape) == terms, 'identity term count')
+        polys = []
+        for e in shape:
+            need(type(e) is list and e and type(e[0]) is not str, 'identity polynomials are coefficient lists')
+            polys.append(family_poly(e, budget))
+        out.append(polys)
+    return out
+
+
+def at_class(p, m, r, budget):
+    """p(m*k + r) as a polynomial in k, by Horner's rule."""
+    out = []
+    for c in reversed(p): out = _uadd(_umul(out, [Q(r), Q(m)], budget), [c])
+    return u_trim(out)
+
+
 def family_poly(e, budget):
     """A denominator in k: an expression tree, or its coefficient list [[num, den], ...] from k**0 up, trimmed."""
     if type(e) is list and e and type(e[0]) is str: return u_poly(e, 'k', budget)
@@ -782,8 +810,20 @@ def family_poly(e, budget):
     return out
 
 
-def check_ufam(data, budget):
-    a, m, r, k0, xs = family_polys(data, budget)
+def check_ufam(data, budget, shapes=None):
+    if 'members' in data:
+        # A batch of families about one equation: the conjunction of one family claim for each member.
+        need(set(data) == {'a', 'terms', 'shapes', 'members'}, 'family batch fields')
+        a = integer(data['a'], 1, 64); terms = integer(data['terms'], 2, 6); members = data['members']
+        need(type(members) is list and 1 <= len(members) <= MAX_BATCH_FAMILIES, 'family batch members')
+        table = shape_table(data['shapes'], terms, budget, empty=True)
+        for f in members:
+            need(type(f) is dict and f.get('a') == a, 'member belongs to another question')
+            need(check_ufam(f, budget, table)['terms'] == terms, 'member term count')
+        return dict(ok=True, kind='ufam', families=len(members),
+                    scope='Each member is a family in the sense of the single-family claim below.',
+                    proof='Each member is rebuilt from its identity or parameters and checked as its own family.')
+    a, m, r, k0, xs = family_polys(data, budget, shapes)
     n = [Q(r), Q(m)]
     need(m * k0 + r >= 1, 'class values must be positive')
     product = [Q(1)]
@@ -821,17 +861,19 @@ def _uadd(a, b):
 
 
 def check_cover(data, budget, families_checked=None):
-    sieved = 'chain' in data
-    need(set(data) == {'a', 'terms', 'modulus', 'entries', 'bound'} | ({'chain'} if sieved else set()), 'cover fields')
+    sieved = 'chain' in data; shaped = 'shapes' in data
+    need(set(data) == {'a', 'terms', 'modulus', 'entries', 'bound'} | ({'chain'} if sieved else set())
+         | ({'shapes'} if shaped else set()), 'cover fields')
     a = integer(data['a'], 1, 64); terms = integer(data['terms'], 2, 6)
     M = integer(data['modulus'], 1, 10 ** 12 if sieved else 10 ** 7)
     bound = integer(data['bound'], 1); entries = data['entries']
-    need(type(entries) is list and 1 <= len(entries) <= 4096, 'cover entries')
+    need(type(entries) is list and 1 <= len(entries) <= MAX_COVER_ENTRIES, 'cover entries')
+    shapes = shape_table(data['shapes'], terms, budget) if shaped else None
     for entry in entries:
         need(type(entry) is dict and set(entry) == {'family'}, 'cover entry fields')
         family = entry['family']
-        need(family['a'] == a and (len(family['x']) if 'x' in family else 3) == terms, 'family belongs to another question')
-        checked = check_ufam(family, budget)
+        checked = check_ufam(family, budget, shapes)
+        need(family['a'] == a and checked['terms'] == terms, 'family belongs to another question')
         need(M % family['m'] == 0, 'family modulus must divide the cover modulus')
         need(bound >= checked['bound'], 'cover bound below a family threshold')
     if sieved: covered = M - len(sieve_open(data, budget))
@@ -1595,7 +1637,7 @@ def question(kind, data):
     if kind in ('invariant', 'semi', 'fixed', 'inverse', 'map'): return digest(dict(q='map', vars=data.get('vars'), map=data.get('map')))
     if kind in ('exclusion', 'reach'): return digest(dict(q='orbit', orbit=data.get('orbit')))
     if kind == 'orbit': return digest(dict(q='orbit', orbit=data))
-    if kind == 'nofamily' and 'rs' in data:
+    if (kind == 'nofamily' and 'rs' in data) or (kind == 'ufam' and 'members' in data):
         return digest(dict(q='esq', a=data.get('a'), terms=data.get('terms')))
     if kind in ('ufam', 'eclass', 'nofamily'):
         return digest(dict(q='eclass', a=data.get('a'), m=data.get('m'), r=data.get('r'),

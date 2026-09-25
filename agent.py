@@ -123,9 +123,23 @@ def lean_family(L, d):
     return {k: v for k, v in d.items() if k != 'x'} if 'p' in d else d
 
 
-def full_family(L, d):
-    """A family in working form: parameters are kept, and the denominators rebuilt when they were left out."""
+def full_family(L, d, shapes=None):
+    """A family in working form: parameters are kept, and the denominators rebuilt when they were left out, from the
+    named classical parameters or from the family's identity in its shape table."""
+    if 's' in d: return L.unshape(d, shapes)
     return dict(d, x=L.classical_x(d['a'], d['m'], d['r'], d['p'])) if 'x' not in d and 'p' in d else d
+
+
+BATCH_FAMILIES = 512  # families per saved batch, so the state bound can keep some batches when not all fit
+
+
+def family_batches(L, a, terms, families):
+    """Families saved in the compact form: batches with one shape table each, classical families by parameters."""
+    out = []
+    for i in range(0, len(families), BATCH_FAMILIES):
+        shapes, members = L.shape_table([lean_family(L, d) for d in families[i:i + BATCH_FAMILIES]])
+        out.append(dict(kind='ufam', data=dict(a=a, terms=terms, shapes=shapes, members=members)))
+    return out
 
 
 def nonresidue_primes(x, powers):
@@ -583,7 +597,7 @@ class CoverGoal(Goal):
         families = [rt.objects[i] for i in self.family_ids(rt)]
         claims = {id(o): [] for o in heads}
         for head in heads:
-            inside = {self.L.digest(e['family']) for e in head['data']['entries']}
+            inside = {self.L.digest(full_family(self.L, e['family'], head['data'].get('shapes'))) for e in head['data']['entries']}
             families = [o for o in families if self.L.digest(o['data']) not in inside
                         and not self.covered_by(head['data'], o['data'])]
             ref = self.L.digest(head['data'])
@@ -617,7 +631,7 @@ class CoverGoal(Goal):
         # the same claims, expanded again when she resumes.
         walls = [dict(kind='nofamily', data=dict(a=a, terms=terms, m=m, bound=bound, rs=sorted(set(rs))))
                  for (a, terms, m, bound), rs in sorted(batches.items())]
-        families = [dict(kind='ufam', data=lean_family(self.L, o['data'])) for o in families]
+        families = family_batches(self.L, self.p['a'], self.p['terms'], [o['data'] for o in families])
         # Most valuable first, since the state bound trims from the end: her theorem's chain (the cover, the range and
         # the claims that name them), her lemmas, templates and walls, then the refinement tree (bookkeeping for a
         # resume), and last the families outside the cover, which her generators find again.
@@ -675,6 +689,8 @@ class CoverGoal(Goal):
             d = row['data']
             if row['kind'] == 'nofamily' and 'rs' in d:
                 out += [dict(kind='nofamily', data=dict({k: v for k, v in d.items() if k != 'rs'}, r=r)) for r in d['rs']]
+            elif row['kind'] == 'ufam' and 'members' in d:
+                out += [dict(kind='ufam', data=full_family(self.L, f, d['shapes'])) for f in d['members']]
             elif row['kind'] == 'ufam': out.append(dict(kind='ufam', data=full_family(self.L, d)))
             elif row['kind'] == 'cover':
                 out.append(dict(kind='cover', data=d))
@@ -717,7 +733,7 @@ class CoverGoal(Goal):
             if cover['status'] != 'checked': continue
             for entry in row['data']['entries']:
                 # The families were checked inside the cover check; restating them keeps coverage bookkeeping exact.
-                family = rt.propose('ufam', full_family(self.L, entry['family']))
+                family = rt.propose('ufam', full_family(self.L, entry['family'], row['data'].get('shapes')))
                 if rt.check(family): admitted += 1
         return admitted, refused
 
@@ -742,7 +758,8 @@ class CoverGoal(Goal):
             else: refused += 1
             if row['kind'] == 'cover' and obj['status'] == 'checked':
                 for entry in row['data']['entries']:
-                    if rt.check(rt.propose('ufam', full_family(self.L, entry['family']))): admitted += 1
+                    if rt.check(rt.propose('ufam', full_family(self.L, entry['family'], row['data'].get('shapes')))):
+                        admitted += 1
         return admitted, refused
 
     def level_uncovered(self):

@@ -236,14 +236,19 @@ def level_chain(rt, a, terms, M):
 
 
 def assemble(families, a, terms, M):
-    """One entry per family whose modulus divides M and whose class no coarser included family contains."""
+    """One entry per family whose modulus divides M and whose class no coarser included family contains, in the
+    compact form: a classical family by its parameters, any other by the index of its identity in the cover's shape
+    table, where each identity is written once as its denominators in n."""
     entries = []; bound = 1; kept = []
     for f in sorted(families, key=lambda o: (o['data']['m'], o['data']['r'], o['data']['k0'])):
         d = f['data']
         if M % d['m'] or any(d['m'] % m == 0 and d['r'] % m == r for m, r in kept): continue
-        kept.append((d['m'], d['r'])); entries.append(dict(family=compact_family(d)))
+        kept.append((d['m'], d['r'])); entries.append(compact_family(d))
         bound = max(bound, d['m'] * d['k0'] + d['r'])
-    return dict(a=a, terms=terms, modulus=M, entries=entries, bound=bound) if entries else None
+    if not entries: return None
+    shapes, lean = L.shape_table(entries)
+    cover = dict(a=a, terms=terms, modulus=M, entries=[dict(family=d) for d in lean], bound=bound)
+    return dict(cover, shapes=shapes) if shapes else cover
 
 
 def lagrange(points):
@@ -742,7 +747,10 @@ def egypt_cover_merge(rt, first, second):
     if (d1['a'], d1['terms']) != (d2['a'], d2['terms']) or first['id'] == second['id']: return []
     M = L.lcm(d1['modulus'], d2['modulus'])
     if M > 10 ** 6: return []
-    families = {L.digest(e['family']): dict(data=e['family']) for e in d1['entries'] + d2['entries']}
+    families = {}
+    for d in (d1, d2):
+        for e in d['entries']:
+            f = L.unshape(e['family'], d.get('shapes')); families[L.digest(f)] = dict(data=f)
     data = assemble(list(families.values()), d1['a'], d1['terms'], M)
     if data is None: return []
     merged = rt.propose('cover', data, (first, second))
