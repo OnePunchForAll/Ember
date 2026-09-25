@@ -118,19 +118,27 @@ def record_sample(samples, row):
     return (kept + [row])[-MAX_SAMPLES:]
 
 
-def compact_proof(L, obj, best):
-    """A saved derivation whose proof carries the saved cover names it by digest; it is expanded again on resume."""
+def saved_cover(cover, best, heads=()):
+    """The saved cover object whose data a claim carries, among the covers persisted with it, or None."""
+    for head in ([best] if best is not None else []) + list(heads):
+        if head is not None and head['data'] == cover: return head
+    return None
+
+
+def compact_proof(L, obj, best, heads=()):
+    """A saved derivation whose proof carries a saved cover names it by digest; it is expanded again on resume."""
     d = obj['data']; proof = d.get('proof')
-    if best is None or type(proof) is not dict or proof.get('cover') != best['data']: return obj
+    head = saved_cover(proof.get('cover'), best, heads) if type(proof) is dict else None
+    if head is None: return obj
     return dict(kind=obj['kind'], data=dict(d, proof=dict({k: v for k, v in proof.items() if k != 'cover'},
-                                                          cover_ref=L.digest(best['data']))))
+                                                          cover_ref=L.digest(head['data']))))
 
 
-def compact_range(L, obj, best):
-    """A saved range whose cover is the saved cover names it by digest; it is expanded again on resume."""
-    d = obj['data']
-    if best is None or d.get('cover') != best['data']: return obj
-    return dict(kind=obj['kind'], data=dict({k: v for k, v in d.items() if k != 'cover'}, cover_ref=L.digest(best['data'])))
+def compact_range(L, obj, best, heads=()):
+    """A saved range whose cover is a saved cover names it by digest; it is expanded again on resume."""
+    d = obj['data']; head = saved_cover(d.get('cover'), best, heads)
+    if head is None: return obj
+    return dict(kind=obj['kind'], data=dict({k: v for k, v in d.items() if k != 'cover'}, cover_ref=L.digest(head['data'])))
 
 
 def gaps(values):
@@ -642,10 +650,12 @@ class CoverGoal(Goal):
         cover in compact form (the cover replaced by its digest); then the finest checked cover and its claims when it
         is another cover; her lemmas, templates, walls and refinement tree; and the families outside both covers."""
         covers = [o for o in rt.objects.values() if o['kind'] == 'cover' and o['status'] == 'checked']
-        # The base range starts at the problem's least n; later chunks extend it through derivations.
+        # The base ranges start at the problem's least n (one per cover they were verified with); later chunks extend
+        # them through derivations.
         finite = sorted((o for o in rt.objects.values() if o['kind'] == 'finite' and o['status'] == 'checked'),
                         key=lambda o: (o['data']['lo'] != self.p['min'], o['data']['lo'], -o['data']['hi']))
-        chunks = [o for o in finite[1:] if finite and o['data']['lo'] >= finite[0]['data']['hi']]; finite = finite[:1]
+        bases = [o for o in finite if o['data']['lo'] == self.p['min']]
+        chunks = [o for o in finite if bases and o['data']['lo'] >= bases[0]['data']['hi']]; finite = bases[:1]
         best = max(covers, key=lambda o: (o['data']['modulus'], len(o['data']['entries'])), default=None)
         chain = next((o for o in covers if finite and o['data'] == finite[-1]['data']['cover']), None) or best
         heads = [chain] + ([best] if best is not None and best is not chain else []) if chain is not None else []
@@ -661,18 +671,19 @@ class CoverGoal(Goal):
                     body = {k: v for k, v in o['data'].items() if k != 'cover'}
                     claims[id(head)].append(dict(kind=o['kind'], data=dict(body, cover_ref=ref)))
         chained = []
-        if finite:
-            # The theorem about the saved range is kept with the range replaced by its digest.
-            ref = self.L.digest(finite[-1]['data'])
-            chained = [compact_range(self.L, finite[-1], chain)] + [
+        for base in bases:
+            # Each base range is kept, its cover by digest when that cover is saved, and every theorem about it with the
+            # range replaced by its digest.
+            ref = self.L.digest(base['data'])
+            chained += [compact_range(self.L, base, chain, heads)] + [
                 dict(kind='theorem', data=dict({k: v for k, v in o['data'].items() if k != 'finite'}, finite_ref=ref))
                 for o in rt.objects.values() if o['kind'] == 'theorem' and o['status'] == 'checked'
-                and o['data']['finite'] == finite[-1]['data']]
+                and o['data']['finite'] == base['data']]
         claims_first = ([chain] + chained + claims[id(chain)] if chain is not None else chained)
         claims_first += [row for head in heads[1:] for row in [head] + claims[id(head)]]
         # Range chunks past the base range and the derivations built on them (the chunk's cover is named by digest).
-        claims_first += [compact_range(self.L, o, chain) for o in chunks]
-        claims_first += [compact_proof(self.L, o, chain) for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
+        claims_first += [compact_range(self.L, o, chain, heads) for o in chunks]
+        claims_first += [compact_proof(self.L, o, chain, heads) for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
         lemmas = [o for o in rt.objects.values() if (o['kind'] == 'obstruction' and o['status'] == 'checked') or
                   (o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'obstruction')]
         batches = {}
@@ -2085,7 +2096,7 @@ def visible_results(checked):
     closures = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_multiples']
     keep = {id(o) for o in (max(unions, key=lambda o: o['data']['statement']['hi'], default=None),
                             max(extensions, key=lambda o: ('closure' in o['data']['statement'], o['data']['statement']['range_hi']), default=None),
-                            min(closures, key=lambda o: o['data']['statement']['open_residues'], default=None)) if o is not None}
+                            min(closures, key=lambda o: (o['data']['statement']['open_residues'], -o['data']['statement']['closed_at']), default=None)) if o is not None}
     base_lo = min((o['data']['lo'] for o in rows if o['kind'] == 'finite'), default=None)
     shown = [o for o in rows if not (o['kind'] == 'finite' and o['data']['lo'] != base_lo)
              and not (o['kind'] == 'derived' and id(o) not in keep)]

@@ -1000,15 +1000,29 @@ def rt_statement(o):
                 range_hi=f['hi'], cover_id=L.digest(dict(kind='cover', data=f['cover'])))
 
 
+def theorem_key(s):
+    """What the closures and extensions of a theorem are compared by: the cover it names, or its modulus for a statement
+    made before theorems named their cover."""
+    return s['cover_id'] if 'cover_id' in s else ('modulus', s['modulus'])
+
+
+def open_count(o, s):
+    """The residues a theorem leaves open: stated by a closed theorem, counted by the checker for a base theorem, the
+    whole modulus for an extension of an unclosed theorem (its base carries the count)."""
+    return s['open_residues'] if 'open_residues' in s else o.get('evidence', {}).get('open_residues', s['modulus'])
+
+
 def theorem_object(rt, a, terms, lo):
-    """The strongest admitted theorem of the question from lo (closed under multiples first, then the widest range),
-    its statement and the admitted cover object it names, or None."""
-    rows = [row for row in theorem_statements(rt, a, terms) if row[0] == lo and 'cover_id' in rt_statement(row[3])]
-    if not rows: return None
-    best = max(rows, key=lambda row: ('closure' in rt_statement(row[3]), row[1], row[2]))
-    T = best[3]; s = rt_statement(T); cover = rt.objects.get(s.get('cover_id'))
-    if cover is None or cover['status'] != 'checked': return None
-    return T, s, cover
+    """The admitted theorem of the question from lo whose closure under multiples is due, its statement and the admitted
+    cover object it names, or None. A closure is due for a theorem that names its cover while no theorem on that cover
+    is closed at its range: the widest range first, then the fewest open residues."""
+    rows = [(row[3], rt_statement(row[3])) for row in theorem_statements(rt, a, terms) if row[0] == lo]
+    closed = {(theorem_key(s), s['range_hi']) for o, s in rows if s.get('closed_at') == s['range_hi']}
+    due = [(o, s) for o, s in rows if 'cover_id' in s and (theorem_key(s), s['range_hi']) not in closed]
+    for T, s in sorted(due, key=lambda x: (x[1]['range_hi'], -open_count(*x), 'closure' in x[1]), reverse=True):
+        cover = rt.objects.get(s['cover_id'])
+        if cover is not None and cover['status'] == 'checked': return T, s, cover
+    return None
 
 
 @op('egypt_theorem_multiples', 'NS', ('esq',), ('derived',),
@@ -1018,28 +1032,40 @@ def egypt_theorem_multiples(rt, esq):
     d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
     found = theorem_object(rt, a, terms, lo)
     if found is None: return []
-    T, s, cover = found
-    if 'closure' in s: return []
+    T, s, cover = found; M = cover['data']['modulus']
+    if M > rt.checker.CLOSURE_RESIDUES: return []
+    # The closure is derived at the theorem's own range even when it reduces nothing there: the statement records the
+    # range it was closed at, so the theorem extended over a wider range gets its own closure and none is tried twice.
     opened, closed = rt.checker.closure_open(cover['data'], s['lo'], s['range_hi'], rt.budget)
-    if not closed: return []
-    M = cover['data']['modulus']
-    statement = dict(s, closure='multiples', open_residues=len(opened), open_coprime=sum(1 for x in opened if gcd(x, M) == 1))
+    statement = dict(s, closure='multiples', closed_at=s['range_hi'], open_residues=len(opened),
+                     open_coprime=sum(1 for x in opened if gcd(x, M) == 1))
     claim = rt.propose('derived', dict(rule='theorem_multiples', premises=[T['id'], cover['id']], statement=statement), (T, cover))
     return [claim] if rt.check(claim) else []
+
+
+def dominates(u, us, T, s, reach):
+    """Whether the theorem u (statement us) makes extending T (statement s) to reach pointless: u reaches at least as
+    far and is closed when T is, and is on the same cover, or was closed at the same range and leaves fewer residues
+    open (counts closed at different ranges are not compared; a wider range may reduce more)."""
+    if u is T or us['range_hi'] < reach or ('closure' in s and 'closure' not in us): return False
+    if 'closure' in us and 'closure' not in s: return True
+    return theorem_key(us) == theorem_key(s) or (us.get('closed_at') == s.get('closed_at') and open_count(u, us) <= open_count(T, s))
 
 
 @op('egypt_theorem_range', 'NS', ('esq',), ('derived',),
     'Extend the admitted theorem to the admitted range past its own: a derivation by the theorem_range rule.')
 def egypt_theorem_range(rt, esq):
     d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
-    theorems = [row for row in theorem_statements(rt, a, terms) if row[0] == lo]
-    if not theorems: return []
-    # The theorem closed under multiples is preferred, so its extension keeps the closure.
-    t_lo, t_hi, modulus, T = max(theorems, key=lambda row: ('closure' in rt_statement(row[3]), row[1], row[2]))
-    ranges = range_statements(rt, a, terms)
-    beyond = max(((hi, o) for l, hi, o in ranges if t_lo <= l <= t_hi < hi), key=lambda x: x[0], default=None)
-    if beyond is None: return []
-    statement = dict(rt_statement(T), range_hi=beyond[0])
+    rows = [(row[3], rt_statement(row[3])) for row in theorem_statements(rt, a, terms) if row[0] == lo]
+    ranges = range_statements(rt, a, terms); due = []
+    for T, s in rows:
+        beyond = max(((hi, o) for l, hi, o in ranges if s['lo'] <= l <= s['range_hi'] < hi), key=lambda x: x[0], default=None)
+        if beyond is None or any(dominates(u, us, T, s, beyond[0]) for u, us in rows): continue
+        due.append((T, s, beyond))
+    if not due: return []
+    # The theorem closed under multiples at its own range is preferred, so its extension keeps the closure.
+    T, s, beyond = max(due, key=lambda x: ('closure' in x[1], x[1].get('closed_at', 0), -open_count(x[0], x[1]), x[1]['range_hi']))
+    statement = dict(s, range_hi=beyond[0])
     claim = rt.propose('derived', dict(rule='theorem_range', premises=[T['id'], beyond[1]['id']], statement=statement),
                        (T, beyond[1]))
     return [claim] if rt.check(claim) else []
@@ -1209,6 +1235,13 @@ def _multiples_level(rt):
     egypt_reduction_theorem(rt, base); return [esq]
 
 
+def _extended_closure_level(rt):
+    """The closed theorem of _multiples_level extended over the next chunk: its closure at the wider range is due."""
+    esq = _multiples_level(rt)[0]
+    egypt_theorem_multiples(rt, esq); L.drive(egypt_range_chunk(rt, esq)); egypt_range_union(rt, esq); egypt_theorem_range(rt, esq)
+    return [esq]
+
+
 def _four_term_level(rt):
     """A four-term question whose base range is checked by hand; the chunk past it finds no witness (a residual)."""
     esq = rt.given('esq', dict(a=4, terms=4, min=2, modulus=24, verify_to=5))
@@ -1258,7 +1291,7 @@ FIXTURES = {
                                 if _classical_cover(rt, 24) else [], _sieved_range],
     'egypt_range_chunk': [_ranged_level, _four_term_level],
     'egypt_range_union': [_two_ranges_level],
-    'egypt_theorem_multiples': [_multiples_level],
+    'egypt_theorem_multiples': [_multiples_level, _extended_closure_level],
     'egypt_theorem_range': [_theorem_level],
     'egypt_choose_lift': [_lift_inputs],
 }

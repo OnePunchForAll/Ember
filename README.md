@@ -934,10 +934,15 @@ cover leaves open is still represented when a prime p of the modulus divides it
 and the residue x/p modulo M/p is reached (or reduces further), as long as the
 factor taken out keeps n/t >= lo for every n past the checked range. The
 premises are the theorem and its cover, named by identity; the statement
-carries the open counts after closure, which the checker and the independent
-verdict recount. A derivation is sound in a workspace whose admissions are
-sound; on a resume every derivation is admitted again after its premises, and
-one whose premise is gone is refused.
+carries the open counts after closure and the range end it was closed at
+(`closed_at`), which the checker and the independent verdict recount. The
+closure follows the range: the counts depend on how far the range reaches, so
+once the closed theorem is extended over a new chunk its closure at the wider
+range is derived again, and a theorem already closed at its range is refused.
+A closure that reduces nothing is derived all the same, as the record that it
+was tried at that range. A derivation is sound in a workspace whose admissions
+are sound; on a resume every derivation is admitted again after its premises,
+and one whose premise is gone is refused.
 
 The closure rule came from a contest. Asked to compete against her and hand
 over whatever I used, I took her fifteen saved theorems and applied, with my
@@ -954,9 +959,18 @@ The rules let her verified range grow past the checker's bound on one claim
 least n past its frontier, by a chunk as long as the base range and up to ten
 times `verify_to`; `egypt_theorem_range` extends her theorem over the result;
 `egypt_range_union` joins two separately verified ranges. Each is tried once
-per state of what it reads. The independent verdict checks derivations with
-its own reading of the rules, after the claims they rest on, and the chunk
-proofs number by number.
+per state of what it reads. `egypt_theorem_multiples` closes the theorem whose
+closure is due: one that names its cover while no theorem on that cover is
+closed at its range, the widest range first, then the fewest open residues;
+so a finer cover found later gets its own closure, extension and closure again.
+`egypt_theorem_range` does not extend a theorem past one that already reaches
+as far and is closed when it is, on the same cover or leaving fewer residues
+open when both were closed at the same range (counts closed at different
+ranges are not compared: the wider range may reduce more). Every base range,
+one per cover it was verified with, is persisted with its theorems, so a finer
+theorem survives a resume. The independent verdict checks derivations with its
+own reading of the rules, after the claims they rest on, and the chunk proofs
+number by number.
 
 ## Autonomous research agent
 

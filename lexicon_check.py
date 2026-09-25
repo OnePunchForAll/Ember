@@ -1129,10 +1129,11 @@ def check_derived(data, budget, admitted=None):
         T = next((q for q in premises if q['kind'] == 'theorem'), None); need(T is not None, 'a theorem premise')
         cover_row = admitted(T.get('cover_id')); need(cover_row is not None and cover_row[0] == 'cover', 'the theorem names an admitted cover')
         need(T['cover_id'] in ids, 'the cover is a premise'); cover = cover_row[1]
-        need('closure' not in T, 'the theorem is already closed under multiples')
+        need(T.get('closed_at') != T['range_hi'], 'the theorem is already closed under multiples at this range')
         M = cover['modulus']; need(M <= CLOSURE_RESIDUES, 'closure residue bound')
         opened, closed = closure_open(cover, T['lo'], T['range_hi'], budget)
-        expected = dict(T, closure='multiples', open_residues=len(opened), open_coprime=sum(1 for x in opened if gcd(x, M) == 1))
+        expected = dict(T, closure='multiples', closed_at=T['range_hi'], open_residues=len(opened),
+                        open_coprime=sum(1 for x in opened if gcd(x, M) == 1))
         need(s == expected, 'the stated open counts are not those of the closure')
         return dict(ok=True, kind='derived', rule=rule, modulus=M, open_residues=len(opened), reduced=closed,
                     scope='For every integer n >= lo whose residue modulo the cover modulus is reached by the cover, or '

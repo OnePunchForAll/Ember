@@ -645,9 +645,9 @@ def derived_verdict(d, admitted):
         T = T[0]; row = admitted.get(T.get('cover_id'))
         if row is None or row[0] != 'cover' or T['cover_id'] not in d['premises']: return 'REFUTED', 'the cover is not an admitted premise'
         if row[2] != 'VERIFIED': return 'UNRESOLVED', 'the cover did not verify'
-        if 'closure' in T: return 'REFUTED', 'already closed'
+        if T.get('closed_at') == T['range_hi']: return 'REFUTED', 'already closed at this range'
         opened = closure_count(row[1], T['lo'], T['range_hi'])
-        expected = dict(T, closure='multiples', open_residues=opened[0], open_coprime=opened[1])
+        expected = dict(T, closure='multiples', closed_at=T['range_hi'], open_residues=opened[0], open_coprime=opened[1])
         return ('VERIFIED', 'closure recounted') if s == expected else ('REFUTED', 'the open counts are not those of the closure')
     if d['rule'] == 'range_union':
         if len(premises) != 2 or any(q['kind'] != 'range' for q in premises): return 'REFUTED', 'range_union takes two ranges'
@@ -737,6 +737,8 @@ def self_test():
         'range extension with a bad witness refuted': extension_case(bad=True)[0] == 'REFUTED',
         'theorem closure under multiples verifies': multiples_case()[0] == 'VERIFIED',
         'theorem closure with a wrong count refuted': multiples_case(bad=True)[0] == 'REFUTED',
+        'theorem closure again at a wider range verifies': multiples_case(again=True)[0] == 'VERIFIED',
+        'theorem closure repeated at its own range refuted': multiples_case(stale=True)[0] == 'REFUTED',
     }
     return all(checks.values()), checks
 
@@ -769,14 +771,16 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 
-def multiples_case(bad=False):
+def multiples_case(bad=False, again=False, stale=False):
     """A cover of 4/n at modulus 8 with one family on the class 3 mod 4 (x = k+1, y = z = 2(4k+3)(k+1)): the open
-    residue 6 reduces to 3 mod 4 by the prime 2, so 5 of the 6 stay open."""
+    residue 6 reduces to 3 mod 4 by the prime 2, so 5 of the 6 stay open. With again, the theorem was closed at 200
+    and extended to 400, so its closure at 400 is due; with stale, it is already closed at 400."""
     family = dict(a=4, m=4, r=3, k0=0, x=[[['num', 1, 1], ['num', 1, 1]], [['num', 6, 1], ['num', 8, 1]], [['num', 6, 1], ['num', 8, 1]]])
     cover = dict(a=4, terms=3, modulus=8, bound=3, entries=[dict(family=family)])
     T = dict(kind='theorem', a=4, terms=3, lo=2, modulus=8, range_hi=400, cover_id=digest(dict(kind='cover', data=cover)))
+    if again or stale: T = dict(T, closure='multiples', closed_at=400 if stale else 200, open_residues=5, open_coprime=2)
     admitted = {digest(dict(kind='cover', data=cover)): ('cover', cover, 'VERIFIED'), 'T' * 64: ('derived', dict(statement=T), 'VERIFIED')}
-    s = dict(T, closure='multiples', open_residues=6 if bad else 5, open_coprime=2)
+    s = dict(T, closure='multiples', closed_at=400, open_residues=6 if bad else 5, open_coprime=2)
     return derived_verdict(dict(rule='theorem_multiples', premises=['T' * 64, T['cover_id']], statement=s), admitted)
 
 

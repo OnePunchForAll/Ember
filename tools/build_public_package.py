@@ -1746,7 +1746,21 @@ multiples = (closure is not None and closure['status'] == 'checked' and closure[
              and closure['data']['statement']['open_coprime'] == 2 and closure['evidence']['reduced'] == 1
              and not rt8.check(forged_closure) and V.derived_verdict(closure['data'], admitted8)[0] == 'VERIFIED'
              and V.derived_verdict(forged_closure['data'], admitted8)[0] == 'REFUTED')
-derivations = (multiples and grown['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
+# The closure follows the range: once the closed theorem is extended over the next chunk, its closure at the wider
+# range is derived again (closed_at is the new range end), a closure of a theorem already closed at its range is
+# refused, and nothing is due after that.
+L.drive(E2['egypt_range_chunk'](rt8, esq8)); E2['egypt_range_union'](rt8, esq8); E2['egypt_theorem_range'](rt8, esq8)
+reclosed = E2['egypt_theorem_multiples'](rt8, esq8)
+reclosure = reclosed[0] if reclosed else None
+stale = rt8.propose('derived', dict(reclosure['data'], premises=[reclosure['id'], reclosure['data']['premises'][1]])) if reclosure else None
+admitted8b = {o['id']: (o['kind'], o['data'], 'VERIFIED') for o in rt8.objects.values() if o['status'] == 'checked'}
+reclosed_ok = (reclosure is not None and reclosure['status'] == 'checked'
+               and reclosure['data']['statement']['closed_at'] == reclosure['data']['statement']['range_hi'] == 798
+               and reclosure['data']['statement']['open_residues'] == 5 and reclosure['data']['statement']['open_coprime'] == 2
+               and V.derived_verdict(reclosure['data'], admitted8b)[0] == 'VERIFIED'
+               and not rt8.check(stale) and V.derived_verdict(stale['data'], admitted8b)[0] == 'REFUTED'
+               and E2['egypt_theorem_multiples'](rt8, esq8) == [] and E2['egypt_theorem_range'](rt8, esq8) == [])
+derivations = (multiples and reclosed_ok and grown['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=798)
                and grown['evidence']['via_divisor'] > 0 and grown['evidence']['via_witness'] > 0
                and ext['data']['statement']['range_hi'] == 798 and ext['data']['statement']['modulus'] == 24
                and union['data']['statement'] == dict(kind='range', a=4, terms=3, lo=2, hi=800)
