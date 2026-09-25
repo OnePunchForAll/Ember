@@ -1170,11 +1170,13 @@ def check_derived(data, budget, admitted=None):
 def closure_open(cover, lo, range_hi, budget):
     """The residues of the cover modulus that neither the cover reaches nor reduce by primes of the modulus to a reached
     residue (with the total factor bounded by range_hi // lo), and the number the closure reduced."""
-    M = cover['modulus']; families = [(e['family']['m'], e['family']['r'] % e['family']['m']) for e in cover['entries']]
+    M = cover['modulus']; by_modulus = {}
+    for e in cover['entries']: by_modulus.setdefault(e['family']['m'], set()).add(e['family']['r'] % e['family']['m'])
     primes = sorted(_prime_powers(M)); limit = range_hi // max(lo, 1); memo = {}
     def reached(x, Mx):
-        budget.use(len(families))
-        return any(Mx % m == 0 and x % m == r0 for m, r0 in families)
+        # Families indexed by their modulus: a query costs one step per family modulus dividing Mx.
+        budget.use(len(by_modulus))
+        return any(Mx % m == 0 and x % m in rs for m, rs in by_modulus.items())
     def reducible(x, Mx, t):
         key = (x, Mx)
         if key in memo: return memo[key]

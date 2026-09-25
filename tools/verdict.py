@@ -582,8 +582,9 @@ def extension_verdict(a, terms, lo, h, hi, cover, witnesses):
 def closure_count(cover, lo, range_hi):
     """This tool's own count: residues the cover leaves open and no chain of primes of the modulus (total factor at
     most range_hi // lo) reduces to a reached residue; and how many of those are coprime to the modulus."""
-    M = cover['modulus']; reached = bytearray(M)
-    fams = [(e['family']['m'], e['family']['r'] % e['family']['m']) for e in cover['entries']]
+    M = cover['modulus']; reached = bytearray(M); by_modulus = {}
+    for e in cover['entries']: by_modulus.setdefault(e['family']['m'], set()).add(e['family']['r'] % e['family']['m'])
+    fams = [(m, r0) for m, rs in by_modulus.items() for r0 in rs]
     for m, r0 in fams:
         for x in range(r0, M, m): reached[x] = 1
     primes = []; m_ = M; p = 2
@@ -598,7 +599,7 @@ def closure_count(cover, lo, range_hi):
         key = (x, Mx)
         if key in memo: return memo[key]
         memo[key] = False
-        ok = any(Mx % m == 0 and x % m == r0 for m, r0 in fams) or any(
+        ok = any(Mx % m == 0 and x % m in rs for m, rs in by_modulus.items()) or any(
             x % p == 0 and Mx % p == 0 and t * p <= limit and reducible(x // p, Mx // p, t * p) for p in primes)
         memo[key] = ok; return ok
     opened = [x for x in range(M) if not reached[x] and not any(x % p == 0 and p <= limit and reducible(x // p, M // p, p) for p in primes)]
