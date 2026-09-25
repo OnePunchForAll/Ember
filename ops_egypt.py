@@ -38,6 +38,9 @@ LIFT_CLASSES = 60_000
 WALL_CAP = 10 ** 12
 SWEEP_CLASSES = 4000
 RANGE_FRONTIER = 20  # she extends a checked range in chunks of its own size, up to this multiple of verify_to
+# Work units on the prover's side are priced at about a microsecond of this machine (the witness search's price):
+# the cover loop one unit a number plus one per ten moduli, a factor check half the bit length, a family step half
+# the bit length of its linear form; measured 2026-09-25 (CAMPAIGNS.md, consolidation), the checker's charges unchanged.
 BREATH = 64  # an anytime move breathes after this many n
 
 
@@ -960,9 +963,9 @@ def egypt_range_chunk(rt, esq):
     shapes = divisor_families(rt, a, terms)
     for n in range(start, hi):
         if (n - start) % BREATH == 0: yield  # a breath: the scheduler may suspend the move here
-        rt.budget.use(1 + len(thresholds))
+        rt.budget.use(1 + len(thresholds) // 10)
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): continue
-        p = L.factor(n); p = min(p) if p else n
+        rt.budget.use(max(4, n.bit_length() // 2)); p = L.factor(n); p = min(p) if p else n
         if p < n and n // p >= lo: continue  # the checker finds this divisor itself
         # A divisor family before any search: a divisor of n + h, h n + 1 or a n + 1 in the family's class represents n.
         hit = next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [dfam_divisor(rt, a, shape, h, n)] if q is not None), None)
@@ -997,11 +1000,11 @@ def dfam_divisor(rt, a, shape, h, n):
     """A divisor q = -1 (mod t) of the family's linear form at n, from the prime factorization of that value (one
     divisor kept per residue class, which decides every reachable residue), or None."""
     alpha, beta, t = rt.checker.dfam_form(a, shape, h)
-    value = alpha * n + beta; rt.budget.use(value.bit_length()); found = {1: 1}
+    value = alpha * n + beta; rt.budget.use(max(4, value.bit_length() // 2)); found = {1: 1}
     for p, k in L.factor(value).items():
         for res, d in list(found.items()):
             for j in range(1, k + 1):
-                rt.budget.use(); dj = d * p ** j
+                dj = d * p ** j
                 if dj % t not in found or dj < found[dj % t]: found[dj % t] = dj
     return found.get((-1) % t)
 
@@ -1142,9 +1145,9 @@ def egypt_finite_verify(rt, esq):
     witnesses, divisors, done, missing = {}, {}, set(), []
     for n in range(lo, hi):
         if (n - lo) % BREATH == 0: yield  # a breath: the scheduler may suspend the move here
-        rt.budget.use(1 + len(thresholds))
+        rt.budget.use(1 + len(thresholds) // 10)
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): done.add(n); continue
-        p = next((q for q in sorted(L.factor(n)) if q < n and q in done), None)
+        rt.budget.use(max(4, n.bit_length() // 2)); p = next((q for q in sorted(L.factor(n)) if q < n and q in done), None)
         if p is not None: divisors[str(n)] = p; done.add(n); continue
         xs = witness(a, n, rt.budget, max_excess=4 * a * 256) if terms == 3 else None
         if xs is None: missing.append(n); continue

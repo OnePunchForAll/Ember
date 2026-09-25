@@ -1875,7 +1875,9 @@ def run(task, state_path, limit, host):
     ledger[identity] = rounds
     dropped = save(host, state, state_path, record, dict(task_id=LIBRARY_ID, kind='strategy_library', entries=entries),
                    carried_ids, dict(task_id=LEDGER_ID, kind='problem_rounds', entries=ledger,
-                                     archive=[e for e in archive if e['task_id'] != identity]))
+                                     archive=[e for e in archive if e['task_id'] != identity],
+                                     # verdicts recorded by tools/ingest_verdict.py ride along: the bit that came back
+                                     verdicts=next((o.get('verdicts', []) for o in state['observations'] if o.get('task_id') == LEDGER_ID), [])))
     checked = [o for o in rt.objects.values() if o['status'] == 'checked']
     by_kind = {}
     for o in checked: by_kind[o['kind']] = by_kind.get(o['kind'], 0) + 1
