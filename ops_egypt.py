@@ -1020,6 +1020,7 @@ def dfam_wanted(rt, a, terms):
     have = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values()
             if o['kind'] == 'dfam' and o['status'] == 'checked' and o['data']['a'] == a}
     wanted = [r for r in dfam_list() if r not in have]
+    if len(have) + len(wanted) >= rt.checker.MAX_DFAM_SHAPES: return wanted[:max(0, rt.checker.MAX_DFAM_SHAPES - len(have))]
     counts = family_yield(rt, a, terms)
     for kind in ('plus', 'times', 'pair'):
         top = max([h for s, h in have if s == kind], default=0)
@@ -1033,7 +1034,9 @@ def divisor_families(rt, a, terms):
     """The admitted divisor families of the question as (shape, h), the ones that cover most first."""
     rows = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values() if o['kind'] == 'dfam'
             and o['status'] == 'checked' and o['data']['a'] == a and o['data']['terms'] == terms}
-    return sorted(rows, key=lambda r: (r != ('plus', 1), r[0] == 'square', r[0] != 'times', r[1]))
+    # Never more shapes than a proof may name: a list past the checker's bound would have the whole proof refused
+    # (the preregistered rounds of the third tier found this on the problems whose lists had grown past 24).
+    return sorted(rows, key=lambda r: (r != ('plus', 1), r[0] == 'square', r[0] != 'times', r[1]))[:rt.checker.MAX_DFAM_SHAPES]
 
 
 def dfam_divisor(rt, a, shape, h, n):

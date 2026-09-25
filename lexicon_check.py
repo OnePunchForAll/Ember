@@ -1062,7 +1062,7 @@ MAX_PREMISES = 24  # a theorem composed with its families names each family
 # the pair family: q | a h n + 1 with q = -1 (mod a), q' = (a h n + 1)/q, e = (q + 1)/a, f = (q' + 1)/a, h | e f.
 DFAM_SHAPES = ('plus', 'times', 'square', 'pair')
 MAX_DFAM_H = 64
-MAX_DFAM_SHAPES = 24
+MAX_DFAM_SHAPES = 200  # shapes a proof's family part may name (three kinds up to MAX_DFAM_H, and the square)
 
 
 def dfam_form(a, shape, h):
