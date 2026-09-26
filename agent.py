@@ -124,6 +124,7 @@ LEDGER_ID = 'problem-rounds'  # one record keeping every problem's rounds, so he
 MAX_RECORDS = 128  # records one instance state holds (the host's bound); the oldest are evicted first
 ARCHIVE_ENTRIES = 1024  # evicted records whose evidence file her ledger still names, oldest dropped first
 EXHAUSTED = 'no untried move for any open target'
+RESUMING = 'a search saved its state to resume'  # a resumable search left a residual this round: not exhausted
 # Anytime moves: an operator that breathes (yields) runs in slices of at most SLICE_WORK; at a breath past the slice
 # it waits with its own budget and place, and each step chooses again between the waiting moves and the best fresh
 # one. At most MAX_SUSPENDED moves wait: with the table full she resumes one rather than starting another, so every
@@ -2038,7 +2039,7 @@ def run(task, state_path, limit, host):
                     for o in evidence(host, state_path, rec)]
             carried = goal.transfer(rt, rows)
         # Checked results replayed or carried over are not this round's; what the round adds is counted from here.
-        baseline = sum(1 for o in rt.objects.values() if o['status'] == 'checked')
+        baseline = sum(1 for o in rt.objects.values() if o['status'] == 'checked'); before = frozenset(rt.objects)
         rt.carried = frozenset(o['id'] for o in rt.objects.values() if o['status'] == 'checked')
         agent = Agent(host, L, checker, registry, goal, rt, per, samples[-MAX_SAMPLES:], macros, tried, unseen)
         agent.priors = experience_priors(goal, library, state, problem)
@@ -2051,6 +2052,9 @@ def run(task, state_path, limit, host):
     except host.Exhausted as exc:
         reason = str(exc)
     waiting = agent.close() if agent else 0
+    if reason == EXHAUSTED and any(o['kind'] == 'residual' and o['data'].get('by') in RESUMABLE_SEARCHES and o['id'] not in before
+                                   for o in rt.objects.values()):
+        reason = RESUMING  # the round ran out of fresh moves, but a search saved where it stopped: the next call resumes it
     settled = None
     if goal.done(rt): status, reason, settled = 'CHECKED_RESEARCH', 'goal settled by checked results', goal.outcome(rt)
     gained = max(0, sum(1 for o in rt.objects.values() if o['status'] == 'checked') - baseline) if agent else 0
@@ -2238,6 +2242,8 @@ def choose(problems, state, gen, registry=None):
         elif last.get('reason') == EXHAUSTED:
             eligible, why = False, ('no untried move left at this generation; waits for new instruments' +
                                     (' (' + str(last['refused']) + ' claims refused: ' + str(last.get('refusal')) + ')' if last.get('refused') else ''))
+        elif last.get('reason') == RESUMING:
+            eligible, why = True, 'a search saved its state last round; resumes'
         elif inherited:
             eligible, why = True, ('her own widening of ' + e['parent'] + ', ranked by its rounds: gains ' +
                                    ', '.join(str(r.get('new_checked', 0)) for r in recent) + ' in ' +
