@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 145416,
+      "bytes": 150076,
       "path": "CAMPAIGNS.md",
-      "sha256": "ea51a4f907c2e86d8efe9793ce2a74fa5e44af69b60617dc43daffb7ef450f55"
+      "sha256": "4917da55c316e73821d195b8eb7a62116bbd7953fedb8c54b46934377299646d"
     },
     {
       "bytes": 10538,
@@ -451,9 +451,9 @@
       "sha256": "d8f776736b224d423db3909d370b18cf8b7c7cb14b71264f02cb28ca21faa157"
     },
     {
-      "bytes": 207749,
+      "bytes": 207871,
       "path": "tools/build_public_package.py",
-      "sha256": "2e09b0d15edb6ebf9e05551078128dc5c8021c8ee86d17220955dcc1b875c0d7"
+      "sha256": "b17463dc59840ce3cc3b49735660e829da3e1444e348cc0d01a87dcc2c36979e"
     },
     {
       "bytes": 12128,

@@ -2070,6 +2070,7 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('refusals_are_counted_named_and_retire_a_strategy', sieve_result.get('refusals') is True)
         check('residual_predicates_are_stated_selectively_broken_by_a_witness_and_verified', sieve_result.get('residual') is True)
         check('general_families_found_by_her_search_verify_and_carry_a_chunk', sieve_result.get('shapes') is True)
+        check('exception_set_certified_by_complete_search_and_forgeries_refused', sieve_result.get('exceptions') is True)
         check('residual_records_the_attempt_of_a_deterministic_move', sieve_result.get('attempt_recorded') is True)
         check('problem_choice_weighs_gains_and_inherits_widened_windows', sieve_result.get('choice') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)
