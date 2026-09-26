@@ -2072,3 +2072,128 @@ it is recorded as such.
   grammar that could describe the residual would have to name the
   conjunction over the listed forms, or forms outside the list; the second
   is the family search itself.
+
+## Her own shapes: the general family space searched, verified and adopted by yield (commits b86ed23, ad689f7 and f046850, fingerprint 0110f839)
+
+Asked to make her better than me at the thing I did against her by hand, I
+gave her the space I had been drawing shapes from. In the second and third
+contests every family was mine: plus h, times h, the pairs and the square,
+each derived by algebra and handed over as a shape the checker knew. The
+algebra behind all of them is one identity: with x = n e and e = (q + 1)/a,
+a/n = 1/x + 1/y + 1/z exactly when (q y - n e)(q z - n e) = (n e)^2, so every
+such family is a divisor d of (n e)^2 with y = (n e + d)/q and z = n e y/d,
+and d = h1 n^i e^j / h2 turns q | n e + d into the divisibility of one linear
+form by q. That space, not its four points, is now hers.
+
+- **What was installed.** A `gfam` claim names (i, j, h1, h2) and instances;
+  the checker refuses parameters outside the space, verifies the identity as
+  a polynomial identity on a 12 by 12 grid and every instance exactly, and a
+  chunk proof's family table may name a general family by its parameters
+  (y is an integer whenever q divides the form, by the lemma at `gfam_form`;
+  z when d | n e y, a condition of the instance). The independent verdict has
+  the claim and the family rows in its own code (six new self-test cases,
+  57). `egypt_shape_search` enumerates the space up to a level of h1 and h2
+  (8 first, doubling while a level pays, up to 32), leaving out the admitted
+  shapes, measures each candidate on a sample of at most 512 of the numbers
+  her carried chunk proofs had to witness (evenly spaced), and states,
+  greedily by what each adds to the numbers still uncovered, the families
+  that represent at least four of them and one in sixty-four, with up to
+  eight of those numbers as instances; sixteen per call at most, once per
+  call. Her ranges use the admitted general families after the four shapes,
+  and her composed theorem names them with the rest. The fixture is the
+  plus-1 level of 4/n: the search states, among others, times 2 as
+  (0, 1, 1, 2) and n + 4 as (0, 0, 1, 1), and the chunk past the level
+  represents 47 of its 48 witnessed-or-family numbers by a family. Package
+  check `general_families_found_by_her_search_verify_and_carry_a_chunk`
+  (677 checks).
+- **The probe, before the preregistration.** Run once on four of her
+  fifth-scan residuals, from the state after the residual-mining rounds, to
+  see whether the space holds anything: 16/n (sample 512 of 5,395 witnessed)
+  found 16 families representing 370 of the sample (72 percent), 19/n 409
+  (80 percent), 13/n 452 (88 percent), 12/n 315 (62 percent), in about two
+  seconds each; the first family everywhere was (0, 0, 1, 1), q | n + a with
+  q = -1 (mod a), a form I had not given her, then n + a h for small h and
+  h2 n + h1 with both parameters above 1. The probe adopted twins (two
+  parameter points giving the same representations); the greedy rule was
+  written after it. Those four problems are therefore not a blind test.
+- **Preregistered, before the rounds.** (1) The schedule is the fourteen
+  rounds, one per theorem problem, in the first contest's order, each from
+  a fresh copy of her state after the fifth scan, at the fingerprint of the
+  transfer, with the library task's allowance. (2) Recorded per round: the
+  families the search stated with their parameters, forms and sample
+  yields; the share of the sample they represent together; the seconds of
+  the search; and the thirtieth chunk the round adds against the
+  twenty-ninth it carried: numbers by a family, by a general family, by a
+  witness, and the chunk's length. (3) The measure is the witnesses per
+  number of the thirtieth chunk against the twenty-ninth, and the share of
+  the sample the stated families represent. (4) The expectation from the
+  probe is that on 16/n, 19/n, 13/n and 12/n the thirtieth chunk needs
+  fewer than half the witnesses per number of the twenty-ninth; on the
+  other ten it is open, and on 4/n, 7/n and 11/n, which witnessed fewer than
+  ten numbers over their family chunks, the search has too little to measure
+  and should state nothing. (5) A defect is a stated family the verdict
+  refutes, a chunk proof using one refused or refuted, or a thirtieth chunk
+  that needs more witnesses per number than the twenty-ninth on a problem
+  where families were stated.
+- **The fourteen rounds.** Three runs, each fourteen rounds from fresh
+  copies of her state after the fifth scan, in the first contest's order.
+  **Run 1** (fingerprint 7a386043, commit b86ed23, 884 s): on eleven
+  problems the search stated 6 to 25 general families, every one VERIFIED by
+  the independent verdict, representing 76 to 96 percent of the residual
+  sample; on 4/n, 7/n and 11/n it stated nothing, as expected. But the chunk
+  the round added used them on one problem only (18/n): on the other ten the
+  scheduler had run the chunk before the search. **Run 2** (fingerprint
+  f325414f, commit ad689f7, range moves waiting for the search, 869 s):
+  the same families, and still no chunk with them, because thirteen problems
+  stood at the frontier of thirty chunks and no chunk could be added at all;
+  18/n, at nineteen chunks, added ten with the families, its last with 37
+  witnesses against 49 on the one before. Erratum: the previous entry says
+  the residual-mining rounds each added a thirtieth chunk; none did on those
+  thirteen problems, for the same reason. **Run 3** (fingerprint 0110f839,
+  commit f046850, the frontier at forty, 1,269 s): each round added ten
+  chunks (18/n twenty) with the families she found, the same length as the
+  ten family chunks it carried and adjacent above them. Per problem: the
+  families stated and the share of the residual sample they represent; the
+  numbers and witnesses of the carried chunks and of the added ones, with
+  the witnesses per thousand numbers; every general family and every added
+  chunk was VERIFIED by the independent verdict, and the checker refused
+  nothing the search or the chunks proposed.
+
+| a | s | families stated | sample represented | carried numbers | carried witnesses | per 1,000 | added numbers | by her families | added witnesses | per 1,000 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 11 | 59 | 0 | 0 of 6 | 999,620 | 5 | 0.01 | 999,620 | 0 | 2 | 0.0 |
+| 13 | 41 | 16 | 491 of 512 | 997,180 | 169 | 0.17 | 997,180 | 68 | 17 | 0.02 |
+| 16 | 42 | 20 | 453 of 512 | 165,500 | 1,542 | 9.32 | 165,500 | 476 | 335 | 2.02 |
+| 19 | 103 | 18 | 476 of 512 | 996,460 | 944 | 0.95 | 996,460 | 351 | 139 | 0.14 |
+| 14 | 68 | 16 | 262 of 292 | 991,580 | 94 | 0.09 | 991,580 | 47 | 20 | 0.02 |
+| 17 | 51 | 16 | 473 of 512 | 979,180 | 657 | 0.67 | 979,180 | 217 | 84 | 0.09 |
+| 8 | 60 | 6 | 57 of 69 | 997,580 | 16 | 0.02 | 997,580 | 7 | 6 | 0.01 |
+| 10 | 50 | 13 | 158 of 179 | 998,180 | 56 | 0.06 | 998,180 | 32 | 14 | 0.01 |
+| 12 | 132 | 25 | 430 of 512 | 877,580 | 340 | 0.39 | 877,580 | 96 | 77 | 0.09 |
+| 21 | 115 | 25 | 421 of 512 | 859,480 | 895 | 1.04 | 859,480 | 341 | 296 | 0.34 |
+| 15 | 89 | 24 | 469 of 512 | 794,780 | 287 | 0.36 | 794,780 | 96 | 74 | 0.09 |
+| 18 | 244 | 25 | 428 of 512 | 582,462 | 2,819 | 4.84 | 1,294,360 | 1,324 | 940 | 0.73 |
+| 7 | 125 | 0 | below ten | 999,970 | 0 | 0.0 | 999,970 | 0 | 0 | 0.0 |
+| 4 | 86 | 0 | 0 of 4 | 999,980 | 0 | 0.0 | 999,980 | 0 | 1 | 0.0 |
+
+- **Result.** On the eleven problems where she found families, the witnesses
+  per number fell by 62 to 90 percent: 13/n from 0.17 to 0.02 per
+  thousand, 16/n from 9.3 to 2.0, 19/n from 0.95 to 0.14, 17/n from 0.67 to
+  0.09, 18/n from 4.8 to 0.73. The preregistered expectation held on all four
+  probed problems (16/n, 19/n, 13/n, 12/n) and on the seven that were blind.
+  The comparison is like for like in length and adjacent in n; the added
+  chunks lie above the carried ones, so a drift of the witness density with
+  n is inside the measure, and it is small at these sizes. The families she
+  found are her own: the first everywhere is q | n + a with q = -1 (mod a),
+  which was in no contest of mine, and the lists run through n + a h, the
+  forms h2 n + h1 with both parameters above 1, a h2 n + h1 and a h1 n + 1
+  with parameters past the shapes I gave her.
+
+- **Open obligations.** The composed theorem names at most 23 families (the
+  premise bound), so with the general families it names a prefix of her
+  list. The search stayed at level 8 in every round, since a level doubles
+  only on the next call; the levels 16 and 32 are unmeasured. The frontier
+  is a constant again (forty), the yield floor and the sample size are
+  policy constants, and 18/n carried nine family chunks, not ten. The four
+  probed problems were not blind. The residual profile and its falsifier now
+  see a residual a fifth of what it was and have not been run on it.

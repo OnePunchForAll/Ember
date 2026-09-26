@@ -273,7 +273,9 @@ used against her by hand: finding family shapes. The four shapes are points
 of a parametrized space (d = h1 n^i e^j / h2 in the Type I identity), and
 she now searches that space herself, verifies each family exactly and adopts
 by measured yield on her own residual (`gfam` claims, `egypt_shape_search`);
-CAMPAIGNS.md records the probe, the preregistration and the rounds.
+CAMPAIGNS.md records the probe, the preregistration and the rounds: on the
+eleven problems where she found families the witnesses per number fell by
+62 to 90 percent, every family and every chunk verified independently.
 
 ## 6. Limits of this note
 
