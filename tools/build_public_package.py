@@ -1886,6 +1886,43 @@ exceptions_ok = (len(found16) == 1 and data16['bound'] == 883 and 761 in data16[
                  and all(not rt16.check(rt16.propose('exceptions', d, (esq16,))) and V.verdict('exceptions', d)[0] == 'REFUTED' for d in (drop16, add16, bad16))
                  and E2['egypt_exception_scan'](rt16, esq16) == []
                  and all((brute16(a, n) is None) == (C.three_term_search(a, n, rt16.budget) is None) for a in range(2, 13) for n in range(1, 41)))
+# Frontier certificates: the three new families (van der Waerden colorings, circulant Ramsey graphs through vertex 0,
+# coverings with a least modulus) tell true from false and agree with the verdict; the four resumable searches find
+# calibration witnesses (W(3, 3) > 26, the 16 grid under rot4 and the 17 grid under rct4, the covering of lcm 12 with
+# least modulus 2 and of lcm 120 with least modulus 3, circulant (3, 5)- and (3, 6)-graphs on 13 and 16 vertices),
+# every witness VERIFIED by the verdict; a search that finds nothing leaves a residual whose state the next call
+# resumes (its restart count grows).
+W17 = C._windows
+def fam17(tool, name, params, wit):
+    try: W17.FAMILIES[(tool, name)]['fn'](params, wit, ember['Budget'](10 ** 8)); return True
+    except W17.Invalid: return False
+def vd17(tool, name, params, wit): return V.verdict('witness', dict(q=tool, family=name, params=params, witness=wit))[0]
+cov17 = [[0, 2], [0, 3], [1, 4], [5, 6], [7, 12]]
+cases17 = [('additive_q', 'waerden_coloring', dict(n=8, r=2, k=3), '00110011', True), ('additive_q', 'waerden_coloring', dict(n=9, r=2, k=3), '001100110', False),
+           ('graph_q', 'circulant_ramsey', dict(n=13, s=3, t=5), [1, 5], True), ('graph_q', 'circulant_ramsey', dict(n=13, s=3, t=5), [1, 2], False),
+           ('graph_q', 'circulant_ramsey', dict(n=13, s=3, t=4), [1, 5], False), ('covering_q', 'min_modulus_covering', dict(m0=2, lcm_max=12), cov17, True),
+           ('covering_q', 'min_modulus_covering', dict(m0=2, lcm_max=12), cov17[:-1], False), ('covering_q', 'min_modulus_covering', dict(m0=3, lcm_max=12), cov17, False)]
+frontier_families = all(fam17(*c[:4]) == c[4] and (vd17(*c[:4]) == 'VERIFIED') == c[4] for c in cases17)
+E17 = registry['waerden_search']['fn'].__globals__
+def search17(op, tool, family, params, calls=1, budget=2_000_000):
+    rt = L.Runtime(C, ember['Budget'](budget)); root_ = E17['_w'](rt, tool, family, params); outs = []
+    for _ in range(calls):
+        rt.budget = ember['Budget'](budget); rt.current_move = op; outs.append(registry[op]['fn'](rt, root_))
+        if any(o['kind'] == 'witness' and o['status'] == 'checked' for o in outs[-1]): break
+    return outs
+def witness17(outs): return next((o for out in outs for o in out if o['kind'] == 'witness' and o['status'] == 'checked'), None)
+found17 = [witness17(search17('waerden_search', 'additive_q', 'waerden_coloring', dict(n=26, r=3, k=3))),
+           witness17(search17('nothree_search', 'config_q', 'no_three_in_line', dict(n=16))),
+           witness17(search17('nothree_search', 'config_q', 'no_three_in_line', dict(n=17), calls=6)),
+           witness17(search17('covering_lcm_search', 'covering_q', 'min_modulus_covering', dict(m0=2, lcm_max=12))),
+           witness17(search17('covering_lcm_search', 'covering_q', 'min_modulus_covering', dict(m0=3, lcm_max=5000))),
+           witness17(search17('circulant_search', 'graph_q', 'circulant_ramsey', dict(n=13, s=3, t=5))),
+           witness17(search17('circulant_search', 'graph_q', 'circulant_ramsey', dict(n=16, s=3, t=6)))]
+stuck17 = search17('nothree_search', 'config_q', 'no_three_in_line', dict(n=13), calls=2, budget=300_000)
+states17 = [o['data']['items'][0] for out in stuck17 for o in out if o['kind'] == 'residual']
+frontier_searches = (all(w is not None and V.verdict('witness', w['data'])[0] == 'VERIFIED' for w in found17)
+                     and found17[3]['evidence']['summary']['lcm'] == 12 and found17[4]['evidence']['summary']['lcm'] == 120
+                     and len(states17) == 2 and states17[1]['restarts'] > states17[0]['restarts'] and states17[1]['nodes'] > states17[0]['nodes'])
 # Refusal accounting: a claim the checker refuses is counted by move, kind and reason and named to the report with the
 # instrument its reason points to; a strategy whose claims are refused with none admitted is retired with the reason;
 # a round that refused more than it admitted waits for an instrument in her scan, naming the reason.
@@ -2016,7 +2053,7 @@ batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == wri
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
                       obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, anytime=anytime,
-                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, residual=residual_ok, shapes=shapes_ok, exceptions=exceptions_ok, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
+                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, residual=residual_ok, shapes=shapes_ok, exceptions=exceptions_ok, frontier_families=frontier_families, frontier_searches=frontier_searches, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -2071,6 +2108,8 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('residual_predicates_are_stated_selectively_broken_by_a_witness_and_verified', sieve_result.get('residual') is True)
         check('general_families_found_by_her_search_verify_and_carry_a_chunk', sieve_result.get('shapes') is True)
         check('exception_set_certified_by_complete_search_and_forgeries_refused', sieve_result.get('exceptions') is True)
+        check('frontier_families_tell_true_from_false_with_the_verdict', sieve_result.get('frontier_families') is True)
+        check('frontier_searches_find_calibration_witnesses_and_resume', sieve_result.get('frontier_searches') is True)
         check('residual_records_the_attempt_of_a_deterministic_move', sieve_result.get('attempt_recorded') is True)
         check('problem_choice_weighs_gains_and_inherits_widened_windows', sieve_result.get('choice') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)

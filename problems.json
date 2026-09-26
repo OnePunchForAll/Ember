@@ -438,6 +438,206 @@
    "source": "Collatz (1937); Lagarias, The 3x + 1 Problem and Its Generalizations (1985)."
   },
   {
+   "id": "no-three-in-line-61",
+   "title": "No-three-in-line on the 61 by 61 grid",
+   "status": "open",
+   "area": "geometry",
+   "statement": "There are 122 points of the 61 x 61 grid with no three on a line: the smallest grid for which this is unknown.",
+   "task": {
+    "type": "explore",
+    "objects": [
+     {
+      "kind": "config_q",
+      "data": {
+       "family": "no_three_in_line",
+       "params": {
+        "n": 61
+       }
+      }
+     }
+    ],
+    "goals": [
+     "window"
+    ]
+   },
+   "scope": "A witness settles the statement exactly. Her search is symmetric backtracking (a 90 degree rotation except one pair of points on the main diagonal, the symmetry of the known large odd solutions) with randomized restarts resumed across calls; not finding one shows nothing.",
+   "known": "Prellberg (arXiv 2602.07751, 2026) settled every n <= 60 by constraint programming under symmetry and found nothing for n = 61 and 62 within 10^7 seconds; Flammenkamp (J. Combin. Theory A, 1992 and 1998) had every n <= 46 and 48, 50, 52.",
+   "source": "Dudeney (1917); Flammenkamp (1992, 1998); Prellberg (arXiv 2602.07751, 2026)."
+  },
+  {
+   "id": "van-der-waerden-7-3",
+   "title": "The van der Waerden number W(7, 3) beyond 343",
+   "status": "open",
+   "area": "additive combinatorics",
+   "statement": "There is a 7-coloring of 1..344 with no monochromatic 3-term arithmetic progression, so W(7, 3) > 344.",
+   "task": {
+    "type": "explore",
+    "objects": [
+     {
+      "kind": "additive_q",
+      "data": {
+       "family": "waerden_coloring",
+       "params": {
+        "n": 344,
+        "r": 7,
+        "k": 3
+       }
+      }
+     }
+    ],
+    "goals": [
+     "window"
+    ]
+   },
+   "scope": "A witness raises the known lower bound by one and settles the statement. Her search tries Rabung's power-residue colorings for primes near n/2 extended at the ends by backtracking, then a tabu search on periodic colorings resumed across calls; not finding one shows nothing.",
+   "known": "W(7, 3) > 343: Komkov (arXiv 1701.05603, 2017), improving Heule's 342. The research brief (RESEARCH_RESULTS.md) found no later improvement; a record should be checked against current tables before it is claimed.",
+   "source": "van der Waerden (1927); Rabung (1979); Heule (J. Comb. 8, 2017); Komkov (arXiv 1701.05603, 2017)."
+  },
+  {
+   "id": "van-der-waerden-8-3",
+   "title": "The van der Waerden number W(8, 3) beyond 515",
+   "status": "open",
+   "area": "additive combinatorics",
+   "statement": "There is a 8-coloring of 1..516 with no monochromatic 3-term arithmetic progression, so W(8, 3) > 516.",
+   "task": {
+    "type": "explore",
+    "objects": [
+     {
+      "kind": "additive_q",
+      "data": {
+       "family": "waerden_coloring",
+       "params": {
+        "n": 516,
+        "r": 8,
+        "k": 3
+       }
+      }
+     }
+    ],
+    "goals": [
+     "window"
+    ]
+   },
+   "scope": "A witness raises the known lower bound by one and settles the statement. Her search tries Rabung's power-residue colorings for primes near n/2 extended at the ends by backtracking, then a tabu search on periodic colorings resumed across calls; not finding one shows nothing.",
+   "known": "W(8, 3) > 515: Komkov (arXiv 1701.05603, 2017), improving Heule's 511. The research brief (RESEARCH_RESULTS.md) found no later improvement; a record should be checked against current tables before it is claimed.",
+   "source": "van der Waerden (1927); Rabung (1979); Heule (J. Comb. 8, 2017); Komkov (arXiv 1701.05603, 2017)."
+  },
+  {
+   "id": "van-der-waerden-10-3",
+   "title": "The van der Waerden number W(10, 3) beyond 892",
+   "status": "open",
+   "area": "additive combinatorics",
+   "statement": "There is a 10-coloring of 1..893 with no monochromatic 3-term arithmetic progression, so W(10, 3) > 893.",
+   "task": {
+    "type": "explore",
+    "objects": [
+     {
+      "kind": "additive_q",
+      "data": {
+       "family": "waerden_coloring",
+       "params": {
+        "n": 893,
+        "r": 10,
+        "k": 3
+       }
+      }
+     }
+    ],
+    "goals": [
+     "window"
+    ]
+   },
+   "scope": "A witness raises the known lower bound by one and settles the statement. Her search tries Rabung's power-residue colorings for primes near n/2 extended at the ends by backtracking, then a tabu search on periodic colorings resumed across calls; not finding one shows nothing.",
+   "known": "W(10, 3) > 892: Komkov (arXiv 1701.05603, 2017), improving Heule's 889. The research brief (RESEARCH_RESULTS.md) found no later improvement; a record should be checked against current tables before it is claimed.",
+   "source": "van der Waerden (1927); Rabung (1979); Heule (J. Comb. 8, 2017); Komkov (arXiv 1701.05603, 2017)."
+  },
+  {
+   "id": "van-der-waerden-11-3",
+   "title": "The van der Waerden number W(11, 3) beyond 1187",
+   "status": "open",
+   "area": "additive combinatorics",
+   "statement": "There is a 11-coloring of 1..1188 with no monochromatic 3-term arithmetic progression, so W(11, 3) > 1188.",
+   "task": {
+    "type": "explore",
+    "objects": [
+     {
+      "kind": "additive_q",
+      "data": {
+       "family": "waerden_coloring",
+       "params": {
+        "n": 1188,
+        "r": 11,
+        "k": 3
+       }
+      }
+     }
+    ],
+    "goals": [
+     "window"
+    ]
+   },
+   "scope": "A witness raises the known lower bound by one and settles the statement. Her search tries Rabung's power-residue colorings for primes near n/2 extended at the ends by backtracking, then a tabu search on periodic colorings resumed across calls; not finding one shows nothing.",
+   "known": "W(11, 3) > 1187: Komkov (arXiv 1701.05603, 2017), improving Heule's 1183. The research brief (RESEARCH_RESULTS.md) found no later improvement; a record should be checked against current tables before it is claimed.",
+   "source": "van der Waerden (1927); Rabung (1979); Heule (J. Comb. 8, 2017); Komkov (arXiv 1701.05603, 2017)."
+  },
+  {
+   "id": "ramsey-3-16",
+   "title": "The Ramsey number R(3, 16) beyond 82",
+   "status": "open",
+   "area": "graphs",
+   "statement": "There is a circulant graph on 82 vertices with no triangle and no independent set of 16 vertices, so R(3, 16) > 82.",
+   "task": {
+    "type": "explore",
+    "objects": [
+     {
+      "kind": "graph_q",
+      "data": {
+       "family": "circulant_ramsey",
+       "params": {
+        "n": 82,
+        "s": 3,
+        "t": 16
+       }
+      }
+     }
+    ],
+    "goals": [
+     "window"
+    ]
+   },
+   "scope": "A witness raises the known lower bound (checked through vertex 0 by vertex transitivity). Her search is a tabu search over connection sets scored by the triangles and the independent 16-sets through vertex 0, resumed across calls; not finding one shows nothing, and a non-circulant graph is outside it.",
+   "known": "R(3, 16) >= 82 (Radziszowski, Small Ramsey Numbers, DS1.18, Table IIa, from a graph on 81 vertices); the known constructions at this size are circulant (Exoo; Kolodyazhny; Kuznetsov).",
+   "source": "Ramsey (1930); Radziszowski, Small Ramsey Numbers (Electron. J. Combin. DS1)."
+  },
+  {
+   "id": "covering-modulus-8",
+   "title": "The least lcm of a covering system with least modulus 8",
+   "status": "open",
+   "area": "number theory",
+   "statement": "A covering system with distinct moduli all at least 8 and lcm at most 1,000,000; the least lcm such a system can have is unknown (for least modulus 7 it is 10,080).",
+   "task": {
+    "type": "explore",
+    "objects": [
+     {
+      "kind": "covering_q",
+      "data": {
+       "family": "min_modulus_covering",
+       "params": {
+        "m0": 8,
+        "lcm_max": 1000000
+       }
+      }
+     }
+    ],
+    "goals": [
+     "window"
+    ]
+   },
+   "scope": "A witness is an upper bound on the least lcm, exact as a covering. Her search takes 13-smooth candidates in increasing order with a greedy residue choice resumed across calls, so the first found is the least her method reaches, not the least that exists.",
+   "known": "For least modulus 7 the least lcm is 10,080 (arXiv 2607.19029, 2026); for least modulus 3 it is 120, which her search reproduces; a covering with least modulus 42 exists (Owens, 2014); every distinct covering has a modulus divisible by 2 or 3 (Hough and Nielsen).",
+   "source": "Erdős (1950); Hough and Nielsen; arXiv 2607.19029 (2026)."
+  },
+  {
    "id": "collatz-sieve-18",
    "title": "The Collatz stopping-time sieve to 2^18",
    "status": "closed",

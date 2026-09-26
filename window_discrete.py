@@ -437,6 +437,45 @@ def fam_ramsey(params, witness, budget):
     return dict(lower_bound=n + 1)
 
 
+def _rooted_clique(n, adj, size, budget):
+    """Whether a vertex-transitive graph (adjacency as bitmasks) has a clique of the size: by transitivity, one
+    through vertex 0. Branch and bound; a greedy partition of the candidates into independent sets bounds the rest."""
+    def bound(P):
+        classes = 0
+        while P:
+            classes += 1; Q = P
+            while Q:
+                v = Q.bit_length() - 1; Q &= ~(1 << v); P &= ~(1 << v); Q &= ~adj[v]
+        return classes
+    def go(have, P):
+        budget.use()
+        if have >= size: return True
+        if have + bin(P).count('1') < size or have + bound(P) < size: return False
+        while P:
+            v = P.bit_length() - 1; P &= ~(1 << v)
+            if go(have + 1, P & adj[v]): return True
+        return False
+    return go(1, adj[0])
+
+
+@family('graph_q', 'circulant_ramsey', 'witness',
+        'The witness is the connection set of a circulant graph on n vertices (distances d, 1 <= d <= n/2, joining v '
+        'to v + d and v - d) with no clique of size s and no independent set of size t, checked through vertex 0 by '
+        'vertex transitivity: so R(s, t) > n.')
+def fam_circulant_ramsey(params, witness, budget):
+    need(set(params) == {'n', 's', 't'}, 'Ramsey fields')
+    n, s, t = integer(params['n'], 3, 400), integer(params['s'], 3, 8), integer(params['t'], 3, 32)
+    need(type(witness) is list and witness == sorted(set(witness)) and all(type(d) is int and 1 <= d <= n // 2 for d in witness),
+         'distances 1..n/2, sorted, distinct')
+    S = set(witness) | {n - d for d in witness}
+    adj = [sum(1 << ((v + d) % n) for d in S) for v in range(n)]
+    full = (1 << n) - 1
+    comp = [full & ~adj[v] & ~(1 << v) for v in range(n)]
+    need(not _rooted_clique(n, adj, s, budget), 'a clique of size s through vertex 0')
+    need(not _rooted_clique(n, comp, t, budget), 'an independent set of size t through vertex 0')
+    return dict(lower_bound=n + 1, degree=len(S))
+
+
 def _hom_count(Hn, Hedges, n, adj, budget):
     """The number of homomorphisms from a small graph H into G."""
     order = list(range(Hn)); count = 0
@@ -776,6 +815,24 @@ def fam_sidon_max(params, budget):
                 go(y + 1, S + [y], diffs | nd)
     go(1, [], set())
     return best[0]
+
+
+WAERDEN_ALPHABET = '0123456789abcdefghijklmnopqrstuv'
+
+
+@family('additive_q', 'waerden_coloring', 'witness',
+        'The witness colors 1..n with r colors (one letter per number) so that no k-term arithmetic progression is '
+        'monochromatic: so the van der Waerden number W(r, k) exceeds n.')
+def fam_waerden(params, witness, budget):
+    need(set(params) == {'n', 'r', 'k'}, 'van der Waerden fields')
+    n, r, k = integer(params['n'], 1, 20000), integer(params['r'], 2, 32), integer(params['k'], 3, 8)
+    need(type(witness) is str and len(witness) == n and set(witness) <= set(WAERDEN_ALPHABET[:r]), 'a color letter per number')
+    for d in range(1, (n - 1) // (k - 1) + 1):
+        budget.use(n)
+        rows = zip(*(witness[i * d:] for i in range(k)))
+        for a, row in enumerate(rows):
+            need(any(c != row[0] for c in row), 'a monochromatic progression at %d with step %d' % (a + 1, d))
+    return dict(lower_bound=n + 1, colors=r, length=k)
 
 
 @family('additive_q', 'four_cubes', 'value',
@@ -1155,7 +1212,7 @@ def fam_heilbronn(params, witness, budget):
 @family('config_q', 'no_three_in_line', 'witness',
         'The witness gives 2n points of the n x n grid with no three on a line.')
 def fam_no_three(params, witness, budget):
-    need(set(params) == {'n'}, 'grid fields'); n = integer(params['n'], 1, 60)
+    need(set(params) == {'n'}, 'grid fields'); n = integer(params['n'], 1, 64)
     need(type(witness) is list and len(witness) == 2 * n and len({tuple(p) for p in witness}) == 2 * n
          and all(type(p) is list and len(p) == 2 and all(type(v) is int and 0 <= v < n for v in p) for p in witness),
          '2n distinct grid points')

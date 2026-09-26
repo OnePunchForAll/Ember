@@ -1206,7 +1206,7 @@ def circuit_search_op(rt, root):
 
 def config_search(f, p, rt):
     if f == 'unit_distances': return [[[x.numerator, x.denominator] for x in pt] for pt in unit_points(p['n'], rt)]
-    if f == 'no_three_in_line': return no_three(p['n'], rt)
+    if f == 'no_three_in_line': return no_three(p['n'], rt) if p['n'] <= 12 else None  # larger grids: nothree_search
     if f == 'convex_free': return convex_free(p['n'], p['k'], rt)
     if f == 'kissing': return kissing(p['dim'], p['count'])
     if f == 'rational_distances': return rational_distance_set(p['n'], rt)
@@ -1323,6 +1323,427 @@ def variety_search(rt, root):
                       if f == 'rational_points' else None)
 
 
+# ------------------------------------------------------------- resumable searches at the frontier
+#
+# Four searches for exact certificates at records the research brief ranks (RESEARCH_RESULTS.md): each runs within
+# its move's work bound and, when nothing is found, leaves a residual carrying its state, from which the next call
+# resumes; a witness found is a claim the family checks exactly.
+
+RESUME_MARGIN = 20_000  # work units kept back so a search stops before its budget is exhausted
+WAERDEN_ALPHABET = '0123456789abcdefghijklmnopqrstuv'
+
+
+def saved_search(rt, root, by):
+    """The latest state a resumable move left on this root (the residual with the most steps), or None."""
+    best = None
+    for o in rt.objects.values():
+        d = o['data']
+        if o['kind'] == 'residual' and d.get('of') == root['id'] and d.get('by') == by and d.get('items') \
+                and type(d['items'][0]) is dict:
+            st = d['items'][0]
+            if best is None or st.get('steps', 0) > best.get('steps', 0): best = st
+    return best
+
+
+def resume_search(rt, root, family, by, fn):
+    """Run a resumable search from its saved state: a witness claim when found, else a residual carrying the state."""
+    d = root['data']
+    if d.get('family') != family: return []
+    state = saved_search(rt, root, by)
+    try: found, state = fn(d['params'], rt, state)
+    except (KeyError, TypeError, ValueError, ZeroDivisionError, IndexError, AssertionError): return []
+    if found is not None:
+        claim = rt.propose('witness', {'q': root['kind'], 'family': family, 'params': d['params'], 'witness': found}, (root,))
+        if rt.check(claim): return [claim]
+    if state is None: return []
+    return [rt.residual(root, [state], state.get('note', 'search continues'), by)]
+
+
+def room(rt, cost): return rt.budget.work + cost + RESUME_MARGIN <= rt.budget.limit
+
+
+def waerden_period(n, k):
+    """The least m >= n/(k-1) with no prime factor below k: a coloring of Z_m with no monochromatic k-term cyclic
+    progression extends periodically to 1..(k-1)m with none, since a progression with step d not divisible by m
+    lands on k distinct residues in a cyclic progression, and one with step divisible by m does not fit."""
+    m = max(2, -(-n // (k - 1)))
+    while any(m % q == 0 for q in range(2, k)): m += 1
+    return m
+
+
+def ap_free(col, k):
+    """Whether the coloring (a list of colors for 1..n) has no monochromatic k-term progression."""
+    n = len(col)
+    for d in range(1, (n - 1) // (k - 1) + 1):
+        for row in zip(*(col[i * d:] for i in range(k))):
+            if row.count(row[0]) == k: return False
+    return True
+
+
+def ap_free_prefix(col, k):
+    """The longest prefix of the coloring with no monochromatic k-term progression."""
+    for j in range(len(col)):
+        for d in range(1, j // (k - 1) + 1):
+            if all(col[j - i * d] == col[j] for i in range(1, k)): return col[:j]
+    return list(col)
+
+
+def waerden_extend(col, n, k, r, rt, limit, rng):
+    """Extend an AP-free coloring at its end to length n by backtracking (a new element only ends progressions)."""
+    nodes = 0
+    def ok(j, c):
+        for d in range(1, j // (k - 1) + 1):
+            if all(col[j - i * d] == c for i in range(1, k)): return False
+        return True
+    def go(j):
+        nonlocal nodes
+        nodes += 1
+        if nodes > limit or not room(rt, j // (k - 1) + 2): return False
+        rt.budget.use(j // (k - 1) + 1)
+        if j == n: return True
+        order = list(range(r)); rng.shuffle(order)
+        for c in order:
+            if ok(j, c):
+                col.append(c)
+                if go(j + 1): return True
+                col.pop()
+        return False
+    return go(len(col))
+
+
+def rabung_coloring(p, r, length):
+    """Rabung's power-residue coloring: i not divisible by p gets the index of i mod p modulo r (r | p - 1), a multiple
+    of p the color of its quotient."""
+    g = next(g for g in range(2, p) if all(pow(g, (p - 1) // q, p) != 1 for q in range(2, p) if (p - 1) % q == 0 and all(q % v for v in range(2, q))))
+    ind = [0] * p; x = 1
+    for e in range(p - 1): ind[x] = e; x = x * g % p
+    col = [0] * (length + 1)
+    for i in range(1, length + 1): col[i] = ind[i % p] % r if i % p else col[i // p]
+    return col[1:]
+
+
+def waerden_search(params, rt, state):
+    """An r-coloring of 1..n without monochromatic k-term progressions: backtracking for n <= 30; else Rabung's
+    power-residue colorings for primes p = 1 (mod r) near n/(k-1), extended at the end by backtracking; then tabu
+    search (min-conflicts) on a coloring of Z_m free of cyclic progressions, extended periodically, the period
+    escalating when the search stalls."""
+    n, r, k = params['n'], params['r'], params['k']
+    rng = random.Random(state['seed'] if state else (n * 1000003 + r * 1009 + k))
+    state = dict(state) if state else {}
+    if n <= 30:
+        col = []
+        if waerden_extend(col, n, k, r, rt, 1 << 30, rng): return ''.join(WAERDEN_ALPHABET[c] for c in col), None
+        return None, dict(steps=state.get('steps', 0) + 1, seed=rng.randrange(1 << 30), note='no coloring found by backtracking')
+    if not state.get('rabung'):
+        centre = -(-n // (k - 1)); tried = 0; best_len = 0
+        for p in range(max(k, centre - 60), centre + 40):
+            if p % r != 1 or any(p % q == 0 for q in range(2, isqrt(p) + 1)): continue
+            per_node = n // (k - 1) + 2
+            if not room(rt, 3 * n * n // (k - 1) // 8 + 20 * per_node): break
+            col = rabung_coloring(p, r, min(n, (k - 1) * p)); tried += 1; rt.budget.use(n * n // (k - 1) // 8 + 1)
+            col = ap_free_prefix(col, k)
+            if len(col) < n:
+                limit = min(30_000, (rt.budget.limit - rt.budget.work - RESUME_MARGIN) // per_node // 3)
+                if waerden_extend(col, n, k, r, rt, limit, rng): return ''.join(WAERDEN_ALPHABET[c] for c in col), None
+                rev = col[::-1]
+                if waerden_extend(rev, n, k, r, rt, limit, rng): return ''.join(WAERDEN_ALPHABET[c] for c in rev[::-1]), None
+            elif ap_free(col[:n], k): return ''.join(WAERDEN_ALPHABET[c] for c in col[:n]), None
+            best_len = max(best_len, len(col))
+        state['rabung'] = dict(primes=tried, best_length=best_len)
+    m = state.get('m') or waerden_period(n, k); half = (m - 1) // 2
+    if len(state.get('coloring', '')) == m: col = [WAERDEN_ALPHABET.index(c) for c in state['coloring']]
+    else: col = [rng.randrange(r) for _ in range(m)]
+    steps = state.get('steps', 0); stall = state.get('stall', 0)
+    others = lambda y, e, i, c: all(col[(y + j * e) % m] == c for j in range(k) if j != i)
+    bad = {(y, e) for e in range(1, half + 1) for y in range(m) if all(col[(y + j * e) % m] == col[y] for j in range(1, k))}
+    rt.budget.use(m * half + 1)
+    tabu = {}; step_cost = 1 + (2 * k * half * r) // 32; best = len(bad)
+    while bad and room(rt, step_cost):
+        if stall > max(4000, 40 * m):
+            # the period stalls: take the next admissible one and start afresh
+            m = waerden_period((k - 1) * m + 1, k); half = (m - 1) // 2; col = [rng.randrange(r) for _ in range(m)]
+            others = lambda y, e, i, c: all(col[(y + j * e) % m] == c for j in range(k) if j != i)
+            bad = {(y, e) for e in range(1, half + 1) for y in range(m) if all(col[(y + j * e) % m] == col[y] for j in range(1, k))}
+            tabu = {}; step_cost = 1 + (2 * k * half * r) // 32; best = len(bad); stall = 0; rt.budget.use(m * half + 1)
+            continue
+        y, e = rng.choice(tuple(bad))
+        x = (y + rng.randrange(k) * e) % m; old = col[x]; choice = None
+        for c in range(r):
+            if c == old: continue
+            v = sum(1 for e2 in range(1, half + 1) for i in range(k) if others((x - i * e2) % m, e2, i, c))
+            if tabu.get((x, c), -1) > steps and len(bad) + v >= best and rng.random() > 0.02: continue
+            if choice is None or v < choice[0] or (v == choice[0] and rng.random() < 0.5): choice = (v, c)
+        if rng.random() < 0.02: choice = (0, rng.choice([c for c in range(r) if c != old]))
+        steps += 1; stall += 1; rt.budget.use(step_cost)
+        if choice is None: continue
+        c = choice[1]
+        for e2 in range(1, half + 1):
+            for i in range(k):
+                y2 = (x - i * e2) % m
+                if others(y2, e2, i, old): bad.discard((y2, e2))
+                if others(y2, e2, i, c): bad.add((y2, e2))
+        col[x] = c; tabu[(x, old)] = steps + 5 + rng.randrange(10)
+        if len(bad) < best: best = len(bad); stall = 0
+    if not bad: return ''.join(WAERDEN_ALPHABET[col[i % m]] for i in range(n)), None
+    return None, dict(state, m=m, coloring=''.join(WAERDEN_ALPHABET[c] for c in col), steps=steps, stall=stall,
+                      seed=rng.randrange(1 << 30), conflicts=len(bad), best=best,
+                      note='van der Waerden search on Z_%d with %d colors: %d monochromatic progressions left after %d steps' % (m, r, len(bad), steps))
+
+
+def nothree_restart(n, sym, rng, limit, rt):
+    """One randomized backtracking run with a node limit under a symmetry: rot4 (90 degree rotation; even n),
+    or rct4 for odd n (rot4 except one pair of points on the main diagonal, symmetric about the centre). Rows are
+    chosen most constrained first; a row with fewer candidate cells than it needs ends the branch."""
+    centre = (n - 1) // 2
+    def orbit(x, y):
+        return sorted({(x, y), (n - 1 - y, x), (n - 1 - x, n - 1 - y), (y, n - 1 - x)})
+    blocked = [0] * n; rowc = [0] * n; colc = [0] * n; placed = []; placed_set = set()
+    nodes = 0; best = 0
+    def cells(p, q):
+        (px, py), (qx, qy) = p, q; dx, dy = qx - px, qy - py; g = gcd(abs(dx), abs(dy)); dx //= g; dy //= g
+        out = []
+        for sx, sy in ((dx, dy), (-dx, -dy)):
+            x, y = px + sx, py + sy
+            while 0 <= x < n and 0 <= y < n: out.append((x, y)); x += sx; y += sy
+        return out
+    def revert(undo):
+        for kind, a, b in reversed(undo):
+            if kind == 'b': blocked[b] &= ~(1 << a)
+            else: placed.pop(); placed_set.discard(a); rowc[a[1]] -= 1; colc[a[0]] -= 1
+    def free(x, y): return not (blocked[y] >> x) & 1 and rowc[y] < 2 and colc[x] < 2 and (x, y) not in placed_set and (x, y) != (centre, centre)
+    def place(pts):
+        undo = []
+        for p in pts:
+            x, y = p
+            if not free(x, y): revert(undo); return None
+            for q in placed:
+                for cx, cy in cells(p, q):
+                    if not (blocked[cy] >> cx) & 1: blocked[cy] |= 1 << cx; undo.append(('b', cx, cy))
+            placed.append(p); placed_set.add(p); rowc[y] += 1; colc[x] += 1; undo.append(('p', p, None))
+        return undo
+    if sym == 'rct4':
+        a = rng.choice([a for a in range(n) if a != centre])
+        if place([(a, a), (n - 1 - a, n - 1 - a)]) is None: return None, 0, 1
+    def go():
+        nonlocal nodes, best
+        nodes += 1
+        if nodes > limit or not room(rt, 3 * n + 2): return False
+        rt.budget.use(len(placed) + n); choice = None
+        for y in range(n):
+            if rowc[y] >= 2: continue
+            cands = [x for x in range(n) if free(x, y)]
+            if len(cands) < 2 - rowc[y]: return False
+            if choice is None or len(cands) < len(choice[1]): choice = (y, cands)
+        if choice is None: return True
+        y, cands = choice; best = max(best, len(placed))
+        rng.shuffle(cands)
+        for x in cands:
+            pts = orbit(x, y)
+            if len(pts) < 4: continue
+            undo = place(pts)
+            if undo is None: continue
+            if go(): return True
+            revert(undo)
+            if nodes > limit: return False
+        return False
+    found = go()
+    return ([list(p) for p in sorted(placed)] if found else None), best, nodes
+
+
+def nothree_search(params, rt, state):
+    """2n points of the n x n grid with no three in a line: exhaustive for n <= 12, else symmetric backtracking with
+    randomized restarts (rot4 for even n, rct4 for odd n), resumed by restart count and seed."""
+    n = params['n']
+    if n <= 12: return no_three(n, rt), None
+    sym = 'rot4' if n % 2 == 0 else 'rct4'
+    rng = random.Random(state['seed'] if state else n * 7919)
+    restarts = state.get('restarts', 0) if state else 0; best = state.get('best', 0) if state else 0
+    nodes = state.get('nodes', 0) if state else 0; result = None
+    while result is None:
+        limit = 500 * (1 << (restarts % 7))
+        if not room(rt, min(limit, 2000) * (3 * n + 2)): break
+        result, depth, used = nothree_restart(n, sym, rng, limit, rt)
+        nodes += used; best = max(best, depth); restarts += 1
+    if result is not None: return result, None
+    return None, dict(restarts=restarts, best=best, nodes=nodes, steps=restarts, seed=rng.randrange(1 << 30), symmetry=sym,
+                      note='no-three-in-line search (%s) on the %d grid: %d restarts, %d nodes, %d points placed at best' % (sym, n, restarts, nodes, best))
+
+
+def divisors_of(L):
+    small = [d for d in range(1, isqrt(L) + 1) if L % d == 0]
+    return sorted(set(small + [L // d for d in small]))
+
+
+def covering_candidates(m0, lcm_max):
+    """13-smooth candidates for the lcm, in increasing order, whose divisors at least m0 have reciprocal sum >= 1."""
+    out = []
+    def gen(i, L):
+        if i == 6: out.append(L); return
+        x = L
+        while x <= lcm_max: gen(i + 1, x); x *= (2, 3, 5, 7, 11, 13)[i]
+    gen(0, 1)
+    return [L for L in sorted(out) if L >= m0 and sum(Q(1, d) for d in divisors_of(L) if d >= m0) >= 1]
+
+
+def class_mask(L, r, m):
+    """The residues r mod m below L as a bitmask."""
+    x, width = 1 << r, m
+    while width < L: x |= x << width; width *= 2
+    return x & ((1 << L) - 1)
+
+
+def cover_dfs(L, uncovered, mods, rt, rng, limit):
+    """Cover the residues (a bitmask) with each listed modulus at most once: branch on the modulus taking the least
+    uncovered residue, the class covering most first; each modulus covers at most L/m residues, which bounds the rest."""
+    unused = sorted(mods, reverse=True); chosen = []; nodes = 0
+    def go(unc):
+        nonlocal nodes
+        nodes += 1
+        if nodes > limit or not room(rt, len(unused) + 2): return False
+        rt.budget.use(len(unused) + 1)
+        if not unc: return True
+        if sum(L // m for m in unused) < bin(unc).count('1'): return False
+        x = (unc & -unc).bit_length() - 1
+        options = []
+        for m in unused:
+            cover = unc & class_mask(L, x % m, m); options.append((bin(cover).count('1'), m, cover))
+        options.sort(key=lambda o: -o[0])
+        for cnt, m, cover in options:
+            unused.remove(m); chosen.append([x % m, m])
+            if go(unc & ~cover): return True
+            unused.append(m); chosen.pop()
+        return False
+    return list(chosen) if go(uncovered) else None
+
+
+def cover_try(L, mods, rng, attempt, rt):
+    """Greedy residue choice for the smaller moduli (each class taking the most uncovered residues), then a
+    depth-first completion with the larger ones."""
+    unc = bytearray(b'\x01') * L; chosen = []
+    order = sorted(mods, key=lambda d: d * rng.uniform(1, 1 + attempt / 3)) if attempt else sorted(mods)
+    split = len(order) * (2 + attempt % 3) // 4
+    for m in order[:split]:
+        rt.budget.use((m + L // 64) // 4 + 1)
+        counts = [unc[r::m].count(1) for r in range(m)]
+        top = max(counts)
+        if top == 0: continue
+        r = rng.choice([r for r in range(m) if counts[r] == top])
+        chosen.append([r, m]); unc[r::m] = bytes(len(range(r, L, m)))
+        if not any(unc): return chosen
+    left = int.from_bytes(bytes(unc[::-1]), 'big')
+    rest = cover_dfs(L, left, order[split:], rt, rng, 4_000)
+    return chosen + rest if rest is not None else None
+
+
+def covering_lcm_search(params, rt, state):
+    """A covering system with distinct moduli at least m0, by increasing candidate lcm."""
+    m0, lcm_max = params['m0'], params['lcm_max']
+    cands = covering_candidates(m0, lcm_max); rt.budget.use(len(cands) * 16 + 1)
+    rng = random.Random(state['seed'] if state else m0 * 1000 + 7)
+    i = state.get('index', 0) if state else 0; tries = state.get('steps', 0) if state else 0
+    attempt = state.get('attempt', 0) if state else 0
+    while i < len(cands):
+        L = cands[i]; mods = [d for d in divisors_of(L) if d >= m0]; cost = (sum(mods) + len(mods) * (L // 64 + 1)) // 4 + 8000 * len(mods)
+        while attempt < 24:
+            if not room(rt, cost):
+                return None, dict(index=i, attempt=attempt, steps=tries, seed=rng.randrange(1 << 30), least_open=L,
+                                  note='covering search with moduli at least %d: none found below lcm %d (%d candidates tried)' % (m0, L, i))
+            found = cover_try(L, mods, rng, attempt, rt); tries += 1; attempt += 1
+            if found: return found, None
+        i += 1; attempt = 0
+    return None, dict(index=i, steps=tries, seed=rng.randrange(1 << 30), least_open=lcm_max,
+                      note='covering search with moduli at least %d: none found by greedy choice up to lcm %d' % (m0, lcm_max))
+
+
+def circulant_search(params, rt, state):
+    """Tabu search over connection sets of circulant graphs on n vertices: flips of one distance, scored by the
+    cliques of size s and independent sets of size t through vertex 0 (counted up to a cap)."""
+    n, s, t = params['n'], params['s'], params['t']; h = n // 2; full = (1 << n) - 1
+    rng = random.Random(state['seed'] if state else n * 31 + s * 7 + t)
+    if state and state.get('S') is not None: S = set(state['S']); steps = state['steps']
+    else: S = {d for d in range(1, h + 1) if rng.random() < 0.3}; steps = 0
+    def masks(S):
+        D = S | {n - d for d in S}
+        adj = [sum(1 << ((v + d) % n) for d in D) for v in range(n)]
+        return adj, [full & ~adj[v] & ~(1 << v) for v in range(n)]
+    def bound(adj, P):
+        classes = 0
+        while P:
+            classes += 1; R = P
+            while R:
+                v = R.bit_length() - 1; R &= ~(1 << v); P &= ~(1 << v); R &= ~adj[v]
+        return classes
+    class Stop(Exception): pass
+    def count(adj, size, cap, node_cap=3000):
+        found = 0; nodes = 0
+        def go(have, P):
+            nonlocal found, nodes
+            nodes += 1
+            if nodes > node_cap: return True
+            if not room(rt, 2): raise Stop()
+            rt.budget.use()
+            if have == size: found += 1; return found >= cap
+            if have + bin(P).count('1') < size or have + bound(adj, P) < size: return False
+            while P:
+                v = P & -P; P ^= v
+                if go(have + 1, P & adj[v.bit_length() - 1]): return True
+            return False
+        go(1, adj[0]); return found
+    def triangles(adj):
+        # the triangles through vertex 0, exactly: pairs of adjacent neighbours of 0
+        N0 = adj[0]; total = 0; P = N0
+        while P:
+            v = P & -P; P ^= v; total += bin(N0 & adj[v.bit_length() - 1]).count('1')
+        rt.budget.use(n)
+        return total // 2
+    def score(S, node_cap=3000):
+        adj, comp = masks(S)
+        return (triangles(adj) if s == 3 else count(adj, s, 200, node_cap)) + count(comp, t, 200, node_cap)
+    try:
+        cur = score(S); best = (cur, sorted(S)); tabu = {}
+        while room(rt, 2000):
+            if cur == 0:
+                if score(S, 1 << 30) == 0: break  # exact: no clique through 0 of either kind
+                cur = 1
+            choice = None
+            for d in (range(1, h + 1) if h <= 12 else rng.sample(range(1, h + 1), 12)):
+                S2 = S ^ {d}; v = score(S2)
+                if tabu.get(d, -1) > steps and v >= best[0]: continue
+                if choice is None or v < choice[0] or (v == choice[0] and rng.random() < 0.5): choice = (v, d)
+            steps += 1
+            if choice is None: continue
+            d = choice[1]; S ^= {d}; cur = choice[0]; tabu[d] = steps + 3 + rng.randrange(h // 4 + 2)
+            if cur < best[0]: best = (cur, sorted(S))
+    except Stop: pass
+    if cur == 0: return sorted(S), None
+    return None, dict(S=sorted(S), steps=steps, seed=rng.randrange(1 << 30), score=cur, best=best[0], best_S=best[1],
+                      note='circulant search on %d vertices for (%d, %d): score %d after %d steps (best %d)' % (n, s, t, cur, steps, best[0]))
+
+
+@op('waerden_search', 'NS', ('additive_q',), ('witness', 'residual'),
+    'Color 1..n with r colors and no monochromatic k-term progression: a tabu search on a coloring of Z_m (m the least '
+    'period at least n/(k-1) with no prime factor below k) extended periodically; a residual saves its state.')
+def waerden_search_op(rt, root): return resume_search(rt, root, 'waerden_coloring', 'waerden_search', waerden_search)
+
+
+@op('nothree_search', 'NS', ('config_q',), ('witness', 'residual'),
+    'Place 2n points of the n x n grid with no three in a line: exhaustive backtracking for n <= 12, else symmetric '
+    'backtracking (rot4 for even n, rot2 for odd) with randomized restarts; a residual saves its state.')
+def nothree_search_op(rt, root): return resume_search(rt, root, 'no_three_in_line', 'nothree_search', nothree_search)
+
+
+@op('covering_lcm_search', 'NS', ('covering_q',), ('witness', 'residual'),
+    'Find a covering system with distinct moduli at least m0 and the least lcm the greedy residue choice reaches, '
+    'over 13-smooth candidates in increasing order; a residual saves the next candidate.')
+def covering_lcm_search_op(rt, root): return resume_search(rt, root, 'min_modulus_covering', 'covering_lcm_search', covering_lcm_search)
+
+
+@op('circulant_search', 'NS', ('graph_q',), ('witness', 'residual'),
+    'Find a circulant graph on n vertices with no clique of size s and no independent set of size t by tabu search '
+    'over its connection set, scored through vertex 0; a residual saves its state.')
+def circulant_search_op(rt, root): return resume_search(rt, root, 'circulant_ramsey', 'circulant_search', circulant_search)
+
+
 def _w(rt, tool, family, params): return rt.given(tool, dict(family=family, params=params))
 
 
@@ -1336,6 +1757,10 @@ FIXTURES = {
     'sat_prove': [lambda rt: [_w(rt, 'sat_q', 'unsat', dict(encoder='php', args=dict(n=3)))]],
     'circuit_search': [lambda rt: [_w(rt, 'circuit_q', 'circuit', dict(n=2, table=6, size=2))]],
     'config_search': [lambda rt: [_w(rt, 'config_q', 'kissing', dict(dim=4, count=24))]],
+    'waerden_search': [lambda rt: [_w(rt, 'additive_q', 'waerden_coloring', dict(n=8, r=2, k=3))]],
+    'nothree_search': [lambda rt: [_w(rt, 'config_q', 'no_three_in_line', dict(n=14))]],
+    'covering_lcm_search': [lambda rt: [_w(rt, 'covering_q', 'min_modulus_covering', dict(m0=2, lcm_max=12))]],
+    'circulant_search': [lambda rt: [_w(rt, 'graph_q', 'circulant_ramsey', dict(n=13, s=3, t=5))]],
     'kakeya_search': [lambda rt: [_w(rt, 'kakeya_q', 'kakeya_set', dict(q=3, n=2))]],
     'group_search': [lambda rt: [_w(rt, 'group_q', 'ac_trivial', dict(relators=[[1, 2, -1], [2, 2, 1]]))]],
     'knot_search': [lambda rt: [_w(rt, 'knot_q', 'inscribed_square', dict(vertices=[[0, 0], [4, 0], [4, 3], [0, 3]]))]],

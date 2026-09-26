@@ -1218,6 +1218,25 @@ def fam_covering(params, witness, budget):
     return dict(classes=len(witness), lcm=L)
 
 
+@family('covering_q', 'min_modulus_covering', 'witness',
+        'The witness classes r mod m cover every integer with distinct moduli all at least m0 and lcm at most lcm_max: '
+        'an upper bound on the least lcm of a covering system whose least modulus is m0.')
+def fam_min_modulus_covering(params, witness, budget):
+    need(set(params) == {'m0', 'lcm_max'}, 'covering fields')
+    m0 = integer(params['m0'], 2, 1000); lcm_max = integer(params['lcm_max'], m0, 10 ** 7)
+    need(type(witness) is list and 1 <= len(witness) <= 5000, 'covering classes')
+    L = 1; mods = []
+    for rm in witness:
+        need(type(rm) is list and len(rm) == 2, 'a class is a residue and a modulus'); r, m = rm
+        integer(m, m0); integer(r, 0, m - 1); L = _lcm(L, m); need(L <= lcm_max, 'lcm bound'); mods.append(m)
+    need(len(set(mods)) == len(mods), 'moduli repeat')
+    budget.use(L * len(witness) // 8 + L)
+    hit = bytearray(L)
+    for r, m in witness: hit[r::m] = b'\x01' * len(range(r, L, m))
+    need(all(hit), 'some residue mod ' + str(L) + ' is not covered')
+    return dict(classes=len(witness), lcm=L, least_modulus=min(mods))
+
+
 @family('covering_q', 'sierpinski_covering', 'witness',
         'k 2^n + sign is divisible by one of the listed primes for every n >= 1, and exceeds that prime: so it is '
         'composite for every n (k is a Sierpinski number for sign +1, a Riesel number for sign -1).')

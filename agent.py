@@ -40,15 +40,16 @@ MAX_PER_TARGET = 1
 MAX_TARGET_MOVES = 24
 COMPANIONS = 4
 # Operators that read the workspace: an attempt is new whenever the goal's progress has changed since.
+RESUMABLE_SEARCHES = frozenset(('waerden_search', 'nothree_search', 'covering_lcm_search', 'circulant_search'))
 READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift',
                              'egypt_classical_sweep', 'egypt_wall_sweep', 'egypt_range_chunk', 'egypt_range_union',
                              'egypt_theorem_range', 'egypt_theorem_multiples', 'egypt_divisor_families',
                              'egypt_theorem_families', 'egypt_range_square', 'egypt_residual_profile', 'egypt_residual_falsify',
-                             'egypt_shape_search'))
+                             'egypt_shape_search')) | RESUMABLE_SEARCHES
 # Moves tried once per state of what they read, not once per target and call: each chunk, union or extension is new.
 REPEATABLE = frozenset(('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples',
                         'egypt_divisor_families', 'egypt_theorem_families', 'egypt_range_square', 'egypt_residual_profile',
-                        'egypt_residual_falsify', 'egypt_shape_search'))
+                        'egypt_residual_falsify', 'egypt_shape_search')) | RESUMABLE_SEARCHES
 MACRO_STEPS = 4
 PROPOSE_EVERY = 25
 # A move that fails only for lack of work is retried once with this many times the allocation.
@@ -1257,6 +1258,11 @@ class ExploreGoal(Goal):
         # goal do not apply to it.
         if target['kind'] == 'esq': return strategy in ('egypt_exception_scan', 'verify')
         return True
+
+    def version(self, rt, strategy, target):
+        # A resumable search reads the state its last residual saved: once per call on each target.
+        if strategy in RESUMABLE_SEARCHES: return ('carried',)
+        return repr(self.progress(rt))
 
     def init(self, rt):
         self.roots = [rt.given(o['kind'], o['data']) for o in self.p['objects']]

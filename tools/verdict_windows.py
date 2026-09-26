@@ -1432,6 +1432,51 @@ def w_covering(p, w):
     must(all(any(x % m == r for r, m in w) for x in range(L)), 'a residue is not covered')
 
 
+def w_min_modulus_covering(p, w):
+    L = 1; mods = []
+    for rm in w:
+        must(type(rm) is list and len(rm) == 2, 'class shape'); r, m = rm
+        must(type(m) is int and m >= p['m0'] and type(r) is int and 0 <= r < m, 'class'); L = L * m // gcd(L, m); mods.append(m)
+    must(L <= p['lcm_max'] <= 10 ** 7, 'lcm bound'); must(len(set(mods)) == len(mods), 'moduli repeat')
+    must(all(any(x % m == r for r, m in w) for x in range(L)), 'a residue is not covered')
+
+
+def w_waerden_coloring(p, w):
+    n, r, k = p['n'], p['r'], p['k']
+    must(type(w) is str and len(w) == n and len(set(w)) <= r and set(w) <= set('0123456789abcdefghijklmnopqrstuv'[:r]), 'a color letter per number')
+    for a in range(n):
+        for d in range(1, (n - 1 - a) // (k - 1) + 1):
+            must(len({w[a + i * d] for i in range(k)}) > 1, 'a monochromatic progression at %d with step %d' % (a + 1, d))
+
+
+def w_circulant_ramsey(p, w):
+    n, s, t = p['n'], p['s'], p['t']
+    must(type(w) is list and w == sorted(set(w)) and all(type(d) is int and 1 <= d <= n // 2 for d in w), 'distances')
+    S = set(w) | {n - d for d in w}
+    nbr = [{(v + d) % n for d in S} for v in range(n)]
+    non = [set(range(n)) - nbr[v] - {v} for v in range(n)]
+    def clique_through_zero(adj, size):
+        # the largest clique containing 0, by branch and bound; a greedy partition into independent sets bounds the rest
+        def bound(P):
+            classes = 0; P = set(P)
+            while P:
+                classes += 1; Q = set(P)
+                while Q:
+                    v = Q.pop(); P.discard(v); Q -= adj[v]
+            return classes
+        def go(have, P):
+            if have >= size: return True
+            if have + len(P) < size or have + bound(P) < size: return False
+            P = set(P)
+            while P:
+                v = min(P); P.discard(v)
+                if go(have + 1, P & adj[v]): return True
+            return False
+        return go(1, set(adj[0]))
+    must(not clique_through_zero(nbr, s), 'a clique of size s through vertex 0')
+    must(not clique_through_zero(non, t), 'an independent set of size t through vertex 0')
+
+
 def w_sierpinski_covering(p, w):
     k, sign = p['k'], p['sign']; ps, T = w['primes'], w['period']
     must(all(is_prime(q) and pow(2, T, q) == 1 for q in ps), 'primes and period')
@@ -1720,6 +1765,7 @@ WITNESS_RULES = {
     'sunflower_free': w_sunflower, 'hadamard': w_hadamard, 'projective_plane': w_projective_plane, 'mols': w_mols,
     'sat': w_sat, 'circuit': w_circuit, 'proth_primes': w_proth, 'riesel_primes': w_riesel, 'covering': w_covering,
     'sierpinski_covering': w_sierpinski_covering, 'odd_weird': w_odd_weird, 'lonely_runner': w_lonely,
+    'min_modulus_covering': w_min_modulus_covering, 'waerden_coloring': w_waerden_coloring, 'circulant_ramsey': w_circulant_ramsey,
     'kakeya_set': w_kakeya, 'invariant_subspace': w_invariant_subspace, 'tensor': w_tensor, 'ac_trivial': w_ac,
     'inscribed_square': w_square, 'polynomial_inverse': w_polynomial_inverse, 'heilbronn': w_heilbronn,
     'no_three_in_line': w_no_three, 'convex_free': w_convex_free, 'kissing': w_kissing, 'unit_distances': w_unit_distances,

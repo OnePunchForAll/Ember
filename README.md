@@ -629,9 +629,9 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 380 implemented moves across
+`--pyramid` prints the map. Its base is a catalog of 384 implemented moves across
 34 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 223 operators of the typed language described below. The
+or replay work) and the 227 operators of the typed language described below. The
 base holds 169 moves with an N component, 118 with W, 313 with S and 105 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
@@ -876,7 +876,7 @@ code, has its own exact arithmetic (its window checkers live in `window_check.py
 `window_real.py` and `window_discrete.py`), and binds every claim to the question
 stated in its own data.
 
-223 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+227 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
 `ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`, `ops_wnum`, `ops_wdisc`)
 consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
@@ -1474,13 +1474,20 @@ python -I -B -X utf8 ember.py examples/open_problems.json --state her-instance.j
 `problems.json` is her library. It has two tiers.
 
 - **Stated problems** (148). Each is a task in her language that she can run.
-  - *Open* (18): the Erdős–Straus conjecture, Sierpiński's 5/n, Schinzel's
+  - *Open* (25): the Erdős–Straus conjecture, Sierpiński's 5/n, Schinzel's
     conjecture for a/n with a = 6 to 19 and 21, and the Collatz conjecture
     (descent classes to 2^20). The numerators 12, 15 to 19 and 21 became
     stateable when her statement bounds widened (numerators up to 64, least n up
     to 100,000); each starts above every exception an exhaustive search here
     found below 100,000 (for 16/n that search found exceptions at 78,721 and
-    83,449, past an earlier search to 40,000).
+    83,449, past an earlier search to 40,000), and her certified exception sets
+    confirm each least n (the number below it has no representation by the
+    complete search). Seven state a record one step past its frontier, as an
+    explore task her searches resume across calls: 122 points of the 61 grid
+    with no three in a line, colorings of 1..344, 1..516, 1..893 and 1..1188
+    in 7, 8, 10 and 11 colors without a monochromatic 3-term progression, a
+    circulant graph on 82 vertices for R(3, 16), and a covering system with
+    least modulus 8.
   - *Closed* (5) calibrate her: the Collatz sieve to 2^18, whose counts are
     known; 3/n and the halving map, which are true; and the 3n − 1 and 5n + 1
     maps, which are false because each has a cycle.
@@ -1590,16 +1597,19 @@ number plus one per ten moduli, a factor check half the bit length of the
 number, a family step half the bit length of its linear form. The checker's
 charges are its own and unchanged.
 
-Her later scans (calls 232 to 1,484, at six fingerprints) ran with the
+Her later scans (calls 232 to 1,709, at seven fingerprints) ran with the
 instruments of the sections above: anytime moves, derivations, attempt records,
 gain-weighted choice, self-widened windows, the closure of a theorem under
 multiples, the divisor families, and from call 1,270 the pair families, her
 own extension of the family list, the compositions, checkpointed moves and her
-own loop. Each change of her core makes every settled problem eligible again,
+own loop, and from call 1,485 the refusal accounting, the residual mining and
+her own shape search over the general family space, with the frontier at forty
+chunks. Each change of her core makes every settled problem eligible again,
 so each of those scans began with a re-check wave of about two hundred calls
 of a few seconds. Her theorems now cover Erdős–Straus at 4/n, Sierpiński's 5/n
 and thirteen of Schinzel's numerators; their verified ranges grew from 100,000
-to about three million, each closed under multiples at its range, and from
+to about four million, each closed under multiples at
+its range, and from
 call 1,063 each theorem round states its divisor families (17 to 30 shapes
 from call 1,270) and represents by them all but a few percent of the primes
 its chunks reach in open classes. The verdict on her state after call 646
@@ -1607,7 +1617,10 @@ found 116,552 claims VERIFIED, none refuted and 27 UNRESOLVED (the window
 values without an independent rule); after call 1,269, 124,455 VERIFIED
 (101,320 of them walls), none refuted, 27 UNRESOLVED, 37 self-test cases, in
 4,232 s. The verdict on her final state after call 1,484 (215 calls of the fifth scan) found 126,483 claims VERIFIED (101,968 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 45 self-test cases passing, in 3,916 s; the bit returned to her is `no, keep thinking`.
-CAMPAIGNS.md records each contest and what it transferred.
+The verdict on her final state after call 1,709 found 112,847 claims VERIFIED (102,544 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 57 self-test cases passing, in 5,208 s; the bit returned to her is `no, keep thinking`.
+CAMPAIGNS.md records each contest and what it transferred; RESEARCH_INQUIRY.md is
+the research brief written for a research session on which open problems a
+finite certificate can settle.
 
 The library grows by editing `problems.json`. A stated problem needs a
 unique id, a status (`open`, `closed` or `window`) and a task that
@@ -1633,8 +1646,8 @@ parameters, for example
 ```
 
 and its answer is a claim of one of three kinds: a **value** the checker
-recomputes, a **witness** it verifies, or a **proof** it replays. The 120
-families (81 value, 37 witness, 2 proof) include:
+recomputes, a **witness** it verifies, or a **proof** it replays. The 123
+families (81 value, 40 witness, 2 proof) include:
 
 | tool | families (examples) |
 | --- | --- |
@@ -1644,7 +1657,7 @@ families (81 value, 37 witness, 2 proof) include:
 | `graph_q`, `setsys_q`, `additive_q`, `design_q`, `sat_q`, `circuit_q` | colorings, Hamiltonian paths, graceful labelings, cycle double covers, Ramsey graphs, strongly regular parameters, small censuses (reconstruction, Hadwiger, Sidorenko, Erdős-Hajnal, oriented graphs); union-closed and sunflower-free families, balanced pairs, Rota's bases; prime progressions, Sidon sets, four cubes, sums and products; Hadamard matrices, projective planes, orthogonal Latin squares; SAT witnesses and RUP-checked refutations; exact circuit sizes, isomorphism, unique games |
 | `config_q`, `kakeya_q`, `knot_q`, `algebra_q`, `group_q`, `variety_q`, `spectrum_q`, `lattice_q`, `operator_q` | unit distances, Heilbronn sets, no three in line, convex-free sets, kissing arrangements, rational distances, unit-distance graphs in Q(sqrt a, sqrt b), Mahler volumes, illumination, Borsuk partitions, lattice packings, points on the sphere with bounded energy; finite-field Kakeya sets; Jones polynomials, the Kashaev invariant, inscribed squares; Galois groups, plane polynomial inverses, matrix multiplication schemes, Casas-Alvero searches; coset enumeration, Andrews-Curtis trivializations; point counts and rational points; Laplacian eigenvalue counts; Ising and Galerkin identities; invariant subspaces |
 
-Her 47 window operators (`ops_wnum.py`, `ops_wdisc.py`) propose answers: one
+Her 51 window operators (`ops_wnum.py`, `ops_wdisc.py`) propose answers: one
 compute move per tool asks the checker's family for a value; search moves find
 witnesses with her own code (circulant Ramsey graphs, flip graphs over GF(2)
 with a sign lift for matrix multiplication, best-first Andrews-Curtis moves,
@@ -1654,6 +1667,42 @@ and Lucas parameters, Pratt certificates); `window_widen` restates a checked
 window with larger bounds, and `window_refute` refutes a value that does not
 recompute. The explore goal `window` asks, for each object, for the answer
 kind its family gives.
+
+Four of the search moves work at records the research brief ranked
+(RESEARCH_RESULTS.md) and resume across calls: each runs within its move's
+work bound and, when it finds nothing, leaves a residual carrying its state
+(a coloring and its conflicts, a restart count and seed, the next candidate
+lcm, a connection set), from which its next call continues; the explore goal
+proposes it once per call on each target. `waerden_search` colors 1..n with r
+colors and no monochromatic k-term progression (`waerden_coloring`): by
+backtracking for n <= 30, else by Rabung's power-residue colorings for primes
+p = 1 (mod r) near n/(k-1), cut to their longest progression-free prefix and
+extended at either end by backtracking, then by a tabu search on colorings of
+Z_m (m the least period at least n/(k-1) with no prime factor below k, so
+that a periodic extension is safe) whose period escalates when it stalls.
+`nothree_search` places 2n points of the n x n grid with no three in a line
+(`no_three_in_line`, now to n = 64): exhaustive for n <= 12, else symmetric
+backtracking with randomized restarts, most constrained row first, under a
+90 degree rotation for even n and, for odd n, the rotation except one pair
+of points on the main diagonal (the symmetry of the known large odd
+solutions). `covering_lcm_search` finds a covering system with distinct
+moduli at least m0 (`min_modulus_covering`) over 13-smooth candidate lcms in
+increasing order, choosing residues greedily for the smaller moduli and
+completing with a depth-first search over the larger ones. `circulant_search`
+finds a circulant graph with no clique of size s and no independent set of
+size t (`circulant_ramsey`, checked through vertex 0 by vertex transitivity,
+a branch and bound with a greedy coloring bound in the checker and, in its
+own code, the verdict) by a tabu search over connection sets scored by the
+triangles and the independent t-sets through vertex 0. Calibrations the
+package checks: W(3, 3) > 26 and, in the ledger, W(4, 3) > 75; the 16 grid
+under rot4 and the 17 grid under rct4 (and 18, 20, 24, 25 in the ledger);
+the least lcm 12 for least modulus 2 and 120 for least modulus 3; the
+circulant (3, 5)-, (3, 6)- and (3, 9)-graphs on 13, 16 and 35 vertices. Seven
+open problems state the records themselves: the 61 grid, W(7, 3), W(8, 3),
+W(10, 3) and W(11, 3) one past their records, R(3, 16) on 82 vertices, and
+a covering with least modulus 8; what her loop reaches on them is in
+CAMPAIGNS.md, and each problem's scope says what not finding a witness
+shows, which is nothing.
 
 Every one of the 125 windows settles under her agent in seconds (most below
 five). The values that published tables also list agree with them: twin prime

@@ -290,6 +290,20 @@ every a from 20 to 44 it holds a prime exception in (a^2, 2a^2), as the
 calculations the brief cites report, and for a = 24, 32, 33, 36 and 42 the
 bound itself is one.
 
+The brief's other targets are installed as exact families with resumable
+searches: van der Waerden colorings (`waerden_coloring`, backtracking, Rabung
+colorings extended at the ends, tabu on periodic colorings), the no-three-
+in-line grid to 64 (symmetric backtracking with restarts), coverings with a
+least modulus (greedy residues and a depth-first completion over 13-smooth
+candidate lcms) and circulant Ramsey graphs checked through vertex 0 (tabu
+over connection sets). Seven open problems state the records one step past
+their frontier. What the searches reach is measured in CAMPAIGNS.md: the
+calibrations they reproduce (W(3, 3) > 26 and W(4, 3) > 75; the grids 14 to
+25 but not every odd one; the least lcms 12 and 120 for least moduli 2 and
+3; the circulant graphs for R(3, 5), R(3, 6) and R(3, 9)) and the ones they
+do not (the lcm 10,080 for least modulus 7, the circulant graphs for R(3, 8)
+and R(3, 10)), which bound what a record from them would mean.
+
 ## 6. Limits of this note
 
 The depth table is one state and four problems; the residues were counted,
