@@ -1702,9 +1702,9 @@ def circulant_search(params, rt, state):
     try:
         cur = score(S); best = (cur, sorted(S)); tabu = {}
         while room(rt, 2000):
-            if cur == 0:
-                if score(S, 1 << 30) == 0: break  # exact: no clique through 0 of either kind
-                cur = 1
+            if cur == 0 and score(S, 1 << 30) != 0: cur = 1  # the capped count said zero; the exact count does not
+            if cur < best[0]: best = (cur, sorted(S))
+            if cur == 0: break  # exact: no clique through 0 of either kind
             choice = None
             for d in (range(1, h + 1) if h <= 12 else rng.sample(range(1, h + 1), 12)):
                 S2 = S ^ {d}; v = score(S2)
@@ -1713,7 +1713,6 @@ def circulant_search(params, rt, state):
             steps += 1
             if choice is None: continue
             d = choice[1]; S ^= {d}; cur = choice[0]; tabu[d] = steps + 3 + rng.randrange(h // 4 + 2)
-            if cur < best[0]: best = (cur, sorted(S))
     except Stop: pass
     if cur == 0: return sorted(S), None
     return None, dict(S=sorted(S), steps=steps, seed=rng.randrange(1 << 30), score=cur, best=best[0], best_S=best[1],

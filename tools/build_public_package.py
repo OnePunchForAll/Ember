@@ -2089,6 +2089,30 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
                            and all(type(r.get('refused')) is int for rounds_ in campaign_rounds.values() for r in rounds_))
         except (OSError, ValueError, KeyError, IndexError): campaign_ok = False
         check('campaign_mode_runs_calls_in_one_process_and_resumes', campaign_ok)
+        # A frontier search's saved state persists through the state file: three calls on one covering problem advance
+        # the candidate lcm each call, and each round ends as resuming, not exhausted.
+        frontier_task = root / 'frontier-small.json'
+        frontier_task.write_text(json.dumps(dict(query='autonomous_research', problem=dict(type='explore', objects=[dict(kind='covering_q', data=dict(
+            family='min_modulus_covering', params=dict(m0=8, lcm_max=20000)))], goals=['window']), moves=10, move_work=1_000_000)), encoding='utf-8')
+        began = time.perf_counter_ns()
+        frontier_run = subprocess.run([python, '-I', '-B', '-X', 'utf8', 'ember.py', 'frontier-small.json', '--state', 'frontier-state.json',
+                                       '--work', '300000000', '--calls', '3', '--out', 'frontier-out'], cwd=root, capture_output=True,
+                                      text=True, encoding='utf-8', timeout=300, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        receipt['cli_runs'].append({'case': 'frontier_search_three_calls', 'returncode': frontier_run.returncode,
+                                    'elapsed_ns': time.perf_counter_ns() - began, 'stderr': frontier_run.stderr})
+        frontier_ok = False
+        try:
+            fdir = root / 'frontier-out'
+            frows = [json.loads((fdir / ('s.%d.json' % k)).read_text(encoding='utf-8')) for k in (1, 2, 3)]
+            fnote = next(iter(frows[0].get('failures', {}).get('by_outcome', {})), '')
+            first_tried = int(m.group(1)) if (m := re.search(r'\((\d+) candidates tried\)', fnote)) else -1
+            fstate = json.loads((root / 'frontier-state.json').read_text(encoding='utf-8'))
+            saved_states = [o['data']['items'][0] for rec in fstate['observations'] for o in rec.get('objects', [])
+                            if o.get('kind') == 'residual' and o['data'].get('by') == 'covering_lcm_search']
+            frontier_ok = (all(r.get('reason') == 'a search saved its state to resume' for r in frows) and first_tried >= 0
+                           and len(saved_states) == 1 and saved_states[0]['index'] > first_tried and saved_states[0]['steps'] > 24)
+        except (OSError, ValueError, KeyError, IndexError, StopIteration): frontier_ok = False
+        check('frontier_search_state_persists_across_calls', frontier_ok)
         check('sieved_cover_matches_enumeration_and_verdict', sieve_result.get('sieve') is True)
         check('theorem_chain_is_checked_class_by_class', sieve_result.get('theorem') is True)
         check('pruned_wall_search_matches_unpruned_search', sieve_result.get('walls') is True)

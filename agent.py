@@ -1265,6 +1265,29 @@ class ExploreGoal(Goal):
         if strategy in RESUMABLE_SEARCHES: return ('carried',)
         return repr(self.progress(rt))
 
+    def persisted(self, rt):
+        # The checked answers, then the latest state each resumable search saved on each root (the residual with the
+        # most steps), named by the root's question so the next call can restore it on the root it states again.
+        rows = Goal.persisted(self, rt); latest = {}
+        for o in rt.objects.values():
+            d = o['data']
+            if o['kind'] == 'residual' and d.get('by') in RESUMABLE_SEARCHES and type(d.get('items')) is list \
+                    and d['items'] and type(d['items'][0]) is dict:
+                key = (d['of'], d['by'])
+                if key not in latest or d['items'][0].get('steps', 0) > latest[key]['data']['items'][0].get('steps', 0): latest[key] = o
+        return rows + [dict(kind='residual', data=dict(question=o['data']['question'], by=o['data']['by'], items=o['data']['items'],
+                                                       note=o['data']['note'])) for o in latest.values()]
+
+    def restore(self, rt, saved):
+        admitted, refused = Goal.restore(self, rt, [row for row in saved if row['kind'] != 'residual'])
+        roots = {r['question']: r for r in self.roots}
+        for row in saved:
+            d = row.get('data', {})
+            if row['kind'] == 'residual' and d.get('by') in RESUMABLE_SEARCHES and d.get('question') in roots \
+                    and type(d.get('items')) is list and type(d.get('note')) is str:
+                rt.residual(roots[d['question']], d['items'], d['note'], d['by'])  # a saved search state, not a claim
+        return admitted, refused
+
     def init(self, rt):
         self.roots = [rt.given(o['kind'], o['data']) for o in self.p['objects']]
         self.wanted = []

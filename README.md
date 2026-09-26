@@ -1673,7 +1673,8 @@ Four of the search moves work at records the research brief ranked
 work bound and, when it finds nothing, leaves a residual carrying its state
 (a coloring and its conflicts, a restart count and seed, the next candidate
 lcm, a connection set), from which its next call continues; the explore goal
-proposes it once per call on each target, and a round that ends with such a
+proposes it once per call on each target; the latest state is kept in her
+record and restored on the root it names, and a round that ends with such a
 state saved is not exhausted: the problem stays eligible and her next round
 on it resumes the search. `waerden_search` colors 1..n with r
 colors and no monochromatic k-term progression (`waerden_coloring`): by
