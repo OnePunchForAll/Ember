@@ -1,0 +1,238 @@
+scan 1 covering-modulus-8 | not attempted yet | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 2 no-three-in-line-61 | not attempted yet | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 3 ramsey-3-16 | not attempted yet | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 4 van-der-waerden-10-3 | not attempted yet | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 5 van-der-waerden-11-3 | not attempted yet | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 6 van-der-waerden-7-3 | not attempted yet | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 7 van-der-waerden-8-3 | not attempted yet | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 8 window-schinzel-beyond-bounds | not attempted yet | CHECKED_RESEARCH found | goal settled by checked results | new 8 moves 8 dropped 0 refused 0
+scan 9 window-matrix-multiplication-omega | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 3 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 10 window-no-three-in-line | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 11 halving-map | last 4 of 7 rounds gained 1, 1, 1, 1 checked results in 10 s | CHECKED_RESEARCH proved | goal settled by checked results | new 1 moves 1 dropped 0 refused 0
+scan 12 window-congruent-numbers | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 13 window-riesel-smallest | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 14 window-heilbronn-triangle | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 15 window-erdos-arithmetic-progressions | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 16 window-restriction | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 17 window-mahler-3-2@4 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 18 window-andrews-curtis | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 19 window-mahler-3-2@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 20 window-hadamard | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 21 map-3n-minus-1 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH refuted | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 22 window-unit-distances | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 23 window-catalan-dickson | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 24 window-five-x-plus-one | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 25 window-kissing-number-5 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 26 window-hot-spots | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 27 window-mahler-volume | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 28 window-barnette | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 29 window-jacobian | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 30 window-erdos-gyarfas | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 31 window-inverse-galois | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 32 window-ramsey-r55 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 33 window-erdos-ulam | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 34 window-thomson | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 35 window-brocard | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 36 window-inscribed-square | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 37 window-list-coloring | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 38 window-conway-99-graph | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 39 window-pi-normal@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 5 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 40 window-odd-weird | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 41 window-projective-plane-12 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 42 window-sidorenko | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 43 window-total-coloring | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 44 map-5n-plus-1 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH refuted | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 45 window-fibonacci-primes | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 46 window-unique-games | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 47 window-borsuk-low-dimensions | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 48 window-moore-graph-57 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 49 window-catalan-constant | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 50 window-bochner-riesz | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 51 window-np-vs-conp | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 52 window-invariant-subspace | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 53 window-sierpinski-smallest | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 54 window-sunflower | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 55 window-schur-s6 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 56 window-burnside-b25 | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 57 window-singmaster | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 5 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 58 window-graph-isomorphism-p | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 59 window-hadwiger-covering | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 60 window-tate | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 61 window-mols-10 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 62 window-odd-covering | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 63 window-p-vs-np | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 64 window-lychrel-196 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 65 three-over-n | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH proved | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 66 window-five-x-plus-one@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 67 window-mahler-3-2 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 68 window-caccetta-haggkvist | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 69 window-busy-beaver-6 | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 70 window-happy-ending | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 71 window-lovasz-hamiltonian | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 72 window-mahler-3-2@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 73 window-hadwiger-nelson | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 74 window-graceful-tree | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 75 window-conway-amusical | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 76 window-furstenberg-x2x3 | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 77 window-leopoldt | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 78 window-union-closed | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 79 window-kakeya-higher | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 80 window-erdos-moser | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 81 window-gilbreath | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 82 window-lonely-runner | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 83 window-second-neighborhood | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 84 window-euler-gamma | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 85 window-hilbert-16 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 86 window-perfect-cuboid | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 87 window-conway-amusical@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 88 window-brocard@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 89 window-sphere-packing | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 90 window-sum-product | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 91 window-navier-stokes | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 92 window-rota-basis | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 93 window-busy-beaver-6@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 94 window-hadwiger-graph | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 6 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 95 window-artin-primitive-root | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 96 window-five-x-plus-one@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 97 window-birch-swinnerton-dyer | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 98 window-volume-conjecture | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 99 window-one-third-two-thirds | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 100 window-conway-amusical@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 101 window-gauss-circle | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 102 window-pi-normal | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 103 window-lychrel-196@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 104 window-lehmer-mahler-measure | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 105 window-mlc | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 106 window-odd-perfect | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 107 window-carmichael-totient | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 108 window-cramer | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 109 window-bunyakovsky | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 7 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 110 window-regular-primes-infinitude | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 111 window-class-number-one | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 112 window-landau-n2-plus-1 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 113 window-wall-sun-sun | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 114 window-kummer-vandiver | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 115 window-three-cubes | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 116 window-dirichlet-divisor | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 117 window-schinzel-hypothesis-h | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 118 window-waring-g3 | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 119 window-fermat-primes | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 8 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 120 window-gilbreath@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 121 window-legendre | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 122 window-brocard@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 123 window-schanuel | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 124 window-goldbach | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 125 window-lehmer-totient | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 126 window-mersenne-infinitude | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 127 window-casas-alvero | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 128 window-amicable-infinitude | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 9 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 129 window-oppermann | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 10 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 130 window-erdos-turan-bases | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 10 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 131 window-busy-beaver-6@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 10 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 132 window-wall-sun-sun@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 11 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 133 window-riemann-hypothesis | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 11 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 134 window-five-x-plus-one@4 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 11 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 135 window-beal | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 11 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 136 window-gauss-circle@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 11 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 137 window-conway-amusical@4 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 11 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 138 window-reconstruction | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 12 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 139 window-twin-primes | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 12 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 140 window-prime-k-tuples | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 12 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 141 window-brocard@4 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 13 s | UNKNOWN None | no untried move for any open target | new 0 moves 1 dropped 0 refused 0
+scan 142 window-wieferich-infinitude | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 13 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 143 window-sophie-germain | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 13 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 144 window-goldbach@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 14 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 145 window-littlewood-approximation | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 14 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 146 window-gilbreath@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 14 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 147 window-wall-sun-sun@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 14 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 148 window-class-number-one@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 15 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 149 window-abc | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 15 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 150 window-andrica | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 15 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 151 collatz-sieve-18 | last 4 of 8 rounds gained 1, 1, 1, 1 checked results in 33 s | UNKNOWN None | no untried move for any open target | new 1 moves 4 dropped 0 refused 0
+scan 152 window-generalized-riemann-hypothesis | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 16 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 153 window-sidon-sets | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 16 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 154 window-amicable-infinitude@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 16 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 155 window-e-plus-pi | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 17 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 156 window-busy-beaver-6@4 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 17 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 157 window-lindelof | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 17 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 158 window-lychrel-196@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 18 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 159 window-artin-primitive-root@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 18 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 160 window-four-exponentials | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 20 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 161 window-erdos-hajnal | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 20 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 162 window-twin-primes@2 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 22 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 163 window-prime-k-tuples@2 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 22 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 164 window-sophie-germain@2 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 22 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 165 window-wieferich-infinitude@2 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 22 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 166 window-littlewood-approximation@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 24 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 167 window-polignac | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 24 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 168 window-waring-g3@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 25 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 169 window-gauss-circle@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 25 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 170 window-mersenne-infinitude@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 26 s | UNKNOWN None | no untried move for any open target | new 0 moves 4 dropped 0 refused 0
+scan 171 window-regular-primes-infinitude@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 26 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 172 window-andrica@2 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 26 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 173 window-class-number-one@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 27 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 174 window-odd-perfect@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 28 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 175 window-landau-n2-plus-1@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 30 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 176 window-bunyakovsky@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 30 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 177 window-amicable-infinitude@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 30 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 178 schinzel-16n | last 4 of 7 rounds gained 471, 510, 540, 488 checked results in 284 s | UNKNOWN None | no untried move for any open target | new 346 moves 1158 dropped 0 refused 12
+scan 179 window-fermat-catalan | last 4 of 8 rounds gained 0, 0, 0, 0 checked results in 32 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 180 window-generalized-riemann-hypothesis@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 32 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 181 window-artin-primitive-root@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 33 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 182 window-schinzel-hypothesis-h@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 34 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 183 window-legendre@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 34 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 184 window-oppermann@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 35 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 185 schinzel-13n | last 4 of 7 rounds gained 223, 262, 289, 293 checked results in 298 s | UNKNOWN None | no untried move for any open target | new 223 moves 540 dropped 0 refused 12
+scan 186 window-gauss-circle@4 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 38 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 187 schinzel-10n | last 4 of 7 rounds gained 279, 318, 348, 353 checked results in 336 s | UNKNOWN None | no untried move for any open target | new 279 moves 703 dropped 0 refused 183
+scan 188 window-prime-k-tuples@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 39 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 189 window-twin-primes@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 39 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 190 window-sophie-germain@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 40 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 191 window-wieferich-infinitude@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 41 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 192 window-lehmer-totient@2 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 43 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 193 window-polignac@2 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 45 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 194 window-landau-n2-plus-1@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 49 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 195 window-andrica@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 49 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 196 schinzel-11n | last 4 of 7 rounds gained 104, 143, 167, 163 checked results in 373 s | UNKNOWN None | no untried move for any open target | new 102 moves 299 dropped 0 refused 62
+scan 197 window-schinzel-hypothesis-h@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 50 s | UNKNOWN None | no untried move for any open target | new 0 moves 2 dropped 0 refused 0
+scan 198 schinzel-8n | last 4 of 7 rounds gained 190, 234, 264, 260 checked results in 421 s | UNKNOWN None | no untried move for any open target | new 175 moves 474 dropped 0 refused 100
+scan 199 schinzel-17n | last 4 of 7 rounds gained 74, 113, 146, 146 checked results in 378 s | UNKNOWN None | no untried move for any open target | new 75 moves 679 dropped 0 refused 11
+scan 200 schinzel-14n | last 4 of 7 rounds gained 220, 259, 289, 297 checked results in 449 s | UNKNOWN None | no untried move for any open target | new 221 moves 536 dropped 0 refused 126
+scan 201 window-odd-perfect@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 54 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 202 window-pillai | last 4 of 7 rounds gained 0, 0, 0, 0 checked results in 57 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 203 window-amicable-infinitude@4 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 61 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 204 schinzel-15n | last 4 of 7 rounds gained 215, 269, 303, 316 checked results in 540 s | UNKNOWN None | no untried move for any open target | new 213 moves 477 dropped 0 refused 99
+scan 205 window-artin-primitive-root@4 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 64 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 206 window-graham-pebbling | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 75 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 207 window-twin-primes@4 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 77 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 208 erdos-straus-4n | last 4 of 7 rounds gained 125, 164, 186, 176 checked results in 600 s | UNKNOWN None | no untried move for any open target | new 123 moves 442 dropped 0 refused 26
+scan 209 window-prime-k-tuples@4 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 79 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 210 window-wieferich-infinitude@4 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 79 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 211 window-sophie-germain@4 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 80 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 212 window-generalized-riemann-hypothesis@3 | last 4 of 6 rounds gained 0, 0, 0, 0 checked results in 82 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 213 schinzel-19n | last 4 of 8 rounds gained 469, 332, 372, 377 checked results in 752 s | UNKNOWN None | no untried move for any open target | new 277 moves 684 dropped 0 refused 10
+scan 214 schinzel-21n | last 4 of 7 rounds gained 178, 187, 222, 238 checked results in 698 s | UNKNOWN None | no untried move for any open target | new 129 moves 423 dropped 0 refused 95
+scan 215 window-andrica@4 | last 4 of 5 rounds gained 0, 0, 1, 0 checked results in 109 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 216 window-polignac@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 87 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 217 window-lehmer-totient@3 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 88 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 218 schinzel-7n | last 4 of 7 rounds gained 263, 317, 341, 335 checked results in 823 s | UNKNOWN None | no untried move for any open target | new 256 moves 774 dropped 0 refused 154
+scan 219 schinzel-12n | last 4 of 7 rounds gained 137, 191, 223, 235 checked results in 772 s | UNKNOWN None | no untried move for any open target | new 134 moves 359 dropped 0 refused 62
+scan 220 window-lychrel-196@4 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 113 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 221 window-odd-perfect@4 | last 4 of 5 rounds gained 0, 0, 0, 0 checked results in 114 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 222 covering-modulus-8 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 223 ramsey-3-16 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 224 window-lehmer-totient@4 | last 4 of 4 rounds gained 0, 0, 0, 0 checked results in 153 s | UNKNOWN None | no untried move for any open target | new 0 moves 3 dropped 0 refused 0
+scan 225 window-polignac@4 | last 4 of 4 rounds gained 1, 1, 0, 0 checked results in 257 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 226 schinzel-18n | last 4 of 8 rounds gained 684, 161, 215, 364 checked results in 1443 s | UNKNOWN None | no untried move for any open target | new 167 moves 423 dropped 0 refused 89
+scan 227 sierpinski-5n | last 4 of 6 rounds gained 2169, 333, 364, 419 checked results in 1711 s | UNKNOWN None | no untried move for any open target | new 333 moves 1234 dropped 0 refused 353
+scan 228 collatz | last 4 of 15 rounds gained 0, 893, 558, 1 checked results in 1081 s | UNKNOWN None | no untried move for any open target | new 1 moves 4 dropped 0 refused 0
+scan 229 covering-modulus-8 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 230 ramsey-3-16 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 231 window-generalized-riemann-hypothesis@4 | last 4 of 4 rounds gained 1, 0, 0, 0 checked results in 309 s | CHECKED_RESEARCH found | goal settled by checked results | new 0 moves 0 dropped 0 refused 0
+scan 232 no-three-in-line-61 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 233 covering-modulus-8 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 1 dropped 0 refused 0
+scan 234 ramsey-3-16 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 1 dropped 0 refused 0
+scan 235 van-der-waerden-10-3 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 3 dropped 0 refused 0
+scan 236 covering-modulus-8 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 1 dropped 0 refused 0
+scan 237 covering-modulus-8 | a search saved its state last round; resumes | UNKNOWN None | a search saved its state to resume | new 0 moves 1 dropped 0 refused 0
+finished

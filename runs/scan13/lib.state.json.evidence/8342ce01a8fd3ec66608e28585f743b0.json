@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"affine_orbit","params":{"map":{"a":[1,5],"b":[0,1],"d":2},"start":7,"steps":160000},"q":"orbit_q","value":{"last_bits":25584,"max_bits":25588,"repeat_at":null}},"kind":"value"}],"task_id":"da4cba7e8385db0047edc43fe7d98595941aae73bb6b8c032898fe900e35fb12"}

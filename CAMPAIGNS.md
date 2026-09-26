@@ -2512,3 +2512,37 @@ the frontier of forty chunks, until her loop's own end.
 - **Open obligations.** The searches' states carry into her next scan;
   the instruments the frontier entry names are not built; the verdict tool
   has no independent rule for the 27 window values it leaves UNRESOLVED.
+
+## Her eighth scan, stopped at call 2,056 by request (calls 1,947 to 2,056, fingerprint 2a420a28)
+
+- **Setting.** Her own loop from the state the seventh scan's verdict was
+  ingested into, at commit 641d913 (the searches' saved states persist in
+  her record), every settled problem eligible again at the new fingerprint.
+  Stopped after 110 calls (635 s) when its owner asked for the campaign to
+  be closed and handed over; no verdict was run on its final state.
+
+- **What she reached.** The re-check wave only: the exceptions window first
+  (its eight certified sets restored and admitted again in three seconds),
+  then 104 further windows settled again in seconds, one of her widened
+  windows out of moves, and the four closed calibrations as known (one new
+  checked result, no claim refused). No theorem round and no frontier round
+  came before the stop, so this scan shows nothing yet about the persisted
+  search states in her library loop; the three-call run of her loop on the
+  covering problem (the entry before this one) is the evidence for that.
+
+- **State committed.** Her final state after call 2,056, its spilled
+  evidence, the scan's call and log files, and the seventh scan's verdict
+  are committed under `runs/` (runs/README.md says how to continue her loop
+  from them). The verdict on this state is the first obligation of whoever
+  continues: `tools/verdict.py runs/scan13/lib.state.json`, then
+  `tools/ingest_verdict.py`, then the next scan.
+
+- **Open obligations.** Unchanged from the two entries above, plus this
+  verdict. An offline decision experiment on the covering question, not
+  hers and not evidence she uses: a CaDiCaL run on the SAT encoding of "a
+  covering of Z_10080 with distinct moduli all at least 8" (77,844
+  variables, 138,594 clauses) returned no answer within two hours, twice;
+  if such a covering exists, the least lcm for least modulus 8 is exactly
+  10,080, since it cannot be below the least for modulus 7 (arXiv
+  2607.19029), so the question is a finite one worth an exact instrument
+  of her own (an exact cover over all 65 moduli with a capacity bound).

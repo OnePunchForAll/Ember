@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"tally","params":{"bounds":[1000,10000,100000,1000000,2000000,4000000],"lo":2,"pred":["and",["prime","n"],["prime",["add","n",2]]]},"q":"primes_q","value":[35,205,1224,8169,14871,26860]},"kind":"value"}],"task_id":"7ade62218dcd3c1b6b3058d10638ba470a3d628258771093d9adb4db8dcea185"}

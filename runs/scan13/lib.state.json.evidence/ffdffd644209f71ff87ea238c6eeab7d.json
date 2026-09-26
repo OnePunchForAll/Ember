@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"goldbach","params":{"hi":4000000,"lo":4},"q":"primes_q","value":{"all":true,"failures":[],"worst":[3807404,751]}},"kind":"value"}],"task_id":"affcd22f23414fcf65f43e98dfaf396f11f4d32191a088e7b6fe712a9d4cce48"}

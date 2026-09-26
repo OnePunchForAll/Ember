@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"reverse_add","params":{"start":196,"steps":24000},"q":"orbit_q","value":{"digits":9958,"palindrome_at":null}},"kind":"value"},{"data":{"family":"reverse_add","params":{"start":89,"steps":800},"q":"orbit_q","value":{"digits":13,"palindrome_at":24}},"kind":"value"}],"task_id":"a46521c7cc1e555e1fd4ba3ba7e1242d644b1c016f9fa76d2b70f0bb80bdd5bb"}

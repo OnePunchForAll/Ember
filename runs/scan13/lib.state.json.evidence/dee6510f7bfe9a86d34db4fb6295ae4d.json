@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"tally","params":{"bounds":[10000,1000000,2000000,4000000,8000000],"lo":2,"pred":["and",["prime","n"],["wieferich","n"]]},"q":"bigint_q","value":[2,2,2,2,2]},"kind":"value"}],"task_id":"4dd663a759ea38328530a252727a53688ee854069c948562b7b750acd111010e"}

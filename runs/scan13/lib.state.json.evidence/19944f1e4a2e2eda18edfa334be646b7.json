@@ -1,0 +1,1 @@
+{"objects":[{"data":{"map":{"a":[1,1],"b":[0,1],"d":2},"refined":[],"residual":[]},"kind":"descent_tree"},{"data":{"map":{"a":[1,1],"b":[0,1],"d":2},"rows":[[2,0,1,2],[2,1,1,3]]},"kind":"descent_rows"},{"data":{"cap":10000,"hi":100,"lo":2,"map":{"a":[1,1],"b":[0,1],"d":2}},"kind":"cfinite"}],"task_id":"8478520d939cbfa85f01d7f8ce1040d663ed4ac8b98002e99bb78b7da93844e4"}

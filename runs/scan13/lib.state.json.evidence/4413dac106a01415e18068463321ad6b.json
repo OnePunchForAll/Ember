@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"pebbling","params":{"G":{"edges":[[0,1],[1,2]],"n":3},"H":{"edges":[[0,1],[1,2]],"n":3}},"q":"graph_q","value":{"G":4,"H":4,"graham_holds":true,"product":16}},"kind":"value"}],"task_id":"bbf91423b5cd245e7956e766142eacdfe5590838bd84670669e1a0e4da17c148"}

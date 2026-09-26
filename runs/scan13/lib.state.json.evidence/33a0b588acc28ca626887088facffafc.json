@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"tally","params":{"bounds":[10000,100000,1000000],"lo":2,"pred":["and",["not",["prime","n"]],["divides",["phi","n"],["sub","n",1]]]},"q":"arith_q","value":[0,0,0]},"kind":"value"}],"task_id":"77fd187a44de582859bc4e402bc62f10f6073c97c60b16010474e72d76a87a4e"}

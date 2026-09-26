@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"no_small_relation","params":{"exprs":[["log",2],["log",3]],"h_max":400},"q":"const_q","value":{"excluded":true,"undecided":0}},"kind":"value"}],"task_id":"dce3149ac1334b125d21dbe7e8ff16c9f84ee877d4b2aedd6951db25a18fa7f2"}

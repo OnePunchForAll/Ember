@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"ham_path","params":{"graph":{"d":3,"named":"hypercube"}},"q":"graph_q","witness":[0,1,3,2,6,4,5,7]},"kind":"witness"},{"data":{"family":"ham_path","params":{"graph":{"k":1,"n":6,"named":"gp"}},"q":"graph_q","witness":[0,1,2,8,7,6,11,5,4,10,9,3]},"kind":"witness"}],"task_id":"46a09d4194b28c67aec53f4ba9aa771a39cbe30c1c43531071b444b40c2b7f95"}

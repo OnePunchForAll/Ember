@@ -1,0 +1,1 @@
+{"objects":[{"data":{"family":"erdos_hajnal","params":{"H":{"edges":[[0,1],[1,2],[2,3]],"n":4},"n":6},"q":"graph_q","value":{"graphs":5504,"least_max_clique_or_independent":3}},"kind":"value"}],"task_id":"604bf7634b820029763cda14dc5660bda17c3683068c698d75a1e464e8b1d124"}
