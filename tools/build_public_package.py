@@ -1823,6 +1823,24 @@ checkpoints = (part12 is not None and part12['kind'] == 'finite' and part12['sta
                and V.verdict('finite', part12['data'])[0] == 'VERIFIED' and sliced['anytime'].get('settled', 0) >= 0
                and rel_unit != rel_desc and rel_unit != A.generation() and len(rel_unit) == 64
                and [o['task_id'] for o in order] == ['newer-settled', 'old-open', 'newest-open'])
+# Residual mining: over the chunk proofs she carried, a profile states the predicates of the grammar every witnessed
+# number satisfies and fewer than a tenth of the represented numbers do; the falsifier breaks a predicate on a later
+# chunk's witnessed number; the checker and the verdict rebuild the sets and evaluate the predicate themselves.
+rt14 = L.Runtime(C, ember['Budget'](10 ** 9)); esq14 = E2['_residual_level'](rt14)[0]
+profiled = E2['egypt_residual_profile'](rt14, esq14)
+stated14 = [o for o in profiled if o['kind'] == 'derived' and o['status'] == 'checked']
+E2['_residual_range'](rt14, esq14, E2['RESIDUAL_FIXTURE_CHUNKS'][-1], E2['RESIDUAL_FIXTURE_NEXT'], forced=E2['RESIDUAL_FIXTURE_FORCED'])
+broken14 = [o for o in E2['egypt_residual_falsify'](rt14, esq14) if o['status'] == 'checked']
+admitted14 = {i: (o['kind'], o['data'], 'VERIFIED') for i, o in rt14.objects.items() if o['status'] == 'checked' and o['kind'] in ('finite', 'derived', 'dfam')}
+forged14 = json.loads(json.dumps(stated14[0]['data'])); forged14['statement']['sample']['satisfied'] = 0; forged14['statement']['witnessed'] += 1
+wider14 = json.loads(json.dumps(stated14[0]['data'])); wider14['statement']['predicate'] = dict(kind='residue', m=2, residues=[1])
+residual_ok = (len(stated14) == 1 and stated14[0]['data']['statement']['predicate'] == dict(kind='residue', m=24, residues=[1])
+               and stated14[0]['data']['statement']['witnessed'] == 15 and stated14[0]['data']['statement']['sample']['size'] == 15
+               and len(broken14) == 1 and broken14[0]['data']['rule'] == 'residual_break' and broken14[0]['data']['statement']['n'] == 3011
+               and V.derived_verdict(stated14[0]['data'], admitted14)[0] == 'VERIFIED' and V.derived_verdict(broken14[0]['data'], admitted14)[0] == 'VERIFIED'
+               and V.derived_verdict(forged14, admitted14)[0] == 'REFUTED' and V.derived_verdict(wider14, admitted14)[0] == 'REFUTED'
+               and not rt14.check(rt14.propose('derived', forged14)) and not rt14.check(rt14.propose('derived', wider14))
+               and E2['egypt_residual_falsify'](rt14, esq14) == [] and any(r['strategy'] == 'egypt_residual_profile' for r in A.refusal_rows(rt14)) is False)
 # Refusal accounting: a claim the checker refuses is counted by move, kind and reason and named to the report with the
 # instrument its reason points to; a strategy whose claims are refused with none admitted is retired with the reason;
 # a round that refused more than it admitted waits for an instrument in her scan, naming the reason.
@@ -1953,7 +1971,7 @@ batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == wri
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
                       obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, anytime=anytime,
-                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
+                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, residual=residual_ok, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -2005,6 +2023,7 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('pair_families_compositions_squares_and_family_base_ranges', sieve_result.get('third_tier') is True)
         check('checkpoints_relevant_fingerprints_and_forgetting_settled_first', sieve_result.get('checkpoints') is True)
         check('refusals_are_counted_named_and_retire_a_strategy', sieve_result.get('refusals') is True)
+        check('residual_predicates_are_stated_selectively_broken_by_a_witness_and_verified', sieve_result.get('residual') is True)
         check('residual_records_the_attempt_of_a_deterministic_move', sieve_result.get('attempt_recorded') is True)
         check('problem_choice_weighs_gains_and_inherits_widened_windows', sieve_result.get('choice') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)

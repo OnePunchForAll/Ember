@@ -258,8 +258,15 @@ diagnosis naming its bound, and two ordinary rounds show refusals that name
 no instrument. Read against her records, 4.3 has no outcome measure while
 every theorem round ends by exhaustion (it changes the order of moves that
 all run), and 4.4's case, a chunk abandoned for want of a witness within the
-bound, has not occurred in her state; both wait for evidence, and 4.2 is
-preregistered next. The entry in CAMPAIGNS.md has the details.
+bound, has not occurred in her state; both wait for evidence. 4.2 is
+installed as two derivation rules and two operators (the entry in
+CAMPAIGNS.md has the preregistration and the fourteen rounds): on her
+theorem problems no predicate of the grammar is selective at the
+preregistered tenth, the best being satisfied by two thirds to four fifths
+of the represented sample, so the grammar of residues and prime-factor
+classes does not tell her residual from what the families take. The
+ability is in place with its checks; what it found is a limitation of the
+grammar, recorded, not a description of the residual.
 
 ## 6. Limits of this note
 

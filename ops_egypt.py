@@ -1089,6 +1089,159 @@ def egypt_theorem_families(rt, esq):
     return [claim] if rt.check(claim) else []
 
 
+# ------------------------------------------------------------- residual mining: the shape of what she had to witness
+MAX_RESIDUAL_PREDICATES = 16  # predicates a profile states, the most selective first
+# The fixture: 4/n with the families plus 1 and times 2 leaves fifteen numbers to witness in [300, 3000), all 1 mod 24;
+# the prime 3011 (11 mod 24), witnessed although a family represents it, breaks that predicate on the next chunk.
+RESIDUAL_FIXTURE_A, RESIDUAL_FIXTURE_CHUNKS, RESIDUAL_FIXTURE_NEXT, RESIDUAL_FIXTURE_FORCED = 4, (300, 3000), 3400, (3011,)
+RESIDUAL_FIXTURE_SHAPES = (('plus', 1), ('times', 2))
+NO_PREDICATE = 'residual profile: no selective predicate'
+
+
+def residual_proofs(rt, a, terms, carried_only):
+    """The admitted chunk proofs of this question that carry a family part, oldest first, at most the premise bound of
+    the newest; with carried_only, those admitted before this call's moves (what a profile describes)."""
+    rows = [o for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked' and o['data']['rule'] == 'range_extend'
+            and o['data']['statement']['a'] == a and o['data']['statement']['terms'] == terms and o['data']['proof'].get('families')
+            and (not carried_only or o['id'] in rt.carried)]
+    rows.sort(key=lambda o: o['data']['statement']['lo'])
+    return rows[-rt.checker.MAX_PREMISES:]
+
+
+def chunk_start(rt, ch):
+    """Where a chunk proof's own part begins: the end of the range it extends (its statement starts at the least n)."""
+    p = rt.objects.get(ch['data']['premises'][0])
+    if p is None: return ch['data']['statement']['lo']
+    return p['data']['hi'] if p['kind'] == 'finite' else p['data']['statement']['hi']
+
+
+def residual_divisors(M, bound):
+    ds = [1]
+    for p, k in L.factor(M).items(): ds = [d * p ** i for d in ds for i in range(k + 1)]
+    return sorted(d for d in ds if 2 <= d <= bound)
+
+
+def residual_candidates(rt, a, M, witnessed, factors):
+    """Every predicate of the grammar the witnessed numbers satisfy, built from them: their residue classes modulo each
+    divisor of the level modulus, the classes the prime factors of each linear form take, and the least and greatest
+    prime factor of each form. Each is exact on the witnessed set; whether it is selective is decided on the sample."""
+    C = rt.checker; out = []
+    for m in residual_divisors(M, C.MAX_RESIDUAL_MODULUS):
+        rs = sorted({w % m for w in witnessed})
+        if len(rs) < m: out.append(dict(kind='residue', m=m, residues=rs))
+    for form in C.RESIDUAL_FORMS:
+        for h in range(1, C.MAX_RESIDUAL_H + 1):
+            lists = []
+            for w in witnessed:
+                key = (form, h, w); ps = factors.get(key)
+                if ps is None:
+                    v = C.linear_form(a, form, h, w); rt.budget.use(max(4, v.bit_length() // 2)); ps = factors[key] = C.prime_factors(v)
+                lists.append(ps)
+            if form == 'times' and h == 1: continue  # the form n + 1 again
+            for t in sorted({a, a * h}):
+                allowed = sorted({p % t for ps in lists for p in ps})
+                if 1 <= len(allowed) < t: out.append(dict(kind='factors', form=form, h=h, t=t, allowed=allowed))
+            least = min((ps[0] for ps in lists if ps), default=None); greatest = max((ps[-1] for ps in lists if ps), default=None)
+            if least is not None and least >= 3: out.append(dict(kind='rough', form=form, h=h, bound=least))
+            if greatest is not None and greatest >= 2: out.append(dict(kind='smooth', form=form, h=h, bound=greatest))
+    return out
+
+
+def residual_implied(a, pred, listed):
+    """A factor predicate that only restates an admitted plus or times family (no prime factor of its form in the
+    family's class, and nothing more) carries no information beyond the family list and is not stated."""
+    if pred['kind'] != 'factors' or pred['form'] == 'pair' or (pred['form'], pred['h']) not in listed or pred['t'] != a * pred['h']: return False
+    t = pred['t']; possible = {r for r in range(t) if gcd(r, t) == 1} | {p % t for p in L.factor(t)}
+    return possible - set(pred['allowed']) == {t - 1}
+
+
+def residual_rank(pred):
+    if pred['kind'] == 'residue': return len(pred['residues']) / pred['m']
+    if pred['kind'] == 'factors': return len(pred['allowed']) / pred['t']
+    return 1 / pred['bound'] if pred['kind'] == 'rough' else pred['bound']
+
+
+def residual_claim(rt, a, terms, pred, proofs, factors):
+    """Propose the predicate over the given proofs, with the witnessed count and the sample count the checker will
+    recompute; admitted or None."""
+    witnessed, represented = rt.checker.residual_sets(a, terms, [(o['kind'], o['data']) for o in proofs])
+    size = min(len(witnessed), len(represented))
+    if size < rt.checker.MIN_RESIDUAL: return None
+    sat = sum(1 for n in rt.checker.residual_sample(represented, size) if rt.checker.residual_holds(a, pred, n, rt.budget, factors))
+    if sat * rt.checker.RESIDUAL_SELECTIVITY >= size: return None
+    lo = min(o['data']['statement']['lo'] for o in proofs); hi = max(o['data']['statement']['hi'] for o in proofs)
+    s = dict(kind='residual_predicate', a=a, terms=terms, predicate=pred, lo=lo, hi=hi, witnessed=len(witnessed), sample=dict(size=size, satisfied=sat))
+    claim = rt.propose('derived', dict(rule='residual_predicate', premises=[o['id'] for o in proofs], statement=s), tuple(proofs))
+    return claim if rt.check(claim) else None
+
+
+@op('egypt_residual_profile', 'NS', ('esq',), ('derived', 'residual'),
+    'Profile her residual: over the chunk proofs she carried into this call, state as residual_predicate derivations '
+    'the predicates of the grammar (residues, the classes of the prime factors of n + h, h n + 1 and a h n + 1, their '
+    'least and greatest prime factor) that every witnessed number satisfies and fewer than a tenth of the represented '
+    'numbers do; a predicate only restating an admitted family is not stated.')
+def egypt_residual_profile(rt, esq):
+    d = esq['data']; a, terms, M = d['a'], d['terms'], d['modulus']
+    proofs = residual_proofs(rt, a, terms, carried_only=True)
+    if not proofs: return []
+    ids = [o['id'] for o in proofs]; key = L.digest(ids)
+    for o in rt.objects.values():
+        if o['kind'] == 'derived' and o['status'] == 'checked' and o['data']['rule'] == 'residual_predicate' and o['data']['premises'] == ids: return []
+        if o['kind'] == 'residual' and o['data']['note'] == NO_PREDICATE and o['data']['items'] == [key]: return []
+    witnessed, represented = rt.checker.residual_sets(a, terms, [(o['kind'], o['data']) for o in proofs])
+    size = min(len(witnessed), len(represented))
+    if size < rt.checker.MIN_RESIDUAL: return [rt.residual(esq, [key], NO_PREDICATE)]
+    listed = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked'
+              and o['data']['a'] == a and o['data']['terms'] == terms}
+    factors = {}; rows = []; sample = rt.checker.residual_sample(represented, size)
+    for pred in residual_candidates(rt, a, M, witnessed, factors):
+        if residual_implied(a, pred, listed): continue
+        sat = sum(1 for n in sample if rt.checker.residual_holds(a, pred, n, rt.budget, factors))
+        if sat * rt.checker.RESIDUAL_SELECTIVITY < size: rows.append((sat / size, residual_rank(pred), pred))
+    rows.sort(key=lambda r: (r[0], r[1]))
+    out = []
+    for _, _, pred in rows[:MAX_RESIDUAL_PREDICATES]:
+        claim = residual_claim(rt, a, terms, pred, proofs, factors)
+        if claim is not None: out.append(claim)
+    return out or [rt.residual(esq, [key], NO_PREDICATE)]
+
+
+@op('egypt_residual_falsify', 'NS', ('esq',), ('derived',),
+    'Test every surviving residual predicate on each chunk this call added: a witnessed number that fails it is stated '
+    'as a residual_break derivation (the predicate is broken); a chunk on which it holds extends the predicate\'s claim '
+    'over that chunk too, as long as it stays selective.')
+def egypt_residual_falsify(rt, esq):
+    d = esq['data']; a, terms = d['a'], d['terms']
+    claims = [o for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked'
+              and o['data']['rule'] in ('residual_predicate', 'residual_break')
+              and o['data']['statement']['a'] == a and o['data']['statement']['terms'] == terms]
+    newest = {}; broken = set()
+    for o in claims:
+        k = L.canonical(o['data']['statement']['predicate'])
+        if o['data']['rule'] == 'residual_break': broken.add(k)
+        elif k not in newest or o['data']['statement']['hi'] > newest[k]['data']['statement']['hi']: newest[k] = o
+    chunks = sorted((o for o in residual_proofs(rt, a, terms, carried_only=False) if o['id'] not in rt.carried), key=lambda o: chunk_start(rt, o))
+    if not newest or not chunks: return []
+    out = []; factors = {}
+    for k, current in sorted(newest.items()):
+        if k in broken: continue
+        pred = current['data']['statement']['predicate']
+        for ch in chunks:
+            if chunk_start(rt, ch) < current['data']['statement']['hi'] or ch['id'] in current['data']['premises']: continue
+            fresh = rt.checker.residual_sets(a, terms, [(ch['kind'], ch['data'])])[0]
+            bad = next((n for n in fresh if not rt.checker.residual_holds(a, pred, n, rt.budget, factors)), None)
+            if bad is not None:
+                s = dict(kind='residual_break', a=a, terms=terms, predicate=pred, n=bad, lo=ch['data']['statement']['lo'], hi=ch['data']['statement']['hi'])
+                claim = rt.propose('derived', dict(rule='residual_break', premises=[ch['id']], statement=s), (ch, current))
+                if rt.check(claim): out.append(claim)
+                break
+            proofs = [rt.objects[i] for i in current['data']['premises'] if i in rt.objects][-(rt.checker.MAX_PREMISES - 1):] + [ch]
+            claim = residual_claim(rt, a, terms, pred, proofs, factors)
+            if claim is None: break  # holds on the chunk but no longer selective over the wider sample: not extended
+            out.append(claim); current = claim
+    return out
+
+
 @op('egypt_range_square', 'NS', ('esq',), ('derived',),
     'State what closure under multiples gives from the admitted range from min: every n below its end squared with a '
     'divisor in the range is represented (for min 2, every composite below the square). A composite_range derivation.')
@@ -1396,6 +1549,47 @@ def _composed_level(rt):
     esq = _theorem_level(rt)[0]; egypt_divisor_families(rt, esq); return [esq]
 
 
+def _residual_range(rt, esq, lo, hi, forced=()):
+    """A range proof [lo, hi) of the level's question built like her chunks: composites by a divisor, then a divisor of
+    an admitted family, then an exact witness (a forced number is witnessed even where a family applies). A finite
+    claim from the least n, a range_extend derivation past the admitted range otherwise."""
+    d = esq['data']; a, terms = d['a'], d['terms']
+    shapes = sorted((o['data']['shape'], o['data']['h']) for o in rt.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked'
+                    and o['data']['a'] == a and o['data']['terms'] == terms)
+    witnesses = {}; table = {}; divisors = {}; done = set()
+    for n in range(lo, hi):
+        ps = L.factor(n); p = min(ps) if ps else n
+        if p < n and n // p >= d['min']:
+            if lo == d['min']: divisors[str(n)] = n // p  # a finite claim declares the checked divisor it scales
+            done.add(n); continue
+        hit = None if n in forced else next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [dfam_divisor(rt, a, shape, h, n)] if q is not None), None)
+        if hit is not None: table[str(n)] = [hit[0], hit[1]]; done.add(n); continue
+        witnesses[str(n)] = sorted(witness(a, n, rt.budget))[:-1]; done.add(n)
+    families = dict(shapes=[[s, h] for s, h in shapes], table=table)
+    if lo == d['min']:
+        return _checked(rt, 'finite', dict(a=a, terms=terms, lo=lo, hi=hi, witnesses=witnesses, divisors=divisors, cover=None, families=families))
+    base = next(o for l, h, o in range_statements(rt, a, terms) if h == lo)
+    return _checked(rt, 'derived', dict(rule='range_extend', premises=[base['id']], statement=dict(kind='range', a=a, terms=terms, lo=d['min'], hi=hi),
+                                        proof=dict(cover=None, witnesses=witnesses, families=families)))
+
+
+def _residual_level(rt, a=RESIDUAL_FIXTURE_A, chunks=RESIDUAL_FIXTURE_CHUNKS, shapes=RESIDUAL_FIXTURE_SHAPES):
+    """A level whose carried chunk proofs use a short family list, so that numbers are left to witness: what a
+    profile of the residual describes."""
+    esq = rt.given('esq', dict(a=a, terms=3, min=2, modulus=24, verify_to=chunks[0]))
+    for shape, h in shapes: _checked(rt, 'dfam', dict(a=a, terms=3, shape=shape, h=h))
+    lo = 2
+    for hi in chunks: _residual_range(rt, esq, lo, hi); lo = hi
+    rt.carried = frozenset(rt.objects); return [esq]
+
+
+def _falsified_level(rt):
+    """The profiled level with a chunk added after the profile: one witnessed number is forced past a family it has,
+    so a stated predicate breaks on it while the others extend."""
+    esq = _residual_level(rt)[0]; egypt_residual_profile(rt, esq)
+    _residual_range(rt, esq, RESIDUAL_FIXTURE_CHUNKS[-1], RESIDUAL_FIXTURE_NEXT, forced=RESIDUAL_FIXTURE_FORCED); return [esq]
+
+
 def _four_term_level(rt):
     """A four-term question whose base range is checked by hand; the chunk past it finds no witness (a residual)."""
     esq = rt.given('esq', dict(a=4, terms=4, min=2, modulus=24, verify_to=5))
@@ -1446,6 +1640,8 @@ FIXTURES = {
     'egypt_range_chunk': [_ranged_level, _four_term_level, _families_level],
     'egypt_divisor_families': [_ranged_level, lambda rt: [_esq(rt, 24, terms=4, verify_to=5)]],
     'egypt_theorem_families': [_composed_level],
+    'egypt_residual_profile': [_residual_level],
+    'egypt_residual_falsify': [_falsified_level],
     'egypt_range_square': [_composed_level, _ranged_level],
     'egypt_range_union': [_two_ranges_level],
     'egypt_theorem_multiples': [_multiples_level, _extended_closure_level],

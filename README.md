@@ -629,9 +629,9 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 376 implemented moves across
+`--pyramid` prints the map. Its base is a catalog of 378 implemented moves across
 34 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 219 operators of the typed language described below. The
+or replay work) and the 221 operators of the typed language described below. The
 base holds 169 moves with an N component, 118 with W, 313 with S and 105 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
@@ -876,7 +876,7 @@ code, has its own exact arithmetic (its window checkers live in `window_check.py
 `window_real.py` and `window_discrete.py`), and binds every claim to the question
 stated in its own data.
 
-219 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+221 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
 `ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`, `ops_wnum`, `ops_wdisc`)
 consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
@@ -1028,6 +1028,33 @@ composites to four million million. `egypt_theorem_families` derives the
 first again when the families grow; `egypt_range_square` the second when the
 range grows. A theorem composed with its families is terminal: it is not
 extended, closed or composed again.
+
+Two rules let her describe her residual, the numbers her chunk proofs had to
+witness after the cover and the families. A `residual_predicate` derivation
+names chunk proofs (range extensions with a family part) and a predicate of
+a small grammar: the residue classes of n modulo a divisor of the level
+modulus; the classes the prime factors of n + h, hn + 1 or ahn + 1 (h up to 6)
+may take modulo a or ah; or a bound below or above every prime factor of one
+of those forms. It states that every number the named proofs witnessed
+satisfies the predicate and that, of a same-size sample of the numbers they
+represent by a family divisor (evenly spaced through them), fewer than a tenth
+do; the checker rebuilds both sets from the named proofs and evaluates the
+predicate on every number, and a claim needs at least ten numbers on each
+side. A `residual_break` derivation names one chunk proof and a witnessed
+number of it that fails the predicate. `egypt_residual_profile` states, over
+the chunk proofs a call carried in, the selective predicates of the grammar
+(at most sixteen, the most selective first), leaving out one that only
+restates an admitted plus or times family; `egypt_residual_falsify` tests
+every surviving predicate on each chunk the call adds, stating the break at
+the first witnessed number that fails it, or the predicate again over the
+wider set of proofs while it stays selective. On her theorem problems no
+predicate of this grammar is selective: the most selective candidate is
+satisfied by two thirds to four fifths of the represented sample, so her
+residual, seen through residues and the classes of prime factors of these
+forms, is not told apart from what the families take (CAMPAIGNS.md records
+the measurement). The fixture that exercises the rules is 4/n with the
+families plus 1 and times 2 only, where the fifteen numbers witnessed in
+[300, 3000) are all 1 modulo 24 and a forced witness at 3011 breaks that.
 
 ## Autonomous research agent
 

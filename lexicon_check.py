@@ -1048,7 +1048,16 @@ def class_thresholds(cover, budget):
 
 # ------------------------------------------------------------- derivations: claims that follow from admitted claims
 
-DERIVATION_RULES = ('range_union', 'theorem_range', 'range_extend', 'theorem_multiples', 'theorem_families', 'composite_range')
+DERIVATION_RULES = ('range_union', 'theorem_range', 'range_extend', 'theorem_multiples', 'theorem_families', 'composite_range',
+                    'residual_predicate', 'residual_break')
+# Residual predicates: statements about the numbers a range proof had to witness (its residual after the cover and the
+# families), over a small grammar; a claim names the proofs and the predicate, and the checker rebuilds the witnessed
+# set from the proofs and evaluates the predicate on all of it, and on a contrast sample of represented numbers.
+RESIDUAL_FORMS = ('plus', 'times', 'pair')  # the linear forms n + h, h n + 1 and a h n + 1
+MAX_RESIDUAL_H = 6
+MAX_RESIDUAL_MODULUS = 10 ** 6
+RESIDUAL_SELECTIVITY = 10  # a predicate counts as selective when fewer than a tenth of the sample satisfies it
+MIN_RESIDUAL = 10  # witnessed numbers, and sample numbers, a residual predicate needs: fewer make any value a predicate
 CLOSURE_RESIDUES = 40_000_000  # residues a closure statement may enumerate
 MAX_PREMISES = 24  # a theorem composed with its families names each family
 # ------------------------------------------------------------- divisor families
@@ -1176,6 +1185,81 @@ def least_factor(n):
     return n
 
 
+def linear_form(a, form, h, n):
+    """The value of the residual grammar's linear form at n: n + h, h n + 1 or a h n + 1."""
+    if form == 'plus': return n + h
+    if form == 'times': return h * n + 1
+    return a * h * n + 1
+
+
+def residual_predicate_fields(pred):
+    """Refuse a malformed or trivial predicate: a residue class set modulo m (a proper nonempty subset), the classes
+    the prime factors of a linear form's value may take modulo t (a proper subset), or a roughness or smoothness bound
+    on those prime factors."""
+    need(type(pred) is dict and type(pred.get('kind')) is str, 'residual predicate')
+    kind = pred['kind']
+    if kind == 'residue':
+        need(set(pred) == {'kind', 'm', 'residues'}, 'residue predicate fields')
+        m = integer(pred['m'], 2, MAX_RESIDUAL_MODULUS); rs = pred['residues']
+        need(type(rs) is list and 1 <= len(rs) < m and all(type(r) is int and 0 <= r < m for r in rs) and rs == sorted(set(rs)),
+             'residue predicate classes')
+        return
+    need(kind in ('factors', 'rough', 'smooth'), 'unknown residual predicate')
+    need(pred.get('form') in RESIDUAL_FORMS, 'residual predicate form'); integer(pred.get('h'), 1, MAX_RESIDUAL_H)
+    if kind == 'factors':
+        need(set(pred) == {'kind', 'form', 'h', 't', 'allowed'}, 'factor predicate fields')
+        t = integer(pred['t'], 2, MAX_RESIDUAL_MODULUS); al = pred['allowed']
+        need(type(al) is list and 1 <= len(al) < t and all(type(r) is int and 0 <= r < t for r in al) and al == sorted(set(al)),
+             'factor predicate classes')
+    else:
+        need(set(pred) == {'kind', 'form', 'h', 'bound'}, 'bound predicate fields'); integer(pred['bound'], 3 if kind == 'rough' else 2)
+
+
+def prime_factors(v):
+    """The distinct prime factors of v >= 1, increasing, by repeated least factors (the checker's own arithmetic)."""
+    out = []
+    while v > 1:
+        p = least_factor(v); out.append(p)
+        while v % p == 0: v //= p
+    return out
+
+
+def residual_holds(a, pred, n, budget, factors=None):
+    """Whether a residual predicate holds at n (the checker's own evaluation, exact). factors, when given, caches the
+    prime factorizations of the linear forms by (form, h, n)."""
+    if pred['kind'] == 'residue': budget.use(); return n % pred['m'] in pred['residues']
+    key = (pred['form'], pred['h'], n); ps = factors.get(key) if factors is not None else None
+    if ps is None:
+        v = linear_form(a, pred['form'], pred['h'], n); budget.use(max(4, v.bit_length() // 2)); ps = prime_factors(v)
+        if factors is not None: factors[key] = ps
+    if pred['kind'] == 'factors': t = pred['t']; return all(p % t in pred['allowed'] for p in ps)
+    if pred['kind'] == 'rough': return bool(ps) and ps[0] >= pred['bound']
+    return not ps or ps[-1] <= pred['bound']
+
+
+def residual_sample(represented, size):
+    """The contrast sample: size numbers evenly spaced through the represented numbers in order (deterministic, and
+    spread over the same magnitudes as the witnessed ones)."""
+    step = max(1, len(represented) // size)
+    return represented[::step][:size]
+
+
+def residual_sets(a, terms, rows):
+    """From range proofs (finite claims, or range_extend derivations) of one question: the numbers they witnessed
+    (the residual), and the numbers their family tables represent (the contrast population), both as sorted lists;
+    refuses a proof of another question or without a family part."""
+    witnessed = set(); represented = set()
+    for kind, data in rows:
+        need(kind in ('finite', 'derived'), 'a residual predicate names range proofs')
+        body = data if kind == 'finite' else data.get('proof')
+        need(kind == 'finite' or data.get('rule') == 'range_extend', 'a residual predicate names range proofs')
+        s = data if kind == 'finite' else data['statement']
+        need(s.get('a') == a and s.get('terms') == terms, 'a range proof of another question')
+        need(type(body) is dict and type(body.get('families')) is dict and type(body.get('witnesses')) is dict, 'a range proof with a family part')
+        witnessed.update(int(k) for k in body['witnesses']); represented.update(int(k) for k in body['families']['table'])
+    return sorted(witnessed), sorted(represented)
+
+
 def statement_of(kind, data):
     """What an admitted claim states, in the form derivations compose: a range of represented n, or a theorem."""
     if kind == 'finite':
@@ -1299,6 +1383,42 @@ def check_derived(data, budget, admitted=None):
                           'covered class of the theorem, when n < range_hi, or when the linear form of one of the named '
                           'families has a divisor in that family\'s class; an unresolved n satisfies none of these.',
                     proof='The theorem and each family are admitted claims about every n; the composition states their disjunction.')
+    if rule == 'residual_predicate':
+        # A predicate every witnessed number of the named range proofs satisfies, and fewer than a tenth of a
+        # same-size sample of the numbers those proofs represent by a family divisor (the first ones in order): the
+        # shape of her residual, stated exactly over what she had to witness. Not a theorem about any other n.
+        need(set(s) == {'kind', 'a', 'terms', 'predicate', 'lo', 'hi', 'witnessed', 'sample'} and s['kind'] == 'residual_predicate',
+             'residual predicate statement')
+        pred = s['predicate']; residual_predicate_fields(pred); a, terms = s['a'], s['terms']
+        rows = [admitted(i) for i in ids]; witnessed, represented = residual_sets(a, terms, rows)
+        lo = min(p['lo'] for p in premises); hi = max(p['hi'] for p in premises)
+        need(all(p['kind'] == 'range' for p in premises) and s['lo'] == lo and s['hi'] == hi, 'the stated range is that of the proofs')
+        need(len(witnessed) >= MIN_RESIDUAL, 'too few witnessed numbers for a residual predicate')
+        need(s['witnessed'] == len(witnessed), 'the witnessed count')
+        factors = {}
+        for n in witnessed: need(residual_holds(a, pred, n, budget, factors), 'a witnessed number fails the predicate: ' + str(n))
+        size = min(len(witnessed), len(represented)); sample = residual_sample(represented, size)
+        need(size >= MIN_RESIDUAL, 'too few represented numbers for a residual predicate')
+        need(type(s['sample']) is dict and set(s['sample']) == {'size', 'satisfied'} and s['sample']['size'] == size, 'the sample size')
+        satisfied = sum(1 for n in sample if residual_holds(a, pred, n, budget, factors))
+        need(s['sample']['satisfied'] == satisfied, 'the sample count')
+        need(satisfied * RESIDUAL_SELECTIVITY < size, 'the predicate is not selective on the sample')
+        return dict(ok=True, kind='derived', rule=rule, witnessed=len(witnessed), sample=size, satisfied=satisfied, lo=lo, hi=hi,
+                    scope='Every number the named proofs witnessed satisfies the predicate; of ' + str(size) + ' numbers they represent by a '
+                          'family divisor, evenly spaced, ' + str(satisfied) + ' do. A description of the residual, not a theorem.',
+                    proof='The witnessed set and the sample are rebuilt from the named proofs and the predicate is evaluated exactly on each number.')
+    if rule == 'residual_break':
+        # A number a named range proof witnessed that fails the predicate: the falsifier of a residual predicate on a
+        # later range, kept as a claim so the broken predicate is not stated again.
+        need(set(s) == {'kind', 'a', 'terms', 'predicate', 'n', 'lo', 'hi'} and s['kind'] == 'residual_break', 'residual break statement')
+        pred = s['predicate']; residual_predicate_fields(pred); a, terms = s['a'], s['terms']
+        need(len(premises) == 1 and premises[0]['kind'] == 'range', 'residual_break names one range proof')
+        witnessed, _ = residual_sets(a, terms, [admitted(ids[0])]); n = integer(s['n'], 1)
+        need(s['lo'] == premises[0]['lo'] and s['hi'] == premises[0]['hi'], 'the stated range is that of the proof')
+        need(n in witnessed, 'the number is not one the proof witnessed')
+        need(not residual_holds(a, pred, n, budget), 'the number satisfies the predicate')
+        return dict(ok=True, kind='derived', rule=rule, n=n, lo=s['lo'], hi=s['hi'],
+                    scope='The named proof witnessed n and n fails the predicate.', proof='Evaluated exactly at n.')
     if rule == 'composite_range':
         # Closure under multiples over an admitted range: a/(t d) = sum 1/(t x_i) whenever a/d = sum 1/x_i, so every
         # n with a divisor d in [lo, hi) is represented; below hi^2 that includes every composite whose least prime

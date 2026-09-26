@@ -710,6 +710,63 @@ def least_prime_factor(n):
     return n
 
 
+def small_factors(v):
+    """Prime factors of v > 0, increasing, by trial division (this tool's own; the checker's rho is not used)."""
+    out = []; p = 2
+    while p * p <= v:
+        if v % p == 0:
+            out.append(p)
+            while v % p == 0: v //= p
+        p += 1 if p == 2 else 2
+    if v > 1: out.append(v)
+    return out
+
+
+def residual_form(a, form, h, n): return n + h if form == 'plus' else h * n + 1 if form == 'times' else a * h * n + 1
+
+
+def residual_predicate_ok(pred):
+    if type(pred) is not dict or type(pred.get('kind')) is not str: return False
+    k = pred['kind']
+    if k == 'residue':
+        m, rs = pred.get('m'), pred.get('residues')
+        return (set(pred) == {'kind', 'm', 'residues'} and type(m) is int and 2 <= m <= 10 ** 6 and type(rs) is list and 1 <= len(rs) < m
+                and all(type(r) is int and 0 <= r < m for r in rs) and rs == sorted(set(rs)))
+    if k not in ('factors', 'rough', 'smooth') or pred.get('form') not in ('plus', 'times', 'pair') or type(pred.get('h')) is not int \
+            or not 1 <= pred['h'] <= 6: return False
+    if k == 'factors':
+        t, al = pred.get('t'), pred.get('allowed')
+        return (set(pred) == {'kind', 'form', 'h', 't', 'allowed'} and type(t) is int and 2 <= t <= 10 ** 6 and type(al) is list
+                and 1 <= len(al) < t and all(type(r) is int and 0 <= r < t for r in al) and al == sorted(set(al)))
+    b = pred.get('bound')
+    return set(pred) == {'kind', 'form', 'h', 'bound'} and type(b) is int and b >= (3 if k == 'rough' else 2)
+
+
+def residual_true(a, pred, n, cache):
+    """This tool's own evaluation of a residual predicate at n."""
+    if pred['kind'] == 'residue': return n % pred['m'] in pred['residues']
+    key = (pred['form'], pred['h'], n)
+    if key not in cache: cache[key] = small_factors(residual_form(a, pred['form'], pred['h'], n))
+    ps = cache[key]
+    if pred['kind'] == 'factors': return all(p % pred['t'] in pred['allowed'] for p in ps)
+    if pred['kind'] == 'rough': return bool(ps) and ps[0] >= pred['bound']
+    return not ps or ps[-1] <= pred['bound']
+
+
+def residual_population(a, terms, rows):
+    """The witnessed numbers and the family-represented numbers of range proofs, or None when a row is not a range
+    proof of this question with a family part."""
+    witnessed = set(); represented = set()
+    for kind, data in rows:
+        if kind == 'finite': body, s = data, data
+        elif kind == 'derived' and data.get('rule') == 'range_extend': body, s = data.get('proof'), data['statement']
+        else: return None
+        if s.get('a') != a or s.get('terms') != terms or type(body) is not dict or type(body.get('families')) is not dict \
+                or type(body.get('witnesses')) is not dict: return None
+        witnessed.update(int(k) for k in body['witnesses']); represented.update(int(k) for k in body['families']['table'])
+    return sorted(witnessed), sorted(represented)
+
+
 def derived_verdict(d, admitted):
     """A derivation holds when every premise it names is a VERIFIED saved claim of the same record and its statement
     is exactly what the named rule gives from the premises' statements. admitted maps a claim's identity (the digest
@@ -753,6 +810,37 @@ def derived_verdict(d, admitted):
         shapes = sorted([f['shape'], f['h']] for f in fams)
         if len({tuple(x) for x in shapes}) != len(shapes): return 'REFUTED', 'a family named twice'
         return ('VERIFIED', 'the disjunction of admitted claims') if s == dict(T, families=shapes) else ('REFUTED', 'the statement differs from the premise beyond its families')
+    if d['rule'] == 'residual_predicate':
+        if set(s) != {'kind', 'a', 'terms', 'predicate', 'lo', 'hi', 'witnessed', 'sample'} or s['kind'] != 'residual_predicate': return 'REFUTED', 'residual predicate statement'
+        pred = s['predicate']
+        if not residual_predicate_ok(pred): return 'REFUTED', 'malformed or trivial predicate'
+        if any(p['kind'] != 'range' for p in premises): return 'REFUTED', 'a premise is not a range proof'
+        pop = residual_population(s['a'], s['terms'], [admitted[i][:2] for i in d['premises']])
+        if pop is None: return 'REFUTED', 'a premise is not a range proof of this question with a family part'
+        witnessed, represented = pop
+        if s['lo'] != min(p['lo'] for p in premises) or s['hi'] != max(p['hi'] for p in premises): return 'REFUTED', 'the stated range is not that of the proofs'
+        if len(witnessed) < 10: return 'REFUTED', 'too few witnessed numbers for a residual predicate'
+        if s['witnessed'] != len(witnessed): return 'REFUTED', 'the witnessed count is not that of the proofs'
+        cache = {}
+        bad = next((n for n in witnessed if not residual_true(s['a'], pred, n, cache)), None)
+        if bad is not None: return 'REFUTED', 'the witnessed number ' + str(bad) + ' fails the predicate'
+        size = min(len(witnessed), len(represented)); sample = represented[::max(1, len(represented) // size)][:size] if size else []
+        if size < 10: return 'REFUTED', 'too few represented numbers for a residual predicate'
+        if type(s['sample']) is not dict or set(s['sample']) != {'size', 'satisfied'} or s['sample']['size'] != size: return 'REFUTED', 'the sample size'
+        satisfied = sum(1 for n in sample if residual_true(s['a'], pred, n, cache))
+        if s['sample']['satisfied'] != satisfied: return 'REFUTED', 'the sample count is ' + str(satisfied)
+        if satisfied * 10 >= size: return 'REFUTED', 'the predicate is not selective on the sample'
+        return 'VERIFIED', 'holds on all ' + str(len(witnessed)) + ' witnessed numbers and on ' + str(satisfied) + ' of ' + str(size) + ' represented ones'
+    if d['rule'] == 'residual_break':
+        if set(s) != {'kind', 'a', 'terms', 'predicate', 'n', 'lo', 'hi'} or s['kind'] != 'residual_break': return 'REFUTED', 'residual break statement'
+        if not residual_predicate_ok(s['predicate']): return 'REFUTED', 'malformed or trivial predicate'
+        if len(premises) != 1 or premises[0]['kind'] != 'range': return 'REFUTED', 'residual_break names one range proof'
+        pop = residual_population(s['a'], s['terms'], [admitted[d['premises'][0]][:2]])
+        if pop is None: return 'REFUTED', 'the premise is not a range proof of this question with a family part'
+        if s['lo'] != premises[0]['lo'] or s['hi'] != premises[0]['hi']: return 'REFUTED', 'the stated range is not that of the proof'
+        if type(s['n']) is not int or s['n'] not in pop[0]: return 'REFUTED', 'the number is not one the proof witnessed'
+        if residual_true(s['a'], s['predicate'], s['n'], {}): return 'REFUTED', 'the number satisfies the predicate'
+        return 'VERIFIED', 'the witnessed number ' + str(s['n']) + ' fails the predicate'
     if d['rule'] == 'composite_range':
         if len(premises) != 1 or premises[0]['kind'] != 'range': return 'REFUTED', 'composite_range takes one range'
         R = premises[0]
@@ -862,6 +950,12 @@ def self_test():
         'divisor family of a misnamed shape refuted': dfam_verdict(dict(a=4, terms=3, shape='times', h=1))[0] == 'REFUTED',
         'range extension by family divisors verifies': extension_case(family=True)[0] == 'VERIFIED',
         'range extension with a wrong family divisor refuted': extension_case(family=True, bad=True)[0] == 'REFUTED',
+        'residual predicate over witnessed numbers verifies': residual_case()[0] == 'VERIFIED',
+        'residual predicate with a wrong witnessed count refuted': residual_case(count=True)[0] == 'REFUTED',
+        'residual predicate failing on a witnessed number refuted': residual_case(fails=True)[0] == 'REFUTED',
+        'residual predicate the sample satisfies refuted': residual_case(vacuous=True)[0] == 'REFUTED',
+        'residual break at a witnessed number verifies': residual_case(broken=True)[0] == 'VERIFIED',
+        'residual break at a represented number refuted': residual_case(broken=True, wrong=True)[0] == 'REFUTED',
     }
     return all(checks.values()), checks
 
@@ -926,6 +1020,28 @@ def composition_case(twice=False):
         k = str(i) * 64; ids.append(k); admitted[k] = ('dfam', {k2: v for k2, v in f.items() if k2 != 'kind'}, 'VERIFIED')
     s = dict(T, families=sorted([f['shape'], f['h']] for f in fams))
     return derived_verdict(dict(rule='theorem_families', premises=['T' * 64] + ids, statement=s), admitted)
+
+
+def residual_case(count=False, fails=False, vacuous=False, broken=False, wrong=False):
+    """Two range proofs of 4/n whose witnessed numbers are 3 modulo 4 and whose family-represented numbers are
+    1 modulo 4 (the tables are read for their keys only; the premises are taken as verified here). The predicate
+    n = 3 (mod 4) holds on every witnessed number and on none of the sample; n + 1 rough at 3 fails at 7."""
+    first = dict(a=4, terms=3, lo=2, hi=60, witnesses={str(n): [1, 1] for n in (3, 7, 11, 19, 23, 31, 43, 47, 59)}, divisors={}, cover=None,
+                 families=dict(shapes=[['plus', 1]], table={str(n): [0, 3] for n in (5, 13, 17, 29, 37, 41, 53)}))
+    second = dict(a=4, terms=3, lo=60, hi=110, witnesses={str(n): [1, 1] for n in (67, 71, 79, 83, 103, 107)}, divisors={}, cover=None,
+                  families=dict(shapes=[['plus', 1]], table={str(n): [0, 3] for n in (61, 73, 89, 97, 101, 109)}))
+    admitted = {}; ids = []
+    for f in (first, second):
+        k = digest(dict(kind='finite', data=f)); ids.append(k); admitted[k] = ('finite', f, 'VERIFIED')
+    if broken:
+        pred = dict(kind='rough', form='plus', h=1, bound=3)
+        s = dict(kind='residual_break', a=4, terms=3, predicate=pred, n=5 if wrong else 7, lo=2, hi=60)
+        return derived_verdict(dict(rule='residual_break', premises=ids[:1], statement=s), admitted)
+    pred = dict(kind='rough', form='plus', h=1, bound=3) if fails else dict(kind='residue', m=2, residues=[1]) if vacuous \
+        else dict(kind='residue', m=4, residues=[3])
+    s = dict(kind='residual_predicate', a=4, terms=3, predicate=pred, lo=2, hi=110, witnessed=16 if count else 15,
+             sample=dict(size=13, satisfied=13 if vacuous else 0))
+    return derived_verdict(dict(rule='residual_predicate', premises=ids, statement=s), admitted)
 
 
 def composites_case(more=False):

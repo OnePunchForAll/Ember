@@ -43,10 +43,11 @@ COMPANIONS = 4
 READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift',
                              'egypt_classical_sweep', 'egypt_wall_sweep', 'egypt_range_chunk', 'egypt_range_union',
                              'egypt_theorem_range', 'egypt_theorem_multiples', 'egypt_divisor_families',
-                             'egypt_theorem_families', 'egypt_range_square'))
+                             'egypt_theorem_families', 'egypt_range_square', 'egypt_residual_profile', 'egypt_residual_falsify'))
 # Moves tried once per state of what they read, not once per target and call: each chunk, union or extension is new.
 REPEATABLE = frozenset(('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples',
-                        'egypt_divisor_families', 'egypt_theorem_families', 'egypt_range_square'))
+                        'egypt_divisor_families', 'egypt_theorem_families', 'egypt_range_square', 'egypt_residual_profile',
+                        'egypt_residual_falsify'))
 MACRO_STEPS = 4
 PROPOSE_EVERY = 25
 # A move that fails only for lack of work is retried once with this many times the allocation.
@@ -220,6 +221,19 @@ def compact_proof(L, obj, best, heads=()):
     if head is None: return obj
     return dict(kind=obj['kind'], data=dict(d, proof=dict({k: v for k, v in proof.items() if k != 'cover'},
                                                           cover_ref=L.digest(head['data']))))
+
+
+def latest_residual_claims(derived):
+    """Derived claims to save: every one, except that of the residual predicates only the widest claim of each
+    predicate is kept (an earlier claim of the same predicate over fewer proofs is implied by it); breaks are kept."""
+    widest = {}
+    for o in derived:
+        d = o['data']
+        if d['rule'] == 'residual_predicate':
+            key = json.dumps(d['statement']['predicate'], sort_keys=True); best = widest.get(key)
+            if best is None or (d['statement']['hi'], len(d['premises'])) > (best['data']['statement']['hi'], len(best['data']['premises'])):
+                widest[key] = o
+    return [o for o in derived if o['data']['rule'] != 'residual_predicate' or widest[json.dumps(o['data']['statement']['predicate'], sort_keys=True)] is o]
 
 
 def compact_range(L, obj, best, heads=()):
@@ -662,6 +676,11 @@ class CoverGoal(Goal):
         if strategy in ('egypt_classical_sweep', 'egypt_wall_sweep'):
             return (self.fam_count, len(self.classical_miss), len(self.classes), len(self.lemmas),
                     sum(len(v) for v in self.walled.values()))
+        if strategy == 'egypt_residual_profile': return ('carried',)  # describes what the call carried in: once per call
+        if strategy == 'egypt_residual_falsify':
+            # Runs again only when a chunk proof or a residual claim was added, not on every derived object.
+            return (sum(1 for o in self.results if o['kind'] == 'derived' and o['status'] == 'checked'
+                        and o['data']['rule'] in ('range_extend', 'residual_predicate', 'residual_break')),)
         if strategy in ('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples',
                         'egypt_divisor_families', 'egypt_theorem_families', 'egypt_range_square'):
             # The range moves depend on the admitted ranges, derivations, theorems and covers.
@@ -773,7 +792,8 @@ class CoverGoal(Goal):
         # Divisor families stand alone; the chunk proofs that use them name their shapes and are checked exactly.
         claims_first += [dict(kind='dfam', data=o['data']) for o in rt.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked']
         claims_first += [compact_range(self.L, o, chain, heads) for o in chunks]
-        claims_first += [compact_proof(self.L, o, chain, heads) for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked']
+        claims_first += [compact_proof(self.L, o, chain, heads) for o in latest_residual_claims(
+            [o for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked'])]
         lemmas = [o for o in rt.objects.values() if (o['kind'] == 'obstruction' and o['status'] == 'checked') or
                   (o['kind'] == 'refutation' and o['status'] == 'checked' and o['data']['claim']['kind'] == 'obstruction')]
         batches = {}
@@ -1987,6 +2007,7 @@ def run(task, state_path, limit, host):
             carried = goal.transfer(rt, rows)
         # Checked results replayed or carried over are not this round's; what the round adds is counted from here.
         baseline = sum(1 for o in rt.objects.values() if o['status'] == 'checked')
+        rt.carried = frozenset(o['id'] for o in rt.objects.values() if o['status'] == 'checked')
         agent = Agent(host, L, checker, registry, goal, rt, per, samples[-MAX_SAMPLES:], macros, tried, unseen)
         agent.priors = experience_priors(goal, library, state, problem)
         for _ in range(moves):
@@ -2263,11 +2284,15 @@ def visible_results(checked):
     dfams = [o for o in rows if o['kind'] == 'dfam']  # one row stands for the family list; the count is in checked_objects
     composed = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_families']
     squares = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'composite_range']
+    residual = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] in ('residual_predicate', 'residual_break')]
     keep = {id(o) for o in (max(unions, key=lambda o: o['data']['statement']['hi'], default=None),
                             max(extensions, key=lambda o: ('closure' in o['data']['statement'], o['data']['statement']['range_hi']), default=None),
                             min(closures, key=lambda o: (o['data']['statement']['open_residues'], -o['data']['statement']['closed_at']), default=None),
                             max(composed, key=lambda o: (len(o['data']['statement']['families']), o['data']['statement']['range_hi']), default=None),
-                            max(squares, key=lambda o: o['data']['statement']['reach'], default=None)) if o is not None}
+                            max(squares, key=lambda o: o['data']['statement']['reach'], default=None),
+                            # one row stands for the residual predicates: the widest, most selective one; the breaks are counted
+                            min(residual, key=lambda o: (o['data']['rule'] != 'residual_predicate', -o['data']['statement']['hi'],
+                                                         o['data']['statement'].get('sample', {}).get('satisfied', 0)), default=None)) if o is not None}
     base_lo = min((o['data']['lo'] for o in rows if o['kind'] == 'finite'), default=None)
     shown = [o for o in rows if not (o['kind'] == 'finite' and o['data']['lo'] != base_lo)
              and not (o['kind'] == 'derived' and id(o) not in keep) and not (o['kind'] == 'dfam' and o is not dfams[0])]

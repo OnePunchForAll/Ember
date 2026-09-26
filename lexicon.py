@@ -677,6 +677,9 @@ class Runtime:
         self.current_move = None
         # Refusal accounting: (move, kind, reason) -> [count, first refused identity]; the reason is the checker's own.
         self.refusals = {}
+        # The identities admitted before this call's moves began (carried from the record): a profile of the residual
+        # describes these, and the falsifier tests what the call adds.
+        self.carried = frozenset()
 
     def admitted(self, identity):
         """The kind and data of an admitted claim, for a derivation naming it as a premise; None otherwise."""
