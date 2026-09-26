@@ -548,6 +548,13 @@ class CoverGoal(Goal):
             if M in self.covers_at: out.append(self.covers_at[M])
         return out
 
+    def search_spoke(self, rt):
+        """Whether the shape search has run this call: a general family or its note admitted since the carried set."""
+        if not getattr(self, '_spoke', False):
+            self._spoke = any(o['id'] not in rt.carried and (o['kind'] == 'gfam' or (o['kind'] == 'residual'
+                              and str(o['data'].get('note', '')).startswith('shape search'))) for o in rt.objects.values())
+        return self._spoke
+
     def lemma_at(self, m):
         """Her checked lemma at a multiple of m, if any: it speaks for every coprime square class modulo m."""
         key = (m, len(self.lemmas))
@@ -706,6 +713,12 @@ class CoverGoal(Goal):
         if strategy == 'egypt_classical_family' and target['kind'] == 'eclass':
             # Known already: the sweep missed it, or her lemma rules out every classical family for it.
             if target['id'] in self.classical_miss or self.obstructed(rt, target): return False
+        if strategy in ('egypt_range_chunk', 'egypt_finite_verify') and target['data'].get('terms') == 3 \
+                and getattr(self, 'gated', False) and not self.search_spoke(rt):
+            # Shapes before ranges: a range move waits until her shape search has run this call (it states general
+            # families or a note), so a chunk uses every family she can find. The preregistered rounds of the shape
+            # search found the chunk running first on ten problems of eleven, and the families unused.
+            return False
         if strategy == 'egypt_finite_verify': return target['data']['modulus'] == self.levels[-1]
         if strategy in ('egypt_cover_lift', 'egypt_cover_merge'): return False
         if strategy == 'egypt_classical_exclusion':
@@ -1332,6 +1345,7 @@ class Agent:
         self.checkable = set(checker.CHECKS) | {'invariant', 'semi'}
         # Strategies retired per context and level after RETIRE_AFTER failures without a success in this run.
         self.retired = {}; goal.retired = self.retired; self.retire_tally = {}; self.priors = set(); self.retired_in = {}
+        goal.gated = 'egypt_shape_search' in registry  # range moves wait for her shape search where it exists
         # Refusal accounting per (context, strategy, scope): [claims refused, claims admitted] in this run.
         self.refused_by = {}
         self.pooled = set(); self.quiet = set(); self.quiet_key = None
