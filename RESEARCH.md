@@ -252,6 +252,15 @@ these problems; the measure is honest either way). Then 4.5, 4.7 and 4.6.
 Each is preregistered in CAMPAIGNS.md before it runs: the baseline, the
 fourteen-round schedule, what is recorded, and what counts as a defect.
 
+Status. 4.1 is installed (commit 3ae3cae): the package check plants the
+refusal, the defect of the third tier's first run reproduces with the
+diagnosis naming its bound, and two ordinary rounds show refusals that name
+no instrument. Read against her records, 4.3 has no outcome measure while
+every theorem round ends by exhaustion (it changes the order of moves that
+all run), and 4.4's case, a chunk abandoned for want of a witness within the
+bound, has not occurred in her state; both wait for evidence, and 4.2 is
+preregistered next. The entry in CAMPAIGNS.md has the details.
+
 ## 6. Limits of this note
 
 The depth table is one state and four problems; the residues were counted,

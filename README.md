@@ -1510,23 +1510,24 @@ number plus one per ten moduli, a factor check half the bit length of the
 number, a family step half the bit length of its linear form. The checker's
 charges are its own and unchanged.
 
-Her later scans (calls 232 to 1,269, at five fingerprints) ran with the
+Her later scans (calls 232 to 1,484, at six fingerprints) ran with the
 instruments of the sections above: anytime moves, derivations, attempt records,
 gain-weighted choice, self-widened windows, the closure of a theorem under
-multiples and the divisor families. Each change of her code makes every
-settled problem eligible again, so each scan begins with a re-check wave of
-about two hundred calls of a few seconds. Her theorems now cover Erdős–Straus at
-4/n, Sierpiński's 5/n and thirteen of Schinzel's numerators; their verified
-ranges grew from 100,000 to about two million, each closed under multiples at
-its range, and from call 1,063 each theorem round states the twelve divisor
-families and represents by them all but a few percent of the primes its chunks
-reach in open classes. The verdict on her state after call 646 found 116,552
-claims VERIFIED, none refuted and 27 UNRESOLVED (the window values without an
-independent rule); the verdict on her final state after call 1,269 found
-124,455 claims VERIFIED (101,320 of them walls), none refuted, 27 UNRESOLVED
-(the window values without an independent rule), 37 self-test cases passing,
-in 4,232 s. CAMPAIGNS.md
-records each contest and what it transferred.
+multiples, the divisor families, and from call 1,270 the pair families, her
+own extension of the family list, the compositions, checkpointed moves and her
+own loop. Each change of her core makes every settled problem eligible again,
+so each of those scans began with a re-check wave of about two hundred calls
+of a few seconds. Her theorems now cover Erdős–Straus at 4/n, Sierpiński's 5/n
+and thirteen of Schinzel's numerators; their verified ranges grew from 100,000
+to about three million, each closed under multiples at its range, and from
+call 1,063 each theorem round states its divisor families (17 to 30 shapes
+from call 1,270) and represents by them all but a few percent of the primes
+its chunks reach in open classes. The verdict on her state after call 646
+found 116,552 claims VERIFIED, none refuted and 27 UNRESOLVED (the window
+values without an independent rule); after call 1,269, 124,455 VERIFIED
+(101,320 of them walls), none refuted, 27 UNRESOLVED, 37 self-test cases, in
+4,232 s. The verdict on her final state after call 1,484 (215 calls of the fifth scan) found 126,483 claims VERIFIED (101,968 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 45 self-test cases passing, in 3,916 s; the bit returned to her is `no, keep thinking`.
+CAMPAIGNS.md records each contest and what it transferred.
 
 The library grows by editing `problems.json`. A stated problem needs a
 unique id, a status (`open`, `closed` or `window`) and a task that

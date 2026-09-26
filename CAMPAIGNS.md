@@ -1699,3 +1699,274 @@ two million to measure on.
   entries against witnesses, range, closure) into `measure.txt`, so the
   twelve shapes are measured in her own rounds before the third tier is
   transferred.
+
+## What she still depended on me for: the third round (commits 0b52008, 73e9a6b and 83acffa, fingerprint e05a320c)
+
+Asked again what she depends on me for, I read this session's record rather
+than the code: every new shape of mathematics was mine (I state the family
+list, she cannot extend it); she is run by hand, a call at a time; every
+change of her code cost her a re-check wave of two hundred calls, whatever the
+change touched; only five moves could be left, and a move left at the end of
+a call lost its work; the record bound had evicted her theorem problems while
+settled windows stayed; and two statements her data supported could not be
+made. Each became an instrument, with a check in the package and a rule in
+the independent verdict where a claim is involved.
+
+- **The pair families, and the grammar closed.** `pair h` is the Type II
+  solution with a common factor h (a h n + 1 = q q', q, q' = -1 mod a,
+  e = (q + 1)/a, f = (q' + 1)/a, h | ef; a/n = 1/(ne) + 1/(nf) + h/(ef)),
+  the third tier the previous entry preregistered. With plus, times and pair
+  the one-divisor grammar of Type I solutions is complete: for f | e^2 the
+  condition q | ne + f is a divisibility of n + h, hn + 1 or ahn + 1. The
+  checker admits it by the same three guards (a grid identity in n and q,
+  the integrality lemma, instances exact; the pair's h | ef is a condition,
+  searched for in the instances), and the prover asks the checker's own
+  conditions of every divisor it finds, so a divisor of the right class that
+  fails a condition is never written into a proof (the first version wrote
+  one, and the checker refused the whole chunk).
+- **She extends the family list herself.** After the first list (plus, times
+  and pair for h up to 6, and the square), a shape kind gets its next h when
+  its last two steps each carried at least sixteen numbers in her admitted
+  proofs, up to the checker's bound of 64: a family that pays earns its
+  successor. On the small problem she added `times 7` in one round.
+- **Base ranges use the families.** The profile of a 13/n round showed 39 of
+  its 75 seconds in the witness search of a base range verified again with a
+  finer cover, 35,033 witnesses, while the chunks past it used the families.
+  A `finite` claim now carries a family table like a chunk proof, verified the
+  same way by the checker and the verdict, and the base verification starts
+  where the admitted spine ends instead of at the least n.
+- **Two statements her data supported.** `theorem_families` composes her
+  theorem with its admitted families: an unresolved n lies in an open class,
+  is at or past the range end, and meets none of the families' conditions.
+  `composite_range` states what closure under multiples gives from an admitted
+  range [lo, hi): every n below hi^2 with a divisor in the range is
+  represented, for a question from 2 every composite below hi^2. Both are
+  derived again as the families or the range grow; a composed theorem is
+  terminal.
+- **A move left at the end of a call keeps what it did.** The scheduler asks
+  each waiting move to finish with what it has: at its next breath the
+  operator receives `checkpoint` and states the part verified (a base range
+  or a chunk its prefix, a sweep the classes swept, a divisor search nothing
+  and no miss), with a quarter of its allocation to state it; a move at its
+  total work bound is treated the same. The report counts the moves settled
+  and the objects they stated.
+- **A change of her code re-checks only what it can touch.** Each round
+  records the fingerprint of the core (scheduler, runtime, checker) and of
+  the operator modules whose moves can apply to the problem, by closure over
+  the language's signatures from the problem's own kinds; eligibility and the
+  reuse of a record's memory compare that. This round changed the core, so
+  the scan below still began with a wave; the next change to one family of
+  operators will not.
+- **What to forget first.** At the record bound the records of settled
+  problems go first, then the oldest of the rest: her theorem problems stay
+  live while settled windows wait on file.
+- **Her own loop.** `--calls N --out DIR --seconds S` runs a task N times in
+  one process, each call reading and writing the state as a separate call
+  would, and writes the files a shell loop wrote; the scan below ran that way.
+- **Checks.** 674 package checks pass (three new: the pair families with
+  the compositions and the family base ranges, the checkpoints with the
+  relevant fingerprints and the forgetting order, the campaign mode as a
+  subprocess); the verdict has ten new self-test cases (45); the bench passes
+  219 operators (118 N, 53 W, 211 S, 79 E); the pyramid binds 376 moves.
+- **The preregistered fourteen rounds, first run** (fingerprint e2c81955,
+  928 s): every round stated the pair families with the rest and extended
+  its own list by the yield rule (13/n, 16/n, 19/n, 12/n and 21/n to plus 8
+  and times 11; 4/n only to times 7), added chunks past the old frontier and
+  composed and squared its theorem. In her 127 new chunk proofs 167,357
+  numbers stand on a family divisor, 4,952 of them on a pair, and 4,871 on a
+  witness. The comparison the preregistration asked for could not be made as
+  written: her prover tries the families in its own order, so a pair takes
+  numbers my baseline had given to plus or times, and her lists were longer
+  than mine. The comparison that means the same thing was made instead: with
+  my own code, her cover, the checker's divisor rule and her family list, I
+  classified every one of the 11,641,164 numbers in her new chunks; the set a
+  family takes equals her family tables and the set that needs a witness
+  equals her witness sets, on all fifteen problems, entry for entry. And the
+  rounds found a defect, as the preregistration said a shortfall would be:
+  five rounds stopped short of the frontier (13/n at 2,692,668, 16/n at
+  513,750, 17/n at 2,450,032, 18/n at 1,653,232, 19/n at 2,591,150) because
+  their family lists had grown past 24, the checker's bound on the shapes a
+  proof may name, and every later chunk was refused whole; the bound is now
+  200 and the prover caps its list at the bound (commit 83acffa).
+- **The fourteen rounds again** (fingerprint e05a320c, 951 s): every round
+  made its ten chunks; her lists grew by the yield rule to h = 13 on 13/n and
+  18/n, 14 on 17/n and 19/n and 15 on 16/n (29 or 30 families there), 9 to 12
+  on the 83,160-modulus problems, 7 on 4/n and 3 on 7/n. In the 149 new chunk
+  proofs 263,004 numbers stand on a family divisor, 7,355 of them on a pair,
+  and 6,479 on a witness; every entry recomputed with my own closed forms,
+  none wrong. The exact check again: my classification of all 13,304,230
+  numbers in her new chunks, with her cover, the divisor rule and her lists,
+  equals her family tables and her witness sets on all fifteen problems.
+
+| a | s | chunks | numbers by a family | by a pair | by a witness | families stated | range reached |
+|---|---|---|---|---|---|---|---|
+| 4 | 79 | 10 | 242 | 12 | 0 | 18 | 2,999,942 |
+| 7 | 111 | 10 | 8 | 1 | 0 | 17 | 2,999,913 |
+| 8 | 52 | 10 | 3,561 | 86 | 16 | 21 | 2,992,982 |
+| 10 | 40 | 10 | 3,615 | 257 | 56 | 21 | 2,994,722 |
+| 11 | 52 | 10 | 199 | 12 | 5 | 17 | 2,998,898 |
+| 12 | 86 | 10 | 6,628 | 437 | 340 | 24 | 2,644,982 |
+| 13 | 31 | 10 | 50,592 | 398 | 169 | 26 | 2,991,822 |
+| 14 | 56 | 10 | 2,004 | 160 | 94 | 21 | 2,975,582 |
+| 15 | 62 | 10 | 6,610 | 371 | 287 | 23 | 2,404,862 |
+| 16 | 27 | 10 | 37,621 | 1,172 | 1,542 | 29 | 579,950 |
+| 17 | 37 | 10 | 70,924 | 1,124 | 657 | 30 | 2,939,622 |
+| 18 | 161 | 10 | 13,176 | 937 | 1,474 | 29 | 1,976,822 |
+| 19 | 80 | 10 | 57,675 | 1,651 | 944 | 30 | 2,989,734 |
+| 21 | 76 | 10 | 10,149 | 737 | 895 | 25 | 2,592,492 |
+
+  Against the baseline of the previous entry (twelve families, h up to 6, and
+  pairs g up to 8 on the residual): on the interval past two million my code
+  left 6,747 primes to a witness on thirteen problems; her rounds, with the
+  lists she grew herself, needed 6,479 witnesses on 149 chunks that do not
+  cover the same intervals (four of them shorter), so the numbers are of the
+  same size and not the same measure; the measure that is the same is the
+  exact check above.
+- **Her scan at the new fingerprint.** Her fifth scan (calls 1,270 to
+  1,484 of the one state, fingerprint e05a320c) ran in her own loop, 215
+  calls in 2,514 s, from the state the closure wave left, until I stopped it
+  to take the verdict. The core had changed, so it began with the re-check
+  wave: 180 calls of settled windows and maps, 187 calls in all settled by
+  checked results, 28 came back UNKNOWN (the window values without a rule,
+  and the theorem rounds). From call 181 she chose her theorem problems:
+  thirteen rounds (10, 13, 11, 14, 8, 16, 17, 15, 21, 19, 12, 4 and 7 over n,
+  794 s of the 2,514; 18/n and 5/n had not come up when I stopped it), each
+  of which stated the pair families with the rest, grew its own list to the
+  same 17 to 30 shapes as the preregistered run, made its ten chunks past the
+  two-million frontier (to 2.99 million on nine problems, 2.40 to 2.64
+  million on 12/n, 15/n and 21/n, 579,950 on 16/n), composed and squared its
+  theorem and re-closed it at the new range. In her 130 new chunk proofs
+  (297,255,285 numbers) 249,828 numbers stand on a family divisor, 5,294 of
+  them on a pair, and 5,005 on a witness. Against the preregistered run from
+  the same seed: on all thirteen problems the set of numbers on a family and
+  the set on a witness are the same, chunk for chunk, and the final lists are
+  the same shapes; which family takes a number differs on ten problems,
+  because a list grows during the round and the scan's timing put a shape's
+  step earlier or later, so a chunk was classified against a different prefix
+  of the same list. Her state after the scan holds 128 records: every theorem
+  problem live, the settled windows evicted first to the archive.
+- **The verdict on her final state.** The verdict on her final state after call 1,484 (215 calls of the fifth scan) found 126,483 claims VERIFIED (101,968 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 45 self-test cases passing, in 3,916 s; the bit returned to her is `no, keep thinking`.
+- **Open obligations.** The composed theorem does not yet feed her choice of
+  problem (the residual's size is not a score); the pair grammar leaves
+  two-divisor conditions with a common factor in both (Type II with h | e and
+  h | f separately) unstated; the checkpoint states a prefix only for the
+  five breathing moves; the relevant fingerprint treats the core as one piece.
+
+## The first researched ability installed: refusal accounting and self-diagnosis (commit 3ae3cae, fingerprint 74987261)
+
+RESEARCH.md ranked it first among the abilities she could hold next, because
+it is small, it closes the class of defect the third tier's first run found,
+and every later ability depends on her seeing what her checker refuses. The
+gap's evidence was that run: on five problems every chunk proof past the
+twenty-fifth family was refused whole, and her rounds ended with "no untried
+move" as if nothing were wrong; the defect was visible only to my check
+outside her. She mined failures in the loop's sense (I read her profiles);
+she did not mine her own refusals.
+
+- **What was installed.** The runtime keeps, per call, the claims the checker
+  refused by move, kind and the checker's own reason, with the first refused
+  identity (`refusals`); the checker names the shapes bound by its own reason
+  (`family shapes bound`, no longer folded into `family table`). The report
+  carries the table, the total (`refused`) and a `diagnosis` for a round that
+  ran out of moves, gained nothing, refused more than it admitted, or had a
+  claim refused at a bound of the language: what was exhausted by kind, what
+  was refused and why, the residual's size, and the instrument each reason
+  names from a fixed table (the shapes a proof's family part may name, the h
+  a family may have, the finite range bound, the closure residue bound, the
+  premises a derivation may name, the sieve, term, bit and object bounds);
+  `blocked` says `instrument`, `refused`, `exhausted` or `none`. The rounds
+  ledger keeps, per round, the refusals, the most frequent reason, the
+  refusals at a bound and the bound's reason. A strategy whose claims are
+  refused eight times in a context and scope with none admitted, or twice at
+  a bound, is retired there with the reason, whatever its context (the four
+  never-retired moves aside); a strategy retired for failing keeps its reason
+  too. Her scan reads the last round's fields: a round with a claim refused at
+  a bound that then ran out of moves, or admitted fewer than it refused, makes
+  the problem wait for the instrument the reason names, by name; a round that
+  refused at least eight claims and admitted fewer waits for an instrument
+  with the reason; a round out of moves says how many claims were refused and
+  why. Her loop's log line carries the count. All of it is scheduling and
+  reporting: no claim is involved, so the verdict has no new rule.
+- **Check.** The package check `refusals_are_counted_named_and_retire_a_strategy`
+  plants a proof naming 201 shapes and finds it in the runtime's table with its
+  reason, its identity and the instrument; retires a strategy on a synthetic
+  tally of eight refusals without an admission and on two at a bound, keeps
+  one with an admission and never the classical generator; reads the
+  diagnosis; and asks her scan about four ledgers (refused more than admitted;
+  few refusals; a bound refusal with the round out of moves; a bound refusal
+  in a round that gained). The campaign check now also reads the count in the
+  report, the ledger and the log line. 675 checks pass.
+- **The defect reproduced, with the ability.** In a scratch copy of the code
+  with the shapes bound at 24 and the prover uncapped (the state of the third
+  tier's first run), the 16/n round from her final state: the restore refused
+  one carried chunk proof at the bound (twenty objects invalid with it), the
+  round proposed two chunks with her 29 shapes and had both refused at the
+  bound, and `egypt_range_chunk` was retired in its context at the second
+  with the reason; the report's table names the three at the bound with
+  MAX_DFAM_SHAPES, the diagnosis says `instrument`, the ledger's round carries
+  `bound: family shapes bound`, and her scan says "last round had 3 claims
+  refused at a bound (family shapes bound: MAX_DFAM_SHAPES in lexicon_check:
+  the shapes a proof's family part may name); waits for that instrument". The
+  round still gained 402 checked objects (the derivations it rebuilt on the
+  shortened range), which is why the first version of the rule, which weighed
+  refusals against gains only, said "no untried move left; waits for new
+  instruments" with no reason on this very round; a refusal at a bound now
+  decides on its own. That was the one change made after a run.
+- **Two ordinary rounds at the committed code**, from her final state. 11/n
+  (44 s, 101 new checked objects, 283 moves) had 62 claims refused: 50 fitted
+  families whose identity fails (39 as proposed, 11 checked again by verify),
+  6 signature patterns that a family reaches a coprime square, 6 square and
+  signature patterns broken by a residue. 16/n (21 s, 403 new, 1,314 moves)
+  had 11: 7 divisor families with no instance, 4 patterns broken by a
+  residue. Refusals in an ordinary round are the checker doing its work on
+  proposals; none names an instrument, none retires a strategy (16/n's 23
+  retirements are by failure, as before), the diagnosis of both says `none`
+  (out of moves after gaining), and her scan says of both what it said
+  before, out of moves at this fingerprint, now with the count and the most
+  frequent reason appended.
+- **The next two in the note's order, read against her records.** 4.3
+  (family searches ordered by the witnessed mass of a class) changes the
+  order of moves within a round; every theorem round in her records ends
+  with no untried move, so the same moves run in a different order and the
+  outcome measure the note named (witnesses per chunk) cannot change; it
+  would show only under an allowance that cuts rounds short, which her
+  library task does not. 4.4 (the witness bound as her own parameter) answers
+  a chunk abandoned for want of a witness within the bound; no chunk in her
+  state or in the 29 rounds since the third tier was abandoned so (the
+  residual note does not occur), and the only bound-exhaustion signal in her
+  reports is the witness search on single numbers, two to five per round at
+  the smaller bound of 256a. Both wait for evidence; 4.4 is the first to
+  install on the round that abandons a chunk, with the bound and the yields
+  recorded in the ledger as the note says.
+- **Preregistered next: 4.2, residual mining.** Before it runs: (1) the
+  baseline is the witnessed numbers in her admitted chunk proofs after the
+  fifth scan, 5,005 on 130 chunks over thirteen problems, and per problem the
+  witness column of the table above (18/n from its rerun); (2) the grammar
+  is the note's: the residue of n modulo m for m dividing the theorem's
+  modulus; for each linear form n + h, hn + 1 and ahn + 1 with h up to 6 and
+  each modulus t in {a, ah}, a statement about the residues modulo t of the
+  prime factors of the form's value (every prime factor in a set of classes,
+  or none in a class), and smoothness or roughness of the value at a bound;
+  (3) the claim is a `pattern` claim under a new rule `residual_predicate`
+  naming the chunk proofs by identity and the predicate; the checker
+  rebuilds the witnessed set from the named proofs and evaluates the
+  predicate on all of it, and the independent verdict does the same with its
+  own code; the claim is stated only for a predicate the witnessed set
+  satisfies entirely and a same-size sample of represented numbers from the
+  same chunks satisfies on fewer than a tenth; (4) the falsifier is a window
+  of the `residual_predicate` family over the witnessed numbers of the next
+  chunk the problem admits, and a failure refutes the claim with the witness
+  kept; (5) the schedule is fourteen rounds, one per theorem problem, in the
+  order of the first contest's table, each from a fresh copy of her state,
+  then one more chunk per problem as the falsifier; recorded per round: the
+  predicates stated, refuted and surviving, the witnessed count they cover,
+  seconds; (6) a defect is a stated predicate the verdict evaluates
+  differently, or a predicate the sample satisfies on a tenth or more; a
+  surviving predicate is a description of her residual, not a theorem, and
+  none is expected to name a new family shape on these problems.
+- **Open obligations.** The instrument table names bounds only: a refusal for
+  a mathematical reason has no instrument and is not a defect. The residual
+  size in the diagnosis counts the entries of every residual object of the
+  run, not the residual of the theorem. The retirement by refusal is per run,
+  so a later call proposes the refused claim once more before retiring the
+  strategy again.
