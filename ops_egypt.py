@@ -37,7 +37,7 @@ LIFT_CAP = 10 ** 7
 LIFT_CLASSES = 60_000
 WALL_CAP = 10 ** 12
 SWEEP_CLASSES = 4000
-RANGE_FRONTIER = 30  # she extends a checked range in chunks of its own size, up to this multiple of verify_to
+RANGE_FRONTIER = 40  # she extends a checked range in chunks of its own size, up to this multiple of verify_to
 # Work units on the prover's side are priced at about a microsecond of this machine (the witness search's price):
 # the cover loop one unit a number plus one per ten moduli, a factor check half the bit length, a family step half
 # the bit length of its linear form; measured 2026-09-25 (CAMPAIGNS.md, consolidation), the checker's charges unchanged.

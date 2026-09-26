@@ -966,8 +966,9 @@ they leave the search to a residual of a few percent of the open-class primes.
 
 The rules let her verified range grow past the checker's bound on one claim
 (2,000,000 numbers). `egypt_range_chunk` extends the admitted range from the
-least n past its frontier, by a chunk as long as the base range and up to ten
-times `verify_to`; `egypt_theorem_range` extends her theorem over the result;
+least n past its frontier, by a chunk as long as the base range and up to forty
+times `verify_to` (ten at first, raised as her rounds reached each frontier);
+`egypt_theorem_range` extends her theorem over the result;
 `egypt_range_union` joins two separately verified ranges. Each is tried once
 per state of what it reads. `egypt_theorem_multiples` closes the theorem whose
 closure is due: one that names its cover while no theorem on that cover is

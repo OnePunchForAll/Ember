@@ -1711,8 +1711,8 @@ not_retried = (not dg.allowed('collatz_affine_descent', c7, rt5) and dg.allowed(
 agent_host = types.SimpleNamespace(**{k: ember[k] for k in ('Refused', 'Exhausted', 'Budget', 'STATE_LIMIT', 'local_module',
                                                              'read_state', 'load_json', 'canonical', 'digest')})
 small = dict(type='unit_fraction_cover', a=4, terms=3, min=2, modulus=24, lifts=[5], verify_to=3000)
-sliced = A.run(dict(query='autonomous_research', problem=small, moves=600, move_work=20000), None, 900_000_000, agent_host)
-whole = A.run(dict(query='autonomous_research', problem=small, moves=600, move_work=20_000_000), None, 900_000_000, agent_host)
+sliced = A.run(dict(query='autonomous_research', problem=small, moves=800, move_work=20000), None, 900_000_000, agent_host)  # 800 moves: the frontier of forty chunks fits
+whole = A.run(dict(query='autonomous_research', problem=small, moves=800, move_work=20_000_000), None, 900_000_000, agent_host)
 anytime = (sliced['anytime']['slices'] > 0 and sliced['anytime']['resumes'] > 0 and sliced['anytime']['switches'] > 0
            and sliced['anytime']['waiting_at_end'] == 0 and 'theorem' in sliced['checked_objects']
            and whole['anytime']['slices'] == 0 and 'theorem' in whole['checked_objects']

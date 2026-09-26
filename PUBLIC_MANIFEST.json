@@ -16,9 +16,9 @@
       "sha256": "6addac5c5e16b6520143052af86076c6f7efd3d7270d9d7a464991e827d0b882"
     },
     {
-      "bytes": 118877,
+      "bytes": 118938,
       "path": "README.md",
-      "sha256": "5176767e9217c1de50a17bb6ca3387805a9bd76a695235b37a3cfd21b5962bb3"
+      "sha256": "aaa2d226fe7c87f45127a3bf806e648c1105dab0db8c47d2ce02c855a69de726"
     },
     {
       "bytes": 1633,
@@ -378,7 +378,7 @@
     {
       "bytes": 95204,
       "path": "ops_egypt.py",
-      "sha256": "a728f1372a50b42cf463612171a51406e992bd0d30d169c8e389628d8d3ee07d"
+      "sha256": "eac6a21dcc6b5f2d3222e097027ef7bcb29f2f41ef2070f6035cf7e871c02d1c"
     },
     {
       "bytes": 9902,
@@ -451,9 +451,9 @@
       "sha256": "d8f776736b224d423db3909d370b18cf8b7c7cb14b71264f02cb28ca21faa157"
     },
     {
-      "bytes": 205462,
+      "bytes": 205510,
       "path": "tools/build_public_package.py",
-      "sha256": "d85e06f7b6cc549cabda2eb2996737733008b5dc03d81d8d1f2cf1f90e851b7c"
+      "sha256": "55fdda9ee8adccc42c186b05dfe8f2d6f89edae221d038bf3dc5626134cd04a0"
     },
     {
       "bytes": 12128,
