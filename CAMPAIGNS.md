@@ -1970,3 +1970,105 @@ she did not mine her own refusals.
   run, not the residual of the theorem. The retirement by refusal is per run,
   so a later call proposes the refused claim once more before retiring the
   strategy again.
+
+## Residual mining installed, as preregistered (commit eb79bc2, fingerprint 43cf6619)
+
+The second researched ability, preregistered in the previous entry, is in
+her language: two derivation rules, two operators, their checks, and the
+fourteen rounds. What the rounds found is a limitation of the grammar, and
+it is recorded as such.
+
+- **What was installed.** A `residual_predicate` derivation names chunk
+  proofs with a family part and a predicate of the grammar (the residue
+  classes of n modulo a divisor of the level modulus; the classes the prime
+  factors of n + h, hn + 1 or ahn + 1, h up to 6, take modulo a or ah; a
+  bound below or above every prime factor of one of those forms) and states
+  that every number the proofs witnessed satisfies it and that fewer than a
+  tenth of a same-size sample of the numbers they represent by a family
+  divisor do, the sample evenly spaced through them; the checker rebuilds
+  both sets from the named proofs and evaluates the predicate on every
+  number, and refuses a claim with fewer than ten numbers on either side. A
+  `residual_break` derivation names one chunk proof and a witnessed number
+  that fails the predicate. The independent verdict has both rules in its
+  own code (six new self-test cases, 51). `egypt_residual_profile` states the
+  selective predicates over the chunk proofs a call carried in (at most
+  sixteen, the most selective first, never one that only restates an admitted
+  plus or times family); `egypt_residual_falsify` tests each surviving
+  predicate on every chunk the call adds, stating the break at the first
+  witnessed number that fails it or the predicate again over the wider proofs
+  while it stays selective. The runtime records the identities carried into a
+  call, so the profile describes what she had and the falsifier what she
+  added. The bench passes 221 operators (120 N, 53 W, 213 S, 79 E; 5 anytime,
+  5,912 breaths) and the pyramid binds 378 moves (175 N, 118 W, 319 S,
+  105 E); the package check `residual_predicates_are_stated_selectively_broken_by_a_witness_and_verified`
+  builds the fixture (4/n with the families plus 1 and times 2 only: the
+  fifteen numbers witnessed in [300, 3000) are all 1 modulo 24, and 3011,
+  witnessed by force past the family it has, breaks that on the next chunk),
+  verifies both claims with the verdict, and refuses a forged count and a
+  vacuous predicate (676 checks).
+- **Where the installation departs from the preregistration, and when.**
+  The falsifier is an operator in her rounds, not a window of the window
+  tools: the witnessed numbers of her next chunk are her own proof's, not a
+  tool's computation, and the break is a checked claim naming that proof.
+  The contrast sample is evenly spaced through the represented numbers
+  rather than the first ones in order, chosen when the first implementation's
+  sample (the smallest numbers of the oldest chunk) was seen to be biased in
+  magnitude, before any measurement on her state. The ten-number minimum was
+  added when the first fixture run showed a residual of one number making
+  every observed value a predicate (sixteen claims of sample size one), a
+  defect of the design found in the fixture, before the rounds.
+- **The fourteen rounds** (fingerprint 43cf6619, each from a fresh copy of her
+  state after the fifth scan, in the first contest's order, 749 s
+  in all). Witnessed and sample are counted over the nineteen chunk proofs
+  with a family part each problem carried; candidates are the predicates of
+  the grammar the witnessed set satisfies; the best candidate is the one the
+  fewest sample numbers satisfy, with that fraction.
+
+| a | s | new checked | witnessed | sample | candidates | best candidate | satisfied by | stated | broken |
+|---|---|---|---|---|---|---|---|---|---|
+| 11 | 41 | 101 | 6 | 6 | below ten |  |  | 0 | 0 |
+| 13 | 17 | 220 | 704 | 704 | 82 | factors of n + 1 mod 13 | 66% | 0 | 0 |
+| 16 | 24 | 402 | 5,395 | 5,395 | 89 | factors of n + 1 mod 16 | 80% | 0 | 0 |
+| 19 | 49 | 270 | 3,117 | 3,117 | 82 | factors of n + 1 mod 19 | 78% | 0 | 0 |
+| 14 | 40 | 217 | 292 | 292 | 92 | factors of 14n + 1 mod 14 | 74% | 0 | 0 |
+| 17 | 21 | 71 | 2,399 | 2,399 | 83 | factors of n + 1 mod 17 | 77% | 0 | 0 |
+| 8 | 35 | 172 | 69 | 69 | 92 | factors of 8n + 1 mod 8 | 62% | 0 | 0 |
+| 10 | 28 | 276 | 179 | 179 | 92 | factors of 10n + 1 mod 10 | 69% | 0 | 0 |
+| 12 | 60 | 129 | 1,083 | 1,083 | 92 | factors of 12n + 1 mod 12 | 70% | 0 | 0 |
+| 21 | 59 | 125 | 2,637 | 2,637 | 89 | factors of 21n + 1 mod 21 | 78% | 0 | 0 |
+| 15 | 48 | 207 | 935 | 935 | 89 | factors of 15n + 1 mod 15 | 72% | 0 | 0 |
+| 18 | 154 | 256 | 2,819 | 2,819 | 92 | factors of 18n + 1 mod 18 | 70% | 0 | 0 |
+| 7 | 103 | 255 | 0 | 0 | below ten |  |  | 0 | 0 |
+| 4 | 70 | 122 | 4 | 4 | below ten |  |  | 0 | 0 |
+
+- **Result.** No round stated a predicate: on eleven problems the most
+  selective candidate of the grammar is satisfied by 62 to 83 percent of the
+  represented sample, against the preregistered tenth, and on 4/n, 7/n and
+  11/n fewer than ten numbers were witnessed over the family chunks (4, 0
+  and 6). The falsifier had nothing to test, and each round added its
+  thirtieth chunk as before. The independent verdict was run on every
+  residual claim the rounds saved: there were none. By the preregistration's
+  criterion there is no defect: nothing was stated that the verdict could
+  evaluate differently, and nothing vacuous was admitted.
+- **Reading.** The best candidates are all factor-class predicates on n + 1
+  or an + 1, of the form "no prime factor of n + 1 lies in the classes c with
+  2c = -1 (mod ah)": consequences of the listed families through composite
+  divisors (2q), which the exclusion of restated families does not catch
+  because it names only the class -1 itself. Residue predicates show the
+  residual occupying 248 of the 256 classes modulo 840 that represented
+  numbers occupy on 16/n, 168 of 192 on 19/n, 138 of 144 on 13/n: a few
+  classes the residual avoids, not enough for a tenth. The residual is, by
+  construction, the set with no divisor in class -1 of any listed form; a
+  grammar over single forms restates that set's definition one form at a
+  time and cannot tell it from the numbers one family takes, which satisfy
+  every other form's condition just as often. A predicate that would say
+  something new must name a form outside the list, and that is a family
+  shape, which the note expected none of these problems to yield; on this
+  grammar the measurement agrees.
+- **Open obligations.** Outside the fixture the falsifier has not run on a
+  stated predicate. The profile's cost in a round is 0.1 to 3 s per level
+  (the factorizations of the forms at every witnessed and sampled number).
+  The bound of sixteen predicates and the tenth are policy constants. A
+  grammar that could describe the residual would have to name the
+  conjunction over the listed forms, or forms outside the list; the second
+  is the family search itself.
