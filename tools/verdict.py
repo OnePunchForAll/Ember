@@ -579,6 +579,57 @@ def statement_of(kind, data):
     return None
 
 
+def three_unit_fractions(a, n):
+    """This tool's own complete search for a/n = 1/x + 1/y + 1/z, x <= y <= z: for each admissible x the pairs (y, z)
+    come from the factor pairs u v = (n x)^2 with u <= n x and e = a x - n dividing both u + n x and v + n x. Returns
+    a solution or None."""
+    def exponents(v):
+        out = {}; p = 2
+        while p * p <= v:
+            while v % p == 0: out[p] = out.get(p, 0) + 1; v //= p
+            p += 1 if p == 2 else 2
+        if v > 1: out[v] = out.get(v, 0) + 1
+        return out
+    en = exponents(n)
+    for x in range(n // a + 1, 3 * n // a + 1):
+        e = a * x - n
+        if e <= 0: continue
+        N = n * x; ex = dict(en)
+        for p, k in exponents(x).items(): ex[p] = ex.get(p, 0) + k
+        divs = [1]
+        for p, k in ex.items(): divs = [d * p ** j for d in divs for j in range(2 * k + 1)]
+        for u in sorted(divs):
+            if u > N: break
+            if (u + N) % e == 0:
+                v = N * N // u
+                if (v + N) % e == 0: return x, (u + N) // e, (v + N) // e
+    return None
+
+
+def exceptions_verdict(d):
+    """VERIFIED when every listed exception has no three-term representation by this tool's own complete search and
+    every other n up to the bound has an exact witness or a represented proper divisor; REFUTED otherwise."""
+    if set(d) != {'a', 'terms', 'bound', 'exceptions', 'witnesses'} or d['terms'] != 3: return 'REFUTED', 'exception set fields'
+    a, bound, exc, wit = d['a'], d['bound'], d['exceptions'], d['witnesses']
+    if type(a) is not int or not 2 <= a <= 64 or type(bound) is not int or not 1 <= bound <= 4000: return 'REFUTED', 'parameters out of range'
+    if type(exc) is not list or exc != sorted(set(exc)) or any(type(n) is not int or not 1 <= n <= bound for n in exc) or type(wit) is not dict: return 'REFUTED', 'exception list or witness table'
+    done = set(); excset = set(exc)
+    for n in range(1, bound + 1):
+        if n in excset:
+            found = three_unit_fractions(a, n)
+            if found is not None: return 'REFUTED', 'the listed exception %d has the representation %s' % (n, list(found))
+            continue
+        xs = wit.get(str(n))
+        if xs is not None:
+            if type(xs) is not list or len(xs) != 2 or any(type(x) is not int or x < 1 for x in xs): return 'REFUTED', 'witness shape at ' + str(n)
+            rest = F(a, n) - F(1, xs[0]) - F(1, xs[1])
+            if rest <= 0 or rest.numerator != 1: return 'REFUTED', 'witness at ' + str(n) + ' leaves no unit fraction'
+            done.add(n); continue
+        if not any(n % k == 0 and k in done for k in range(2, n)): return 'REFUTED', 'no witness or represented divisor for ' + str(n)
+        done.add(n)
+    return 'VERIFIED', '%d exceptions certified by complete search, %d witnesses exact, up to %d' % (len(exc), len(wit), bound)
+
+
 def gfam_form(a, i, j, h1, h2):
     """This tool's own reading of a general family's form: q | A n + B with q = -1 (mod a h2), from d = h1 n^i e^j / h2."""
     if i == 0: A, B = (a ** (j - 1) * h2, h1) if j >= 1 else (h2, a * h1)
@@ -923,6 +974,7 @@ def verdict(kind, data):
         if kind == 'ufam': return family_verdict(data)
         if kind == 'dfam': return dfam_verdict(data)
         if kind == 'gfam': return gfam_verdict(data)
+        if kind == 'exceptions': return exceptions_verdict(data)
         if kind == 'cover': return cover_verdict(data)
         if kind == 'finite': return finite_verdict(data)
         if kind == 'pattern': return pattern_verdict(data)
@@ -1013,6 +1065,10 @@ def self_test():
         'general family with a false instance refuted': gfam_verdict(dict(a=4, terms=3, i=0, j=1, h1=1, h2=1, instances=[[5, 7]]))[0] == 'REFUTED',
         'general family outside the space refuted': gfam_verdict(dict(a=4, terms=3, i=1, j=1, h1=1, h2=1, instances=[[5, 3]]))[0] == 'REFUTED',
         'range extension by general families verifies': extension_case(family=True, general=True)[0] == 'VERIFIED',
+        'exception set of 5/n below 6 verifies': exceptions_verdict(dict(a=5, terms=3, bound=6, exceptions=[1], witnesses={'2': [1, 1], '3': [1, 2], '4': [1, 8], '5': [2, 3]}))[0] == 'VERIFIED',
+        'exception set naming a representable number refuted': exceptions_verdict(dict(a=5, terms=3, bound=6, exceptions=[1, 2], witnesses={'3': [1, 2], '4': [1, 8], '5': [2, 3]}))[0] == 'REFUTED',
+        'exception set missing a witness for a prime refuted': exceptions_verdict(dict(a=5, terms=3, bound=6, exceptions=[1], witnesses={'2': [1, 1], '4': [1, 8], '5': [2, 3]}))[0] == 'REFUTED',
+        'exception set covering a composite by its divisor verifies': exceptions_verdict(dict(a=5, terms=3, bound=6, exceptions=[1], witnesses={'2': [1, 1], '3': [1, 2], '5': [2, 3]}))[0] == 'VERIFIED',
         'range extension by a wrong general family divisor refuted': extension_case(family=True, general=True, bad=True)[0] == 'REFUTED',
     }
     return all(checks.values()), checks

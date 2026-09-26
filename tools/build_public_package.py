@@ -1861,6 +1861,31 @@ shapes_ok = (len(found15) >= 2 and (0, 1, 1, 2) in params15
              and not rt15.check(wrong15) and not rt15.check(outside15)
              and V.verdict('gfam', wrong15['data'])[0] == 'REFUTED' and V.verdict('gfam', outside15['data'])[0] == 'REFUTED'
              and all(o['kind'] != 'gfam' for o in E2['egypt_shape_search'](rt15, esq15)))
+# Certified exception sets: the scan of a stated question lists every n up to 2a^2 + 1 for which a/n is not a sum of
+# three unit fractions, each certified by a complete divisor-method search, with an exact witness for every other n;
+# the checker and the verdict admit the set and refuse a dropped exception, an added one and a wrong witness; a second
+# scan of the same question proposes nothing; the complete search agrees with a brute force on every a <= 12, n <= 40.
+from fractions import Fraction as Fr16
+rt16 = L.Runtime(C, ember['Budget'](10 ** 9)); esq16 = E2['_esq'](rt16, 24, a=21, verify_to=100)
+found16 = [o for o in E2['egypt_exception_scan'](rt16, esq16) if o['kind'] == 'exceptions' and o['status'] == 'checked']
+data16 = found16[0]['data'] if found16 else dict(exceptions=[], witnesses={}, bound=0)
+drop16 = dict(data16, exceptions=data16['exceptions'][1:])
+add16 = dict(data16, exceptions=sorted(data16['exceptions'] + [7]), witnesses={k: v for k, v in data16['witnesses'].items() if k != '7'})
+bad16 = dict(data16, witnesses=dict(data16['witnesses'], **{str(data16['bound']): [1, 1]}))
+def brute16(a, n):
+    r = Fr16(a, n)
+    for x in range(1, 3 * n // a + 1):
+        r1 = r - Fr16(1, x)
+        if r1 <= 0: continue
+        for y in range(max(x, int(1 / r1) + 1), int(2 / r1) + 1):
+            r2 = r1 - Fr16(1, y)
+            if r2 > 0 and r2.numerator == 1 and r2.denominator >= y: return x, y, r2.denominator
+    return None
+exceptions_ok = (len(found16) == 1 and data16['bound'] == 883 and 761 in data16['exceptions'] and 7 not in data16['exceptions']
+                 and str(data16['bound']) in data16['witnesses'] and V.verdict('exceptions', data16)[0] == 'VERIFIED'
+                 and all(not rt16.check(rt16.propose('exceptions', d, (esq16,))) and V.verdict('exceptions', d)[0] == 'REFUTED' for d in (drop16, add16, bad16))
+                 and E2['egypt_exception_scan'](rt16, esq16) == []
+                 and all((brute16(a, n) is None) == (C.three_term_search(a, n, rt16.budget) is None) for a in range(2, 13) for n in range(1, 41)))
 # Refusal accounting: a claim the checker refuses is counted by move, kind and reason and named to the report with the
 # instrument its reason points to; a strategy whose claims are refused with none admitted is retired with the reason;
 # a round that refused more than it admitted waits for an instrument in her scan, naming the reason.
@@ -1991,7 +2016,7 @@ batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == wri
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
                       obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, anytime=anytime,
-                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, residual=residual_ok, shapes=shapes_ok, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
+                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, residual=residual_ok, shapes=shapes_ok, exceptions=exceptions_ok, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -2068,7 +2093,8 @@ shape = (len(problems) >= 10 and {e['status'] for e in problems} == {'open', 'cl
 data = json.loads((root / 'problems.json').read_text(encoding='utf-8'))
 wins = [e for e in problems if e['status'] == 'window']; ids = {c['id'] for c in catalog}
 windows = (len(wins) >= 100 and all(e['window_of'] in ids and e['task']['type'] == 'explore'
-                                    and e['task']['goals'] == ['window'] for e in wins)
+                                    and (e['task']['goals'] == ['window'] or e['task']['goals'] == ['exceptions']
+                                         and all(o['kind'] == 'esq' for o in e['task']['objects'])) for e in wins)
            and {c['window'] for c in catalog if 'window' in c} == {e['id'] for e in wins}
            and all(c.get('window') == 'window-' + c['id'] for c in catalog if 'window' in c)
            and set(data['tools']) >= {k for e in wins for k in {o['kind'] for o in e['task']['objects']}}

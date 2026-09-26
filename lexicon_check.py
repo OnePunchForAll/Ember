@@ -1252,6 +1252,66 @@ def check_gfam(data, budget):
                       'polynomial identity on a %d by %d grid; the named instances checked exactly.' % (GFAM_GRID, GFAM_GRID))
 
 
+# Certified exception sets: for a/n = 1/x + 1/y + 1/z, the numbers up to a bound that have no solution, each certified
+# by a complete search, and every other number by a witness or a represented divisor. Pomerance and Weingartner (2025)
+# show exceptional primes in (a^2, 2 a^2) for every a beyond 6.52 * 10^9 and report them numerically for a >= 20.
+MAX_EXCEPTION_BOUND = 4000
+
+
+def factor_by_trial(v):
+    """Prime exponents of v >= 1 by repeated least factors: the checker's own factorization."""
+    out = {}
+    while v > 1:
+        p = least_factor(v); out[p] = out.get(p, 0) + 1; v //= p
+    return out
+
+
+def three_term_search(a, n, budget):
+    """A solution of a/n = 1/x + 1/y + 1/z in positive integers with x <= y <= z, or None when there is none: complete.
+    For each x with n/a < x <= 3n/a and e = a x - n, the solutions y <= z correspond to the divisors u of (n x)^2 with
+    u <= n x, e | u + n x and e | (n x)^2/u + n x, since (e y - n x)(e z - n x) = (n x)^2; every such x is tried and
+    every divisor of (n x)^2 is built from the prime exponents of n and x."""
+    fn = factor_by_trial(n)
+    for x in range(n // a + 1, 3 * n // a + 1):
+        e = a * x - n
+        if e <= 0: continue
+        N = n * x; exponents = dict(fn)
+        for p, k in factor_by_trial(x).items(): exponents[p] = exponents.get(p, 0) + k
+        divisors = [1]
+        for p, k in exponents.items(): divisors = [d * p ** j for d in divisors for j in range(2 * k + 1)]
+        for u in divisors:
+            budget.use()
+            if u > N or (u + N) % e: continue
+            v = N * N // u
+            if (v + N) % e: continue
+            return x, (u + N) // e, (v + N) // e
+    return None
+
+
+def check_exceptions(data, budget):
+    """A certified exception set for a/n as a sum of three unit fractions: every n from 1 to bound is either a listed
+    exception, for which the complete search finds no solution, or has a witness (two denominators leaving a unit
+    fraction), or a proper divisor d represented earlier (a/(k d) from a/d by scaling). Exact and complete up to the bound."""
+    need(set(data) == {'a', 'terms', 'bound', 'exceptions', 'witnesses'}, 'exception set fields')
+    a = integer(data['a'], 2, 64); need(data['terms'] == 3, 'three unit fractions'); bound = integer(data['bound'], 1, MAX_EXCEPTION_BOUND)
+    exc = data['exceptions']; wit = data['witnesses']
+    need(type(exc) is list and all(type(n) is int and 1 <= n <= bound for n in exc) and exc == sorted(set(exc)), 'exception list')
+    need(type(wit) is dict, 'witness table'); excset = set(exc); done = set()
+    for n in range(1, bound + 1):
+        if n in excset:
+            need(three_term_search(a, n, budget) is None, 'a listed exception is representable: ' + str(n)); continue
+        xs = wit.get(str(n))
+        if xs is not None:
+            need(type(xs) is list and len(xs) == 2 and all(type(x) is int and x >= 1 for x in xs), 'witness shape at ' + str(n))
+            rest = Q(a, n) - Q(1, xs[0]) - Q(1, xs[1]); budget.use(3)
+            need(rest > 0 and rest.numerator == 1, 'witness at ' + str(n) + ' leaves no unit fraction'); done.add(n); continue
+        budget.use(4); need(any(n % d == 0 and d in done for d in range(2, n)), 'no witness or represented divisor for ' + str(n)); done.add(n)
+    return dict(ok=True, kind='exceptions', a=a, bound=bound, exceptions=len(exc), witnessed=len(wit),
+                scope='Up to the bound, a/n is a sum of three unit fractions exactly for the n not listed: each listed n has none '
+                      '(complete search), each other n a witness or a represented proper divisor.',
+                proof='Complete divisor-method search for each exception; exact arithmetic on each witness; scaling for divisors.')
+
+
 def least_factor(n):
     """The least prime factor of n >= 2 by trial division."""
     if n % 2 == 0: return 2
@@ -2163,7 +2223,7 @@ def question(kind, data):
     if kind == 'en': return digest(dict(q='en', a=data.get('a'), n=data.get('n'), terms=data.get('terms')))
     if kind == 'pattern': return digest(dict(q='esq', a=data['cover'].get('a'), terms=data['cover'].get('terms')))
     if kind == 'obstruction': return digest(dict(q='esq', a=data.get('a'), terms=data.get('terms')))
-    if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem', 'dfam', 'gfam'):
+    if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem', 'dfam', 'gfam', 'exceptions'):
         body = data.get('cover', data) if kind == 'density' else data
         return digest(dict(q='esq', a=body.get('a'), terms=body.get('terms')))
     if kind == 'derived':
@@ -2196,7 +2256,7 @@ CHECKS = dict(law=check_law, gf=check_gf, closed=check_closed, period=check_peri
               rootmod=check_rootmod, nosolmod=check_nosolmod, nosol=check_nosol, descent=check_descent,
               introot=check_introot, eigen=check_eigen, cycle=check_cycle,
               dcover=check_dcover, cfinite=check_cfinite, refutation=check_refutation, nofamily=check_nofamily,
-              theorem=check_theorem, obstruction=check_obstruction, dfam=check_dfam, gfam=check_gfam)
+              theorem=check_theorem, obstruction=check_obstruction, dfam=check_dfam, gfam=check_gfam, exceptions=check_exceptions)
 
 
 def window_kind(tool, name):

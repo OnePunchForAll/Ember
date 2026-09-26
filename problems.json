@@ -6030,6 +6030,105 @@
    "scope": "A finite exact view: her tools compute or verify exactly what the statement says, and it settles nothing about the open problem.",
    "known": "Resolution refutations of the pigeonhole principle need exponential size (Haken, 1985).",
    "source": "Folklore."
+  },
+  {
+   "id": "window-schinzel-beyond-bounds",
+   "title": "Window: Schinzel's conjecture for numerator 20 and numerators from 22",
+   "status": "window",
+   "window_of": "schinzel-beyond-bounds",
+   "area": "number theory",
+   "statement": "The exact set of n up to 2a^2 + 1 for which a/n is not a sum of three unit fractions, for a = 20 and a = 22 to 28: each listed n is certified by a complete divisor-method search, and every other n by an exact witness or a represented proper divisor.",
+   "task": {
+    "type": "explore",
+    "objects": [
+     {
+      "kind": "esq",
+      "data": {
+       "a": 20,
+       "terms": 3,
+       "min": 2,
+       "modulus": 24,
+       "verify_to": 100
+      }
+     },
+     {
+      "kind": "esq",
+      "data": {
+       "a": 22,
+       "terms": 3,
+       "min": 2,
+       "modulus": 24,
+       "verify_to": 100
+      }
+     },
+     {
+      "kind": "esq",
+      "data": {
+       "a": 23,
+       "terms": 3,
+       "min": 2,
+       "modulus": 24,
+       "verify_to": 100
+      }
+     },
+     {
+      "kind": "esq",
+      "data": {
+       "a": 24,
+       "terms": 3,
+       "min": 2,
+       "modulus": 24,
+       "verify_to": 100
+      }
+     },
+     {
+      "kind": "esq",
+      "data": {
+       "a": 25,
+       "terms": 3,
+       "min": 2,
+       "modulus": 24,
+       "verify_to": 100
+      }
+     },
+     {
+      "kind": "esq",
+      "data": {
+       "a": 26,
+       "terms": 3,
+       "min": 2,
+       "modulus": 24,
+       "verify_to": 100
+      }
+     },
+     {
+      "kind": "esq",
+      "data": {
+       "a": 27,
+       "terms": 3,
+       "min": 2,
+       "modulus": 24,
+       "verify_to": 100
+      }
+     },
+     {
+      "kind": "esq",
+      "data": {
+       "a": 28,
+       "terms": 3,
+       "min": 2,
+       "modulus": 24,
+       "verify_to": 100
+      }
+     }
+    ],
+    "goals": [
+     "exceptions"
+    ]
+   },
+   "scope": "A finite exact view: her scan computes exactly what the statement says, and it settles nothing about the open problem; exceptions beyond 2a^2 + 1 exist (for a = 20 the library records 90,001), and the window does not list them.",
+   "known": "Pomerance and Weingartner (arXiv 2511.16817) report numerical calculations supporting an exceptional prime in (a^2, 2a^2) for every a >= 20; any threshold for a is at least exp(a^(1/3 + o(1))).",
+   "source": "Schinzel (see Sierpiński 1956). Pomerance and Weingartner (arXiv 2511.16817; Ramanujan J. 2026)."
   }
  ],
  "catalog": [
@@ -6696,12 +6795,13 @@
    "id": "schinzel-beyond-bounds",
    "title": "Schinzel's conjecture for numerator 20 and numerators from 22",
    "area": "number theory",
-   "statement": "For a = 20 and every a >= 22, a/n = 1/x + 1/y + 1/z has a solution in positive integers for all sufficiently large n. Her statement bounds now reach numerators up to 64 and least n up to 100,000, but an exhaustive search here to 10^5 still finds exceptions near that limit (for a = 20 the largest is 90,001), so no threshold is stated; the numerators 12, 15 to 19 and 21 are now stated problems.",
+   "statement": "For a = 20 and every a >= 22, a/n = 1/x + 1/y + 1/z has a solution in positive integers for all sufficiently large n. Her statement bounds now reach numerators up to 64 and least n up to 100,000, but an exhaustive search here to 10^5 still finds exceptions near that limit (for a = 20 the largest is 90,001), so no threshold is stated; the numerators 12, 15 to 19 and 21 are now stated problems. Its window certifies the exact exception set of a/n up to 2a^2 + 1 for a = 20 and a = 22 to 28.",
    "source": "Schinzel (see Sierpiński 1956, who also posed a = 5). Pomerance and Weingartner (arXiv 2511.16817; Ramanujan J. 2026) showed that any threshold for a is at least exp(a^(1/3 + o(1))).",
    "needs": [
     "finite-search-at-scale"
    ],
-   "checked": "2026-09-25, web search: open for every a >= 4"
+   "checked": "2026-09-25, web search: open for every a >= 4",
+   "window": "window-schinzel-beyond-bounds"
   },
   {
    "id": "five-x-plus-one",
@@ -7923,6 +8023,12 @@
     "statement-bounds"
    ],
    "summary": "Wider bounds for unit fraction statements: numerators up to 64, least n up to 100,000."
+  },
+  "esq": {
+   "needs": [
+    "finite-search-at-scale"
+   ],
+   "summary": "Certified exception sets of a/n as a sum of three unit fractions up to 2a^2 + 1: a complete divisor-method search for each exception and an exact witness for every other n."
   }
  },
  "resolved": [

@@ -629,9 +629,9 @@ Theory Pyramid Mapping directions:
 
 ### The reasoning pyramid
 
-`--pyramid` prints the map. Its base is a catalog of 378 implemented moves across
+`--pyramid` prints the map. Its base is a catalog of 380 implemented moves across
 34 modules: 157 subreasoner moves (9 of them control moves that schedule, persist
-or replay work) and the 221 operators of the typed language described below. The
+or replay work) and the 223 operators of the typed language described below. The
 base holds 169 moves with an N component, 118 with W, 313 with S and 105 with E.
 Each move names its functions, directions, the evidence types it
 consumes and produces, and how its output is admitted. The layers above are the
@@ -876,7 +876,7 @@ code, has its own exact arithmetic (its window checkers live in `window_check.py
 `window_real.py` and `window_discrete.py`), and binds every claim to the question
 stated in its own data.
 
-221 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
+223 operators in ten modules (`ops_seq`, `ops_poly`, `ops_orbit`, `ops_egypt`,
 `ops_arith`, `ops_word`, `ops_matrix`, `ops_collatz`, `ops_wnum`, `ops_wdisc`)
 consume and produce objects.
 Each output is created through one runtime event with a checkable precondition:
@@ -1079,6 +1079,27 @@ them after the four shapes, and her composed theorem names them with the
 rest. On her fifth-scan residuals the families she found represent 61 to
 88 percent of the sampled witnessed numbers on the four problems probed
 first (CAMPAIGNS.md records the preregistered rounds).
+
+Her language also states what a numerator's question leaves out. An
+`exceptions` claim lists, for a/n with 2 <= a <= 64, every n up to a bound (at
+most 4,000) for which a/n is not a sum of three unit fractions, with a witness
+for every other n: two denominators leaving a unit fraction, or a proper
+divisor represented earlier (a/(k d) scales from a/d). The checker certifies
+each listed exception by a complete search: with x the least denominator, x
+lies in (n/a, 3n/a], and 1/y + 1/z = e/(n x) with e = a x - n exactly when
+(e y - n x)(e z - n x) = (n x)^2, so y and z come from the divisors u <= n x of
+(n x)^2 with e | u + n x and e | (n x)^2/u + n x, and no such divisor for any x
+means no representation. The verdict tool repeats the search in its own code,
+and the package build checks the search against a brute force on every a <=
+12, n <= 40. `egypt_exception_scan` states the set up to 2a^2 + 1 (4,000 from
+a = 45) for a stated question, once per question; a refused set leaves a
+residual naming the count. The library's window of Schinzel's conjecture for
+the numerators she does not state (`window-schinzel-beyond-bounds`) asks for
+the sets of a = 20 and 22 to 28, and each takes her well under a second. A set
+says nothing beyond its bound: exceptions continue past 2a^2 (for a = 24 the
+bound 1,153 is itself one), and her sets for every a from 20 to 44 hold a
+prime exception in (a^2, 2a^2), as the calculations Pomerance and Weingartner
+report (arXiv 2511.16817) support.
 
 ## Autonomous research agent
 
@@ -1287,8 +1308,14 @@ The conjecture (Erdős and Straus, 1948) states that 4/n = 1/x + 1/y + 1/z has a
 solution in positive integers for every n >= 2. It is open. It has been verified
 far beyond any bound used here, and Mordell showed polynomial identities for every
 residue class modulo 840 except 1, 121, 169, 289, 361 and 529. Polynomial
-identities cannot cover classes that are quadratic residues (Mordell; Schinzel;
-Yamamoto). Ember was given only the problem statement
+identities cannot cover classes that are quadratic residues: Schinzel's theorem
+(Funct. Approx. Comment. Math. 28, 2000) says that if 4/(at + b) is a sum of
+three unit fractions with polynomial denominators then b is a quadratic
+non-residue modulo a, and Elsholtz and Tao (J. Aust. Math. Soc. 94, 2013,
+Prop. 1.6) show odd squares have no Type I or Type II solutions. Her
+`obstruction` lemma below is a checked rediscovery of that theorem, not a new
+result. The verified range stands at 10^17 (Salez, 2014), with a 10^18 claim
+of 2025 not yet refereed. Ember was given only the problem statement
 `examples/agent_erdos_straus.json`: numerator 4, three terms, n >= 2, base modulus
 840, refinement primes 11, 3 and 3 (moduli 840, 9,240, 27,720 and 83,160), and a
 checked range below 100,000.
@@ -1457,8 +1484,10 @@ python -I -B -X utf8 ember.py examples/open_problems.json --state her-instance.j
   - *Closed* (5) calibrate her: the Collatz sieve to 2^18, whose counts are
     known; 3/n and the halving map, which are true; and the 3n − 1 and 5n + 1
     maps, which are false because each has a cycle.
-  - *Windows* (125): a finite exact view of a catalog problem, one per problem
-    that has one (below). A window never settles its problem.
+  - *Windows* (126): a finite exact view of a catalog problem, one per problem
+    that has one (below). A window never settles its problem. One window asks
+    for certified exception sets (`exceptions` claims) instead of a window
+    tool's answer.
 
   A task states the part of its problem her checker can decide, and each entry's
   `scope` says what a result means for the problem.

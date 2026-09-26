@@ -804,7 +804,7 @@ class CoverGoal(Goal):
         claims_first += [row for head in heads[1:] for row in [head] + claims[id(head)]]
         # Range chunks past the base range and the derivations built on them (the chunk's cover is named by digest).
         # Divisor families stand alone; the chunk proofs that use them name their shapes and are checked exactly.
-        claims_first += [dict(kind=k, data=o['data']) for k in ('dfam', 'gfam') for o in rt.objects.values() if o['kind'] == k and o['status'] == 'checked']
+        claims_first += [dict(kind=k, data=o['data']) for k in ('dfam', 'gfam', 'exceptions') for o in rt.objects.values() if o['kind'] == k and o['status'] == 'checked']
         claims_first += [compact_range(self.L, o, chain, heads) for o in chunks]
         claims_first += [compact_proof(self.L, o, chain, heads) for o in latest_residual_claims(
             [o for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked'])]
@@ -1248,9 +1248,15 @@ class ExploreGoal(Goal):
     """Find checked facts of the requested kinds about each given object. The goal 'window' asks, for each window
     object, for the answer kind its family gives (a value, a witness or a proof)."""
     kind = 'explore'
-    persist = ('value', 'witness', 'proof')
+    persist = ('value', 'witness', 'proof', 'exceptions')
 
     def __init__(self, p, L): self.p = p
+
+    def allowed(self, strategy, target, rt):
+        # A unit-fraction question stated for exploration wants its exception set only: the level moves of the cover
+        # goal do not apply to it.
+        if target['kind'] == 'esq': return strategy in ('egypt_exception_scan', 'verify')
+        return True
 
     def init(self, rt):
         self.roots = [rt.given(o['kind'], o['data']) for o in self.p['objects']]
@@ -1329,6 +1335,11 @@ def bind(task, host, L):
                     raise host.Refused('a window goal takes window objects of known families')
                 try: checker.question(o['kind'], o['data'])
                 except checker.Invalid as exc: raise host.Refused('window object: ' + str(exc))
+        if 'exceptions' in p['goals']:
+            for o in p['objects']:
+                if type(o) is not dict or set(o) != {'kind', 'data'} or o['kind'] != 'esq' or type(o['data']) is not dict \
+                        or type(o['data'].get('a')) is not int or not 2 <= o['data']['a'] <= 64 or o['data'].get('terms') != 3:
+                    raise host.Refused('an exceptions goal takes unit fraction questions with numerators 2..64 and three terms')
     return p, moves, per, weighted_reports(reports), digest(dict(query='autonomous_research', problem=p))
 
 
@@ -2285,7 +2296,7 @@ def scan(task, state_path, limit, host):
     return dict(result, **report)
 
 
-RESULT_KINDS = ('cover', 'finite', 'pattern', 'density', 'theorem', 'derived', 'dfam', 'gfam', 'dcover', 'cfinite', 'cycle', 'exclusion',
+RESULT_KINDS = ('cover', 'finite', 'pattern', 'density', 'theorem', 'derived', 'dfam', 'gfam', 'exceptions', 'dcover', 'cfinite', 'cycle', 'exclusion',
                 'value', 'witness', 'proof')
 
 
@@ -2333,6 +2344,8 @@ def result_row(o):
     if o['kind'] == 'cfinite': row.update(lo=d['lo'], hi=d['hi'])
     if o['kind'] == 'dfam': row.update(shape=d['shape'], h=d['h'], form=ev.get('form'))
     if o['kind'] == 'gfam': row.update(params=[d['i'], d['j'], d['h1'], d['h2']], form=ev.get('form'), instances=ev.get('instances'))
+    if o['kind'] == 'exceptions': row.update(a=d['a'], bound=d['bound'], count=len(d['exceptions']), largest=max(d['exceptions'], default=None),
+                                             exceptions=d['exceptions'][:24], witnessed=ev.get('witnessed'))
     if o['kind'] == 'derived':
         row.update(rule=d['rule'], premises=len(d['premises']), **{k: v for k, v in d['statement'].items() if k != 'kind'},
                    statement=d['statement']['kind'])

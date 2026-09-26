@@ -1163,6 +1163,32 @@ def family_row(o):
     return [d['shape'], d['h']] if o['kind'] == 'dfam' else ['gfam', [d['i'], d['j'], d['h1'], d['h2']]]
 
 
+# ------------------------------------------------------------- certified exceptions below 2 a^2
+def exception_bound(a): return min(2 * a * a + 1, 4000)
+
+
+@op('egypt_exception_scan', 'NS', ('esq',), ('exceptions', 'residual'),
+    'Certify the exception set of a/n = 1/x + 1/y + 1/z below 2 a^2 + 1 (the window where Pomerance and Weingartner '
+    'place exceptional primes for a >= 20): a complete search for every n with no represented proper divisor, a '
+    'witness for each representable one, an exceptions claim naming the rest, which the checker certifies by its own '
+    'complete search. Once per question.')
+def egypt_exception_scan(rt, esq):
+    d = esq['data']; a, terms = d['a'], d['terms']
+    if terms != 3 or not 2 <= a <= 64: return []
+    bound = exception_bound(a)
+    if any(o['kind'] == 'exceptions' and o['status'] == 'checked' and o['data']['a'] == a and o['data']['bound'] == bound for o in rt.objects.values()): return []
+    if any(o['kind'] == 'residual' and o['data']['note'] == 'exception scan refused up to ' + str(bound) for o in rt.objects.values()): return []
+    done = set(); witnesses = {}; exceptions = []
+    for n in range(1, bound + 1):
+        rt.budget.use(4)
+        if any(n % k == 0 and k in done for k in range(2, n)): done.add(n); continue
+        xs = witness(a, n, rt.budget)
+        if xs is None: exceptions.append(n); continue
+        witnesses[str(n)] = sorted(xs)[:-1]; done.add(n)
+    claim = rt.propose('exceptions', dict(a=a, terms=3, bound=bound, exceptions=exceptions, witnesses=witnesses), (esq,))
+    return [claim] if rt.check(claim) else [rt.residual(esq, [str(len(exceptions))], 'exception scan refused up to ' + str(bound))]
+
+
 @op('egypt_theorem_families', 'NS', ('esq',), ('derived',),
     'Compose her theorem with its admitted divisor families: a theorem_families derivation stating that an unresolved '
     'n lies in an open class and meets no family\'s divisor condition. Derived again when the families grow.')
@@ -1742,6 +1768,7 @@ FIXTURES = {
     'egypt_theorem_families': [_composed_level],
     'egypt_residual_profile': [_residual_level],
     'egypt_shape_search': [_shape_level],
+    'egypt_exception_scan': [lambda rt: [_esq(rt, 24, a=7, verify_to=100)], lambda rt: [_esq(rt, 24, a=21, verify_to=100)]],
     'egypt_residual_falsify': [_falsified_level],
     'egypt_range_square': [_composed_level, _ranged_level],
     'egypt_range_union': [_two_ranges_level],
