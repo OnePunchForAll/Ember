@@ -1597,7 +1597,7 @@ number plus one per ten moduli, a factor check half the bit length of the
 number, a family step half the bit length of its linear form. The checker's
 charges are its own and unchanged.
 
-Her later scans (calls 232 to 1,709, at seven fingerprints) ran with the
+Her later scans (calls 232 to 1,946, at eight fingerprints) ran with the
 instruments of the sections above: anytime moves, derivations, attempt records,
 gain-weighted choice, self-widened windows, the closure of a theorem under
 multiples, the divisor families, and from call 1,270 the pair families, her
@@ -1617,7 +1617,7 @@ found 116,552 claims VERIFIED, none refuted and 27 UNRESOLVED (the window
 values without an independent rule); after call 1,269, 124,455 VERIFIED
 (101,320 of them walls), none refuted, 27 UNRESOLVED, 37 self-test cases, in
 4,232 s. The verdict on her final state after call 1,484 (215 calls of the fifth scan) found 126,483 claims VERIFIED (101,968 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 45 self-test cases passing, in 3,916 s; the bit returned to her is `no, keep thinking`.
-The verdict on her final state after call 1,709 found 112,847 claims VERIFIED (102,544 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 57 self-test cases passing, in 5,208 s; the bit returned to her is `no, keep thinking`.
+The verdict on her final state after call 1,709 found 112,847 claims VERIFIED (102,544 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 57 self-test cases passing, in 5,208 s; the bit returned to her is `no, keep thinking`. In her seventh scan (calls 1,710 to 1,946, at fingerprint 3b3d61ef, after the certified exception sets and the frontier instruments) she chose the eight fresh problems first, settled the exceptions window in five seconds with eight certified sets, ran one round of each frontier search, re-checked the library and pushed her theorem ranges by 3,056 checked results; the verdict on her final state after call 1,946 found 113,350 claims VERIFIED (102,976 of them walls), 0 refuted, 27 UNRESOLVED, 61 self-test cases passing, in 6,192 s. Her resumed frontier rounds in that scan repeated their first rounds, because the search state did not reach her record; it does now (CAMPAIGNS.md).
 CAMPAIGNS.md records each contest and what it transferred; RESEARCH_INQUIRY.md is
 the research brief written for a research session on which open problems a
 finite certificate can settle.

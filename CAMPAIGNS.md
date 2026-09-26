@@ -2436,3 +2436,79 @@ the frontier of forty chunks, until her loop's own end.
   for the grid; an exact cover over all moduli with a capacity bound for
   the coverings, to reach 10,080 before 8 means anything; the multiplier
   symmetry and incremental scoring for circulants.
+
+## Her seventh scan, end to end (calls 1,710 to 1,946, fingerprint 3b3d61ef)
+
+- **Setting.** Her own loop from the state the sixth scan's verdict was
+  ingested into, at commit 3fe7bd6: 156 stated problems (25 open, 5 closed,
+  126 windows), the exceptions window and the seven frontier problems fresh,
+  every settled problem eligible again at the new fingerprint, 320 calls
+  allowed within a 6,300 s wall cap, 4,000,000,000 work units a call and
+  50,000,000 a move. Nothing was given to her but the problems.
+
+- **What she chose.** The eight fresh problems first, in id order, one round
+  each: the covering with least modulus 8 (call 1), the 61 grid (2), R(3, 16)
+  on 82 vertices (3), W(10, 3), W(11, 3), W(7, 3) and W(8, 3) one past their
+  records (4 to 7), and the exceptions window (8). Then the re-check wave the
+  new fingerprint owes: 199 window rounds (185 settled again, 14 of her own
+  widened windows out of moves, as in the sixth scan), the five closed
+  calibrations (as known), the sixteen theorem problems she reached (each
+  round adding chunks, 3,056 checked results in 1,299 s with 1,394 claims
+  refused at the language's bounds, the usual accounting of those rounds),
+  and, from call 222, returns to the frontier problems until the wall cap:
+  the covering problem five more rounds, R(3, 16) three, the grid and
+  W(10, 3) one each. 237 calls in 6,330 s; no claim of hers was refused
+  outside the theorem rounds.
+
+- **The frontier rounds.** Each first round ran its search for its move's
+  50,000,000 units and ended as resuming (the round's other two moves, the
+  tool's compute and its older search move, propose nothing on these
+  families): the covering search tried 122 candidate lcms below 50,400 in
+  98 s; the grid search 46 restarts and 388,546 nodes, 90 of 122 points at
+  best, in 218 s; the circulant search 1,701 steps, score 30, in 106 s; the
+  van der Waerden searches 55,282, 66,500, 311,303 and 166,404 steps on
+  Z_449, Z_597, Z_215 and Z_273 with 438, 556, 240 and 279 monochromatic
+  progressions left, in 309 to 462 s. **The resumed rounds repeated the
+  first ones exactly**: the same work, the same saved state, because the
+  explore goal persisted only checked answers and the state lived in a
+  residual that did not reach her record, so each call restarted from the
+  same seed. Found in the scan's records and fixed after it (commit
+  641d913, fingerprint 2a420a28): the goal now keeps the latest state of
+  each resumable search in her record, named by its root's question, and
+  restores it before the round; a three-call run of her loop on the
+  covering problem advances from 8 to 14 to 17 candidates, and a package
+  check reads the saved state back from the state file (681 checks). The
+  ten resumed rounds of this scan (about 1,900 s) are attempts repeated,
+  not continued; the entry above records what one round reaches.
+
+- **The exceptions window.** Call 8, five seconds, eight moves, eight
+  `exceptions` claims admitted, the window settled in its first round by
+  her own choice of moves: a = 20, 47 exceptions up to 801, the largest
+  761; 22, 51 up to 969 (929); 23, 49 up to 1,059 (991); 24, 80 up to 1,153
+  (1,153, the bound itself); 25, 78 up to 1,251 (1,213); 26, 55 up to 1,353
+  (1,061); 27, 75 up to 1,459 (1,381); 28, 88 up to 1,569 (1,471). These are
+  the sets the scratch scan found (the entry above), now stated in her own
+  loop and carried in her record.
+
+- **The re-check wave.** As in the sixth scan: every window settled again
+  in seconds except the fourteen widened ones whose compute exceeds their
+  bounds (pi-normal@2, brocard@4, gilbreath@3, busy-beaver-6@4, the
+  infinitude and class-number windows at @2 and @3, gauss-circle@4,
+  landau@3, schinzel-hypothesis-h@3, lehmer-totient@4), the closed
+  calibrations came out as known, and the theorem rounds pushed their
+  ranges (16/n by 346 chunks and claims, 5/n by 333, 10/n by 279, 19/n by
+  277, 7/n by 256, 13/n by 223, 14/n by 221, 15/n by 213, 18/n by 167,
+  12/n by 134, 21/n by 129, 4/n by 123, 11/n by 102, 8/n by 175, 17/n by
+  75); 6/n and 9/n were not reached before the cap.
+
+- **Verdict.** The verdict on her final state after call 1,946 found 113,350 claims VERIFIED (102,976 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 61 self-test cases passing, in 6,192 s; the bit returned to her is `no, keep thinking`. The eight exception sets and every claim of the theorem rounds are among the VERIFIED; the frontier rounds left no claim to verify, only saved states.
+
+- **Scope.** What the scan shows is what her instruments reach in her own
+  loop at this code and these budgets: the exception sets are exact
+  certificates up to their bounds; the frontier searches' rounds are
+  attempts with their state saved, and a saved state is not evidence about
+  the record. No open problem was settled.
+
+- **Open obligations.** The searches' states carry into her next scan;
+  the instruments the frontier entry names are not built; the verdict tool
+  has no independent rule for the 27 window values it leaves UNRESOLVED.
