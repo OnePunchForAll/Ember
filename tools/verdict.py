@@ -215,6 +215,7 @@ def family_rows(families):
     if type(families) is not dict or set(families) != {'shapes', 'table'} or type(families['table']) is not dict: return None, None, 'family table'
     shapes = []
     for row in families['shapes']:
+        if type(row) is list and len(row) == 2 and row[0] == 'gfam' and gfam_params_ok(row[1]): shapes.append(('gfam', tuple(row[1]))); continue
         if type(row) is not list or len(row) != 2 or row[0] not in ('plus', 'times', 'square', 'pair') or type(row[1]) is not int:
             return None, None, 'family shape'
         shapes.append((row[0], row[1]))
@@ -574,12 +575,64 @@ def statement_of(kind, data):
     if kind == 'derived': return data['statement']
     if kind == 'cover': return dict(kind='cover', a=data['a'], terms=data['terms'], modulus=data['modulus'])
     if kind == 'dfam': return dict(kind='dfam', a=data['a'], terms=data['terms'], shape=data['shape'], h=data['h'])
+    if kind == 'gfam': return dict(kind='gfam', a=data['a'], terms=data['terms'], params=[data['i'], data['j'], data['h1'], data['h2']])
     return None
+
+
+def gfam_form(a, i, j, h1, h2):
+    """This tool's own reading of a general family's form: q | A n + B with q = -1 (mod a h2), from d = h1 n^i e^j / h2."""
+    if i == 0: A, B = (a ** (j - 1) * h2, h1) if j >= 1 else (h2, a * h1)
+    else: A, B = (a * h1, h2) if j == 0 else ((h1, h2) if j == 1 else (h1, a * h2))
+    return A, B, a * h2
+
+
+def gfam_params_ok(params):
+    if type(params) not in (list, tuple) or len(params) != 4 or any(type(x) is not int for x in params): return False
+    i, j, h1, h2 = params
+    return i in (0, 2) and j in (0, 1, 2) and 1 <= h1 <= 64 and 1 <= h2 <= 64 and gcd(h1, h2) == 1 and (j >= 1 or h2 == 1)
+
+
+def gfam_denominators(a, params, n, q):
+    """The three denominators of a general family for n and its divisor q, or None: e = (q + 1)/a, d = h1 n^i e^j / h2,
+    x = n e, y = (n e + d)/q, z = n e y/d, all integers or None."""
+    if not gfam_params_ok(params): return None
+    i, j, h1, h2 = params; A, B, t = gfam_form(a, i, j, h1, h2)
+    if q < 1 or (q + 1) % t or (A * n + B) % q: return None
+    e = (q + 1) // a
+    if e % h2: return None
+    d = h1 * n ** i * (e // h2) * e ** (j - 1) if j >= 1 else h1 * n ** i
+    if (n * e + d) % q: return None
+    y = (n * e + d) // q
+    if (n * e * y) % d: return None
+    return n * e, y, n * e * y // d
+
+
+def gfam_verdict(d):
+    """VERIFIED when the general family's parameters lie in the space, its identity holds as a polynomial identity in
+    n and q (checked on a 13 by 13 grid, more points than its degree in either variable), and every instance it names
+    gives positive integers summing to a/n; REFUTED otherwise."""
+    if set(d) != {'a', 'terms', 'i', 'j', 'h1', 'h2', 'instances'} or d['terms'] != 3: return 'REFUTED', 'general family fields'
+    a = d['a']; params = (d['i'], d['j'], d['h1'], d['h2'])
+    if type(a) is not int or not 2 <= a <= 64 or not gfam_params_ok(params): return 'REFUTED', 'parameters outside the space'
+    i, j, h1, h2 = params
+    for n in range(1, 14):
+        for q in range(1, 14):
+            e = F(q + 1, a); dd = F(h1, h2) * n ** i * e ** j; x = n * e; y = (n * e + dd) / q; z = n * e * y / dd
+            if 1 / x + 1 / y + 1 / z != F(a, n): return 'REFUTED', 'the identity fails at n = %d, q = %d' % (n, q)
+    rows = d['instances']
+    if type(rows) is not list or not 1 <= len(rows) <= 16 or any(type(r) is not list or len(r) != 2 or type(r[0]) is not int or type(r[1]) is not int for r in rows):
+        return 'REFUTED', 'general family instances'
+    for n, q in rows:
+        xs = gfam_denominators(a, params, n, q)
+        if n < 1 or xs is None or min(xs) < 1 or sum(F(1, x) for x in xs) != F(a, n): return 'REFUTED', 'instance fails at n = ' + str(n)
+    return 'VERIFIED', 'identity on the grid and %d instances exact; form %d n + %d, q = -1 mod %d' % ((len(rows),) + gfam_form(a, i, j, h1, h2))
 
 
 def dfam_denominators(a, shape, h, n, q):
     """This tool's own reading of a divisor family: the three denominators for n and its divisor q, or None. Type I
-    with x = n e, e = (q + 1)/a, q = a e - 1, y = (n e + f)/q and z = n e y/f, f = h e, e/h or e^2 by shape."""
+    with x = n e, e = (q + 1)/a, q = a e - 1, y = (n e + f)/q and z = n e y/f, f = h e, e/h or e^2 by shape; a
+    general family ('gfam', with h its parameters) by its own formula."""
+    if shape == 'gfam': return gfam_denominators(a, h, n, q)
     if q < 1 or (q + 1) % a: return None
     e = (q + 1) // a
     if shape == 'pair':
@@ -640,10 +693,8 @@ def extension_verdict(a, terms, lo, h, hi, cover, witnesses, families=None):
     if families is not None:
         if type(families) is not dict or set(families) != {'shapes', 'table'} or type(families['table']) is not dict:
             return 'REFUTED', 'family table'
-        for row in families['shapes']:
-            if type(row) is not list or len(row) != 2 or row[0] not in ('plus', 'times', 'square', 'pair') or type(row[1]) is not int:
-                return 'REFUTED', 'family shape'
-            shapes.append((row[0], row[1]))
+        shapes, _, problem = family_rows(families)
+        if problem: return 'REFUTED', problem
         if shapes and terms != 3: return 'REFUTED', 'divisor families give three unit fractions'
     if cover is not None:
         v, detail = cover_verdict(cover)
@@ -802,13 +853,13 @@ def derived_verdict(d, admitted):
         expected = dict(T, closure='multiples', closed_at=T['range_hi'], open_residues=opened[0], open_coprime=opened[1])
         return ('VERIFIED', 'closure recounted') if s == expected else ('REFUTED', 'the open counts are not those of the closure')
     if d['rule'] == 'theorem_families':
-        T = [q for q in premises if q['kind'] == 'theorem']; fams = [q for q in premises if q['kind'] == 'dfam']
+        T = [q for q in premises if q['kind'] == 'theorem']; fams = [q for q in premises if q['kind'] in ('dfam', 'gfam')]
         if len(T) != 1 or not fams or len(fams) + 1 != len(premises): return 'REFUTED', 'theorem_families takes a theorem and divisor families'
         T = T[0]
         if 'families' in T: return 'REFUTED', 'the theorem already names its families'
         if any(f['a'] != T['a'] or f['terms'] != T['terms'] for f in fams): return 'REFUTED', 'families of another question'
-        shapes = sorted([f['shape'], f['h']] for f in fams)
-        if len({tuple(x) for x in shapes}) != len(shapes): return 'REFUTED', 'a family named twice'
+        shapes = sorted([f['shape'], f['h']] if f['kind'] == 'dfam' else ['gfam', f['params']] for f in fams)
+        if len({json.dumps(x) for x in shapes}) != len(shapes): return 'REFUTED', 'a family named twice'
         return ('VERIFIED', 'the disjunction of admitted claims') if s == dict(T, families=shapes) else ('REFUTED', 'the statement differs from the premise beyond its families')
     if d['rule'] == 'residual_predicate':
         if set(s) != {'kind', 'a', 'terms', 'predicate', 'lo', 'hi', 'witnessed', 'sample'} or s['kind'] != 'residual_predicate': return 'REFUTED', 'residual predicate statement'
@@ -871,6 +922,7 @@ def verdict(kind, data):
     try:
         if kind == 'ufam': return family_verdict(data)
         if kind == 'dfam': return dfam_verdict(data)
+        if kind == 'gfam': return gfam_verdict(data)
         if kind == 'cover': return cover_verdict(data)
         if kind == 'finite': return finite_verdict(data)
         if kind == 'pattern': return pattern_verdict(data)
@@ -956,6 +1008,12 @@ def self_test():
         'residual predicate the sample satisfies refuted': residual_case(vacuous=True)[0] == 'REFUTED',
         'residual break at a witnessed number verifies': residual_case(broken=True)[0] == 'VERIFIED',
         'residual break at a represented number refuted': residual_case(broken=True, wrong=True)[0] == 'REFUTED',
+        'general family plus 1 as a point of the space verifies': gfam_verdict(dict(a=4, terms=3, i=0, j=1, h1=1, h2=1, instances=[[5, 3], [101, 3]]))[0] == 'VERIFIED',
+        'general family times 2 as a point of the space verifies': gfam_verdict(dict(a=4, terms=3, i=0, j=1, h1=1, h2=2, instances=[[103, 23]]))[0] == 'VERIFIED',
+        'general family with a false instance refuted': gfam_verdict(dict(a=4, terms=3, i=0, j=1, h1=1, h2=1, instances=[[5, 7]]))[0] == 'REFUTED',
+        'general family outside the space refuted': gfam_verdict(dict(a=4, terms=3, i=1, j=1, h1=1, h2=1, instances=[[5, 3]]))[0] == 'REFUTED',
+        'range extension by general families verifies': extension_case(family=True, general=True)[0] == 'VERIFIED',
+        'range extension by a wrong general family divisor refuted': extension_case(family=True, general=True, bad=True)[0] == 'REFUTED',
     }
     return all(checks.values()), checks
 
@@ -1051,7 +1109,7 @@ def composites_case(more=False):
     return derived_verdict(dict(rule='composite_range', premises=list(admitted), statement=s), admitted)
 
 
-def extension_case(bad=False, family=False):
+def extension_case(bad=False, family=False, general=False):
     """The range [2, 100) of 4/n extended to [2, 110): the primes in the part need a witness (two denominators whose
     remainder is a unit fraction, found by a small search here), and every composite reduces to a divisor at or past 2.
     With family, 101 and 103 are given by divisor families instead: 3 | 101 + 1 (plus 1) and 23 | 2*103 + 1 (times 2)."""
@@ -1061,7 +1119,8 @@ def extension_case(bad=False, family=False):
     proof = dict(cover=None, witnesses=witnesses)
     if family:
         del witnesses['101'], witnesses['103']
-        proof['families'] = dict(shapes=[['plus', 1], ['times', 2]], table={'101': [0, 3], '103': [1, 22 if bad else 23]})
+        proof['families'] = dict(shapes=[['gfam', [0, 1, 1, 1]], ['gfam', [0, 1, 1, 2]]] if general else [['plus', 1], ['times', 2]],
+                                 table={'101': [0, 3], '103': [1, 22 if bad else 23]})
     elif bad: witnesses['103'] = [52, 53]
     ext = dict(rule='range_extend', premises=list(admitted), statement=dict(kind='range', a=4, terms=3, lo=2, hi=110), proof=proof)
     return derived_verdict(ext, admitted)

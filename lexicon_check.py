@@ -1122,8 +1122,9 @@ def family_table(families, terms):
     need(len(families['shapes']) <= MAX_DFAM_SHAPES, 'family shapes bound')
     shapes = []
     for row in families['shapes']:
-        need(type(row) is list and len(row) == 2 and row[0] in DFAM_SHAPES and type(row[1]) is int
-             and 1 <= row[1] <= MAX_DFAM_H, 'family shape')
+        need(type(row) is list and len(row) == 2, 'family shape')
+        if row[0] == 'gfam': shapes.append(('gfam', gfam_params(None, row[1]))); continue
+        need(row[0] in DFAM_SHAPES and type(row[1]) is int and 1 <= row[1] <= MAX_DFAM_H, 'family shape')
         shapes.append((row[0], row[1]))
     need(not shapes or terms == 3, 'divisor families give three unit fractions')
     return shapes, families['table']
@@ -1132,7 +1133,8 @@ def family_table(families, terms):
 def family_terms(a, shapes, n, entry, budget):
     """The three denominators a family entry [shape index, divisor] gives n, positive integers, or Invalid."""
     need(type(entry) is list and len(entry) == 2 and type(entry[0]) is int and 0 <= entry[0] < len(shapes), 'family entry')
-    x, y, z = dfam_terms(a, shapes[entry[0]][0], shapes[entry[0]][1], n, entry[1]); budget.use(7)
+    shape, h = shapes[entry[0]]; budget.use(7)
+    x, y, z = gfam_terms(a, h, n, entry[1]) if shape == 'gfam' else dfam_terms(a, shape, h, n, entry[1])
     need(min(x, y, z) >= 1, 'family denominators must be positive')
     return x, y, z
 
@@ -1173,6 +1175,81 @@ def check_dfam(data, budget):
                       '8 grid; integrality from a | t, h | e and the divisor condition; the first instances checked exactly.')
 
 
+
+
+# A general divisor family, the space the four shapes above are points of. Every Type I solution with x = n e,
+# e = (q + 1)/a, comes from a divisor d of (n e)^2 with y = (n e + d)/q and z = n e y/d, since then
+# 1/y + 1/z = q/(n e) and 1/x + 1/y + 1/z = (1 + q)/(n e) = a/n. With d = h1 n^i e^j / h2 the divisibility q | n e + d
+# is the divisibility of one linear form A n + B by q, once q = -1 (mod a h2) makes a e = 1 (mod q) and h2 | e; the
+# form is computed at gfam_form. Plus h is (0, 1, h, 1), times h is (0, 1, 1, h), pair h is (2, 0, h, 1) and the
+# square is (0, 2, 1, 1); the rest of the space is hers to search.
+GFAM_I = (0, 2)
+GFAM_J = (0, 1, 2)
+GFAM_GRID = 12  # the identity, denominators cleared, has degree below 12 in n and in q: vanishing on the grid proves it
+MAX_GFAM_INSTANCES = 16
+
+
+def gfam_params(a, params):
+    """Refuse parameters outside the space: (i, j, h1, h2) with i in {0, 2}, j in {0, 1, 2}, h1 and h2 coprime in
+    range, and h2 = 1 when j = 0 (d must be an integer)."""
+    need(type(params) in (list, tuple) and len(params) == 4 and all(type(x) is int for x in params), 'general family parameters')
+    i, j, h1, h2 = params
+    need(i in GFAM_I and j in GFAM_J and 1 <= h1 <= MAX_DFAM_H and 1 <= h2 <= MAX_DFAM_H and gcd(h1, h2) == 1
+         and (j >= 1 or h2 == 1), 'general family parameters')
+    return i, j, h1, h2
+
+
+def gfam_form(a, i, j, h1, h2):
+    """The linear form and class of the general family: q | A n + B with q = -1 (mod t), t = a h2."""
+    if i == 0: A, B = (a ** (j - 1) * h2, h1) if j >= 1 else (h2, a * h1)
+    else: A, B = (a * h1, h2) if j == 0 else ((h1, h2) if j == 1 else (h1, a * h2))
+    return A, B, a * h2
+
+
+def gfam_terms(a, params, n, q):
+    """The three denominators the general family gives n from its divisor q, or Invalid: e = (q + 1)/a,
+    d = h1 n^i e^j / h2, x = n e, y = (n e + d)/q, z = n e y / d. y is an integer whenever q divides the form (the
+    lemma at gfam_form: a e = 1 and h2 | e modulo q make q | n e + d and q | A n + B the same condition); z is an
+    integer when d | n e y, a condition of the instance, as h | e f is for a pair."""
+    i, j, h1, h2 = gfam_params(a, params); A, B, t = gfam_form(a, i, j, h1, h2)
+    need(type(q) is int and q >= 1 and (q + 1) % t == 0, 'family divisor class')
+    need((A * n + B) % q == 0, 'family divisor condition')
+    e = (q + 1) // a; d = h1 * n ** i * (e // h2) * e ** (j - 1) if j >= 1 else h1 * n ** i
+    need((n * e + d) % q == 0, 'family divisor condition'); y = (n * e + d) // q
+    need((n * e * y) % d == 0, 'family divisor condition')
+    return n * e, y, n * e * y // d
+
+
+def gfam_rational(a, i, j, h1, h2, n, q):
+    """The denominators as rational functions of n and q, nothing assumed about divisibility: the identity check."""
+    e = Q(q + 1, a); d = Q(h1, h2) * n ** i * e ** j; x = n * e; y = (n * e + d) / q
+    return x, y, n * e * y / d
+
+
+def check_gfam(data, budget):
+    """A general divisor family: for every n >= 1 and every divisor q of A n + B with q = -1 (mod t) for which the
+    three denominators are integers, a/n is the sum of their unit fractions. The identity is a polynomial identity
+    in n and q once denominators are cleared, of degree below GFAM_GRID in each, so vanishing on the grid proves it;
+    the instances the claim names are computed and checked exactly (at least one)."""
+    need(set(data) == {'a', 'terms', 'i', 'j', 'h1', 'h2', 'instances'}, 'general family fields')
+    a = integer(data['a'], 2, 64); need(data['terms'] == 3, 'three unit fractions')
+    i, j, h1, h2 = gfam_params(a, [data['i'], data['j'], data['h1'], data['h2']]); A, B, t = gfam_form(a, i, j, h1, h2)
+    for n in range(1, GFAM_GRID + 1):
+        for q in range(1, GFAM_GRID + 1):
+            budget.use(8); x, y, z = gfam_rational(a, i, j, h1, h2, Q(n), Q(q))
+            need(Q(1) / x + Q(1) / y + Q(1) / z == Q(a, n), 'family identity fails')
+    rows = data['instances']
+    need(type(rows) is list and 1 <= len(rows) <= MAX_GFAM_INSTANCES and all(type(r) is list and len(r) == 2 and type(r[0]) is int
+         and r[0] >= 1 and type(r[1]) is int for r in rows) and len({tuple(r) for r in rows}) == len(rows), 'general family instances')
+    for n, q in rows:
+        budget.use(8); x, y, z = gfam_terms(a, (i, j, h1, h2), n, q)
+        need(min(x, y, z) >= 1 and Q(1, x) + Q(1, y) + Q(1, z) == Q(a, n), 'family instance fails at n = ' + str(n))
+    return dict(ok=True, kind='gfam', params=[i, j, h1, h2], form=[A, B, t], instances=len(rows),
+                scope='For every n >= 1 and every divisor q of %d n + %d with q = -1 (mod %d) for which the denominators are '
+                      'integers, a/n = 1/x + 1/y + 1/z with x = n e, y = (n e + d)/q, z = n e y/d, e = (q + 1)/a, '
+                      'd = %d n^%d e^%d / %d.' % (A, B, t, h1, i, j, h2),
+                proof='Type I identity (1 + q)/(n e) = a/n with q = a e - 1 and (q y - n e)(q z - n e) = (n e)^2, verified as a '
+                      'polynomial identity on a %d by %d grid; the named instances checked exactly.' % (GFAM_GRID, GFAM_GRID))
 
 
 def least_factor(n):
@@ -1271,6 +1348,7 @@ def statement_of(kind, data):
     if kind == 'derived': return data['statement']
     if kind == 'cover': return dict(kind='cover', a=data['a'], terms=data['terms'], modulus=data['modulus'])
     if kind == 'dfam': return dict(kind='dfam', a=data['a'], terms=data['terms'], shape=data['shape'], h=data['h'])
+    if kind == 'gfam': return dict(kind='gfam', a=data['a'], terms=data['terms'], params=[data['i'], data['j'], data['h1'], data['h2']])
     raise Invalid('a ' + str(kind) + ' claim is not a premise a derivation rule composes')
 
 
@@ -1371,12 +1449,12 @@ def check_derived(data, budget, admitted=None):
     if rule == 'theorem_families':
         # The theorem composed with divisor families, each an admitted universal claim: an n >= lo that is unresolved
         # lies in an open class of the theorem's cover and meets none of the families' divisor conditions.
-        T = [q for q in premises if q['kind'] == 'theorem']; fams = [q for q in premises if q['kind'] == 'dfam']
+        T = [q for q in premises if q['kind'] == 'theorem']; fams = [q for q in premises if q['kind'] in ('dfam', 'gfam')]
         need(len(T) == 1 and fams and len(fams) + 1 == len(premises), 'theorem_families takes a theorem and divisor families')
         T = T[0]; need('families' not in T, 'the theorem already names its families')
         need(all(f['a'] == T['a'] and f['terms'] == T['terms'] for f in fams), 'families of another question')
-        shapes = sorted([f['shape'], f['h']] for f in fams)
-        need(len({tuple(x) for x in shapes}) == len(shapes), 'a family named twice')
+        shapes = sorted([f['shape'], f['h']] if f['kind'] == 'dfam' else ['gfam', f['params']] for f in fams)
+        need(len({json.dumps(x) for x in shapes}) == len(shapes), 'a family named twice')
         need(s == dict(T, families=shapes), 'the stated theorem differs from the premise beyond its families')
         return dict(ok=True, kind='derived', rule=rule, families=len(shapes), modulus=T['modulus'], lo=T['lo'], range_hi=T['range_hi'],
                     scope='For every integer n >= lo, a/n is a sum of the stated number of unit fractions when n lies in a '
@@ -2085,7 +2163,7 @@ def question(kind, data):
     if kind == 'en': return digest(dict(q='en', a=data.get('a'), n=data.get('n'), terms=data.get('terms')))
     if kind == 'pattern': return digest(dict(q='esq', a=data['cover'].get('a'), terms=data['cover'].get('terms')))
     if kind == 'obstruction': return digest(dict(q='esq', a=data.get('a'), terms=data.get('terms')))
-    if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem', 'dfam'):
+    if kind in ('cover', 'density', 'esq', 'finite', 'reduction', 'theorem', 'dfam', 'gfam'):
         body = data.get('cover', data) if kind == 'density' else data
         return digest(dict(q='esq', a=body.get('a'), terms=body.get('terms')))
     if kind == 'derived':
@@ -2118,7 +2196,7 @@ CHECKS = dict(law=check_law, gf=check_gf, closed=check_closed, period=check_peri
               rootmod=check_rootmod, nosolmod=check_nosolmod, nosol=check_nosol, descent=check_descent,
               introot=check_introot, eigen=check_eigen, cycle=check_cycle,
               dcover=check_dcover, cfinite=check_cfinite, refutation=check_refutation, nofamily=check_nofamily,
-              theorem=check_theorem, obstruction=check_obstruction, dfam=check_dfam)
+              theorem=check_theorem, obstruction=check_obstruction, dfam=check_dfam, gfam=check_gfam)
 
 
 def window_kind(tool, name):

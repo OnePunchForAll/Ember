@@ -43,11 +43,12 @@ COMPANIONS = 4
 READS_WORKSPACE = frozenset(('egypt_cover_assemble', 'egypt_finite_verify', 'collatz_cover_assemble', 'egypt_choose_lift',
                              'egypt_classical_sweep', 'egypt_wall_sweep', 'egypt_range_chunk', 'egypt_range_union',
                              'egypt_theorem_range', 'egypt_theorem_multiples', 'egypt_divisor_families',
-                             'egypt_theorem_families', 'egypt_range_square', 'egypt_residual_profile', 'egypt_residual_falsify'))
+                             'egypt_theorem_families', 'egypt_range_square', 'egypt_residual_profile', 'egypt_residual_falsify',
+                             'egypt_shape_search'))
 # Moves tried once per state of what they read, not once per target and call: each chunk, union or extension is new.
 REPEATABLE = frozenset(('egypt_range_chunk', 'egypt_range_union', 'egypt_theorem_range', 'egypt_theorem_multiples',
                         'egypt_divisor_families', 'egypt_theorem_families', 'egypt_range_square', 'egypt_residual_profile',
-                        'egypt_residual_falsify'))
+                        'egypt_residual_falsify', 'egypt_shape_search'))
 MACRO_STEPS = 4
 PROPOSE_EVERY = 25
 # A move that fails only for lack of work is retried once with this many times the allocation.
@@ -676,7 +677,7 @@ class CoverGoal(Goal):
         if strategy in ('egypt_classical_sweep', 'egypt_wall_sweep'):
             return (self.fam_count, len(self.classical_miss), len(self.classes), len(self.lemmas),
                     sum(len(v) for v in self.walled.values()))
-        if strategy == 'egypt_residual_profile': return ('carried',)  # describes what the call carried in: once per call
+        if strategy in ('egypt_residual_profile', 'egypt_shape_search'): return ('carried',)  # read what the call carried in: once per call
         if strategy == 'egypt_residual_falsify':
             # Runs again only when a chunk proof or a residual claim was added, not on every derived object.
             return (sum(1 for o in self.results if o['kind'] == 'derived' and o['status'] == 'checked'
@@ -685,7 +686,7 @@ class CoverGoal(Goal):
                         'egypt_divisor_families', 'egypt_theorem_families', 'egypt_range_square'):
             # The range moves depend on the admitted ranges, derivations, theorems and covers.
             return tuple(sum(1 for o in self.results if o['kind'] == k and o['status'] == 'checked')
-                         for k in ('finite', 'derived', 'theorem', 'cover', 'dfam'))
+                         for k in ('finite', 'derived', 'theorem', 'cover', 'dfam', 'gfam'))
         return sum(len(rs) for rs in self.fam.values())
 
     def allowed(self, strategy, target, rt):
@@ -790,7 +791,7 @@ class CoverGoal(Goal):
         claims_first += [row for head in heads[1:] for row in [head] + claims[id(head)]]
         # Range chunks past the base range and the derivations built on them (the chunk's cover is named by digest).
         # Divisor families stand alone; the chunk proofs that use them name their shapes and are checked exactly.
-        claims_first += [dict(kind='dfam', data=o['data']) for o in rt.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked']
+        claims_first += [dict(kind=k, data=o['data']) for k in ('dfam', 'gfam') for o in rt.objects.values() if o['kind'] == k and o['status'] == 'checked']
         claims_first += [compact_range(self.L, o, chain, heads) for o in chunks]
         claims_first += [compact_proof(self.L, o, chain, heads) for o in latest_residual_claims(
             [o for o in rt.objects.values() if o['kind'] == 'derived' and o['status'] == 'checked'])]
@@ -2270,7 +2271,7 @@ def scan(task, state_path, limit, host):
     return dict(result, **report)
 
 
-RESULT_KINDS = ('cover', 'finite', 'pattern', 'density', 'theorem', 'derived', 'dfam', 'dcover', 'cfinite', 'cycle', 'exclusion',
+RESULT_KINDS = ('cover', 'finite', 'pattern', 'density', 'theorem', 'derived', 'dfam', 'gfam', 'dcover', 'cfinite', 'cycle', 'exclusion',
                 'value', 'witness', 'proof')
 
 
@@ -2282,6 +2283,7 @@ def visible_results(checked):
     extensions = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_range']
     closures = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_multiples']
     dfams = [o for o in rows if o['kind'] == 'dfam']  # one row stands for the family list; the count is in checked_objects
+    gfams = [o for o in rows if o['kind'] == 'gfam']  # and one for her own general families
     composed = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'theorem_families']
     squares = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] == 'composite_range']
     residual = [o for o in rows if o['kind'] == 'derived' and o['data']['rule'] in ('residual_predicate', 'residual_break')]
@@ -2295,7 +2297,8 @@ def visible_results(checked):
                                                          o['data']['statement'].get('sample', {}).get('satisfied', 0)), default=None)) if o is not None}
     base_lo = min((o['data']['lo'] for o in rows if o['kind'] == 'finite'), default=None)
     shown = [o for o in rows if not (o['kind'] == 'finite' and o['data']['lo'] != base_lo)
-             and not (o['kind'] == 'derived' and id(o) not in keep) and not (o['kind'] == 'dfam' and o is not dfams[0])]
+             and not (o['kind'] == 'derived' and id(o) not in keep) and not (o['kind'] == 'dfam' and o is not dfams[0])
+             and not (o['kind'] == 'gfam' and o is not gfams[0])]
     # The range chain's rows are kept whatever the cut; the other rows fill the rest from the newest.
     chain = [o for o in shown if o['kind'] in ('finite', 'theorem', 'derived')]
     others = [o for o in shown if o['kind'] not in ('finite', 'theorem', 'derived')]
@@ -2315,6 +2318,7 @@ def result_row(o):
     if o['kind'] == 'dcover': row.update(modulus=d['modulus'], covered=ev.get('covered'))
     if o['kind'] == 'cfinite': row.update(lo=d['lo'], hi=d['hi'])
     if o['kind'] == 'dfam': row.update(shape=d['shape'], h=d['h'], form=ev.get('form'))
+    if o['kind'] == 'gfam': row.update(params=[d['i'], d['j'], d['h1'], d['h2']], form=ev.get('form'), instances=ev.get('instances'))
     if o['kind'] == 'derived':
         row.update(rule=d['rule'], premises=len(d['premises']), **{k: v for k, v in d['statement'].items() if k != 'kind'},
                    statement=d['statement']['kind'])

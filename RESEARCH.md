@@ -268,6 +268,13 @@ classes does not tell her residual from what the families take. The
 ability is in place with its checks; what it found is a limitation of the
 grammar, recorded, not a description of the residual.
 
+Beyond the note's list, the ability that answers the residual is the one I
+used against her by hand: finding family shapes. The four shapes are points
+of a parametrized space (d = h1 n^i e^j / h2 in the Type I identity), and
+she now searches that space herself, verifies each family exactly and adopts
+by measured yield on her own residual (`gfam` claims, `egypt_shape_search`);
+CAMPAIGNS.md records the probe, the preregistration and the rounds.
+
 ## 6. Limits of this note
 
 The depth table is one state and four problems; the residues were counted,

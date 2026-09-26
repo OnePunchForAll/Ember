@@ -1841,6 +1841,26 @@ residual_ok = (len(stated14) == 1 and stated14[0]['data']['statement']['predicat
                and V.derived_verdict(forged14, admitted14)[0] == 'REFUTED' and V.derived_verdict(wider14, admitted14)[0] == 'REFUTED'
                and not rt14.check(rt14.propose('derived', forged14)) and not rt14.check(rt14.propose('derived', wider14))
                and E2['egypt_residual_falsify'](rt14, esq14) == [] and any(r['strategy'] == 'egypt_residual_profile' for r in A.refusal_rows(rt14)) is False)
+# Her own shapes: the general family space (d = h1 n^i e^j / h2) searched on a level with one family, plus 1: the search
+# states, greedily by what each adds, general families that represent the witnessed numbers, times 2 as (0, 1, 1, 2)
+# first; a chunk past the level uses them; the checker and the verdict admit the claims and the chunk and refuse a
+# false instance and a point outside the space.
+rt15 = L.Runtime(C, ember['Budget'](10 ** 9)); esq15 = E2['_shape_level'](rt15)[0]
+found15 = [o for o in E2['egypt_shape_search'](rt15, esq15) if o['kind'] == 'gfam' and o['status'] == 'checked']
+params15 = {(o['data']['i'], o['data']['j'], o['data']['h1'], o['data']['h2']) for o in found15}
+rt15.carried = frozenset(rt15.objects)
+chunk15 = E2['_residual_range'](rt15, esq15, E2['RESIDUAL_FIXTURE_CHUNKS'][-1], E2['RESIDUAL_FIXTURE_NEXT'])
+admitted15 = {i: (o['kind'], o['data'], 'VERIFIED') for i, o in rt15.objects.items() if o['status'] == 'checked' and o['kind'] in ('finite', 'derived', 'dfam', 'gfam')}
+wrong15 = rt15.propose('gfam', dict(a=4, terms=3, i=0, j=1, h1=1, h2=1, instances=[[5, 7]])); outside15 = rt15.propose('gfam', dict(a=4, terms=3, i=1, j=1, h1=1, h2=1, instances=[[5, 3]]))
+shapes_ok = (len(found15) >= 2 and (0, 1, 1, 2) in params15
+             and all(V.verdict('gfam', o['data'])[0] == 'VERIFIED' for o in found15)
+             and chunk15['status'] == 'checked' and chunk15['evidence'].get('via_family', 0) > 0
+             and any(row[0] == 'gfam' for row in chunk15['data']['proof']['families']['shapes'])
+             and any(chunk15['data']['proof']['families']['shapes'][i][0] == 'gfam' for i, q in chunk15['data']['proof']['families']['table'].values())
+             and V.derived_verdict(chunk15['data'], admitted15)[0] == 'VERIFIED'
+             and not rt15.check(wrong15) and not rt15.check(outside15)
+             and V.verdict('gfam', wrong15['data'])[0] == 'REFUTED' and V.verdict('gfam', outside15['data'])[0] == 'REFUTED'
+             and all(o['kind'] != 'gfam' for o in E2['egypt_shape_search'](rt15, esq15)))
 # Refusal accounting: a claim the checker refuses is counted by move, kind and reason and named to the report with the
 # instrument its reason points to; a strategy whose claims are refused with none admitted is retired with the reason;
 # a round that refused more than it admitted waits for an instrument in her scan, naming the reason.
@@ -1971,7 +1991,7 @@ batch_ok = (all(admits_kind('ufam', b['data']) for b in batches) and back == wri
             and len(members) == len(written) and all(V.verdict(k_, d_)[0] == 'VERIFIED' for _, k_, d_ in members))
 print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, walls=walls, retire=retire, complete=complete,
                       obstruction=obstruction, bound=bound, spilled=spilled, archived=archived, not_retried=not_retried, anytime=anytime,
-                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, residual=residual_ok, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
+                      derivations=derivations, families=families, third_tier=third_tier, checkpoints=checkpoints, refusals=refusals_ok, residual=residual_ok, shapes=shapes_ok, attempt_recorded=attempt_recorded, choice=choice, priors=priors, implied=implied, lift=lift,
                       compact=compact_ok, batch=batch_ok)))
 """
         began = time.perf_counter_ns()
@@ -2024,6 +2044,7 @@ print(json.dumps(dict(sieve=same, work=[b1.work, b2.work], theorem=theorem, wall
         check('checkpoints_relevant_fingerprints_and_forgetting_settled_first', sieve_result.get('checkpoints') is True)
         check('refusals_are_counted_named_and_retire_a_strategy', sieve_result.get('refusals') is True)
         check('residual_predicates_are_stated_selectively_broken_by_a_witness_and_verified', sieve_result.get('residual') is True)
+        check('general_families_found_by_her_search_verify_and_carry_a_chunk', sieve_result.get('shapes') is True)
         check('residual_records_the_attempt_of_a_deterministic_move', sieve_result.get('attempt_recorded') is True)
         check('problem_choice_weighs_gains_and_inherits_widened_windows', sieve_result.get('choice') is True)
         check('library_priors_read_legacy_contexts_for_one_numerator', sieve_result.get('priors') is True)

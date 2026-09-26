@@ -974,7 +974,7 @@ def egypt_range_chunk(rt, esq):
         rt.budget.use(max(4, n.bit_length() // 2)); p = L.factor(n); p = min(p) if p else n
         if p < n and n // p >= lo: continue  # the checker finds this divisor itself
         # A divisor family before any search: a divisor of n + h, h n + 1 or a n + 1 in the family's class represents n.
-        hit = next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [dfam_divisor(rt, a, shape, h, n)] if q is not None), None)
+        hit = next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [family_divisor(rt, a, shape, h, n)] if q is not None), None)
         if hit is not None: table[str(n)] = [hit[0], hit[1]]; continue
         xs = witness(a, n, rt.budget, max_excess=4 * a * 256) if terms == 3 else None
         if xs is None: missing.append(n); continue
@@ -1009,7 +1009,7 @@ def family_yield(rt, a, terms):
         else: continue
         if not fam: continue
         for i, q in fam['table'].values():
-            key = tuple(fam['shapes'][i]); counts[key] = counts.get(key, 0) + 1
+            row = fam['shapes'][i]; key = (row[0], tuple(row[1]) if type(row[1]) is list else row[1]); counts[key] = counts.get(key, 0) + 1
     return counts
 
 
@@ -1034,9 +1034,31 @@ def divisor_families(rt, a, terms):
     """The admitted divisor families of the question as (shape, h), the ones that cover most first."""
     rows = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values() if o['kind'] == 'dfam'
             and o['status'] == 'checked' and o['data']['a'] == a and o['data']['terms'] == terms}
+    # Her own general families come after the four shapes, the smallest parameters first.
+    general = sorted({('gfam', (o['data']['i'], o['data']['j'], o['data']['h1'], o['data']['h2'])) for o in rt.objects.values()
+                      if o['kind'] == 'gfam' and o['status'] == 'checked' and o['data']['a'] == a and o['data']['terms'] == terms},
+                     key=lambda r: (max(r[1][2], r[1][3]), r[1]))
     # Never more shapes than a proof may name: a list past the checker's bound would have the whole proof refused
     # (the preregistered rounds of the third tier found this on the problems whose lists had grown past 24).
-    return sorted(rows, key=lambda r: (r != ('plus', 1), r[0] == 'square', r[0] != 'times', r[1]))[:rt.checker.MAX_DFAM_SHAPES]
+    return (sorted(rows, key=lambda r: (r != ('plus', 1), r[0] == 'square', r[0] != 'times', r[1])) + general)[:rt.checker.MAX_DFAM_SHAPES]
+
+
+def gfam_divisor(rt, a, params, n):
+    """A divisor q = -1 (mod t) of the general family's form at n that gives n three integer denominators by the
+    checker's own conditions, or None."""
+    A, B, t = rt.checker.gfam_form(a, *params)
+    value = A * n + B; rt.budget.use(max(4, value.bit_length() // 2)); divisors = {1}
+    for p, k in L.factor(value).items():
+        divisors |= {d * p ** j for d in divisors for j in range(1, k + 1)}
+    for q in sorted(d for d in divisors if d % t == (-1) % t):
+        try: rt.checker.gfam_terms(a, params, n, q); return q
+        except rt.checker.Invalid: continue
+    return None
+
+
+def family_divisor(rt, a, shape, h, n):
+    """The divisor a family of either kind gives n, or None: h is the general family's parameters for 'gfam'."""
+    return gfam_divisor(rt, a, h, n) if shape == 'gfam' else dfam_divisor(rt, a, shape, h, n)
 
 
 def dfam_divisor(rt, a, shape, h, n):
@@ -1068,16 +1090,89 @@ def egypt_divisor_families(rt, esq):
     return out
 
 
+# ------------------------------------------------------------- her own shapes: the general family space searched
+SHAPE_H0 = 8  # the first level of the search: h1, h2 up to 8; a level that pays doubles, up to MAX_SHAPE_H
+MAX_SHAPE_H = 32
+SHAPE_SAMPLE = 512  # residual numbers the yield of a candidate is measured on, evenly spaced through the witnessed ones
+SHAPE_YIELD_MIN = 4  # sample numbers a candidate must represent to be stated (at least; and at least 1 in 64 of the sample)
+MAX_SHAPES_PER_SEARCH = 16
+NO_SHAPE = 'shape search: no general family pays at level '
+
+
+def gfam_candidates(a, H, dfams, gfams):
+    """The general families with parameters up to H that are not an admitted shape: (0, 1, h, 1) is plus h,
+    (0, 1, 1, h) times h, (2, 0, h, 1) pair h and (0, 2, 1, 1) the square."""
+    out = []
+    for i in (0, 2):
+        for j in (0, 1, 2):
+            for h1 in range(1, H + 1):
+                for h2 in (range(1, H + 1) if j >= 1 else (1,)):
+                    if gcd(h1, h2) != 1 or (i, j, h1, h2) in gfams: continue
+                    if (i, j) == (0, 1) and ((h2 == 1 and ('plus', h1) in dfams) or (h1 == 1 and ('times', h2) in dfams)): continue
+                    if (i, j) == (2, 0) and ('pair', h1) in dfams: continue
+                    if (i, j, h1, h2) == (0, 2, 1, 1) and ('square', 1) in dfams: continue
+                    out.append((i, j, h1, h2))
+    return out
+
+
+@op('egypt_shape_search', 'NS', ('esq',), ('gfam', 'residual'),
+    'Search the space of general divisor families (d = h1 n^i e^j / h2, the four shapes among its points) at the '
+    'current level of h1, h2, measuring each candidate on a sample of the numbers her chunk proofs had to witness: '
+    'a family that represents enough of them is stated as a gfam claim with those instances, and her ranges use it '
+    'with the rest. A level that pays doubles the next time; once per call.')
+def egypt_shape_search(rt, esq):
+    d = esq['data']; a, terms = d['a'], d['terms']
+    if terms != 3: return []
+    C = rt.checker
+    proofs = residual_proofs(rt, a, terms, carried_only=True)
+    witnessed = C.residual_sets(a, terms, [(o['kind'], o['data']) for o in proofs])[0] if proofs else []
+    gfams = {(o['data']['i'], o['data']['j'], o['data']['h1'], o['data']['h2']) for o in rt.objects.values()
+             if o['kind'] == 'gfam' and o['status'] == 'checked' and o['data']['a'] == a and o['data']['terms'] == terms}
+    dfams = {(o['data']['shape'], o['data']['h']) for o in rt.objects.values()
+             if o['kind'] == 'dfam' and o['status'] == 'checked' and o['data']['a'] == a and o['data']['terms'] == terms}
+    H = min(MAX_SHAPE_H, max(SHAPE_H0, 2 * max((max(p[2], p[3]) for p in gfams), default=0)))
+    if any(o['kind'] == 'residual' and o['data']['note'] == NO_SHAPE + str(H) for o in rt.objects.values()): return []
+    if len(witnessed) < SHAPE_YIELD_MIN: return [rt.residual(esq, ['witnessed ' + str(len(witnessed))], NO_SHAPE + str(H))]
+    sample = C.residual_sample(witnessed, min(SHAPE_SAMPLE, len(witnessed)))
+    # The residual after the families she already found herself: what an admitted general family represents is done.
+    sample = [n for n in sample if not any(gfam_divisor(rt, a, p, n) is not None for p in gfams)]
+    floor = max(SHAPE_YIELD_MIN, len(sample) // 64); rows = []
+    for params in gfam_candidates(a, H, dfams, gfams):
+        hits = {}
+        for n in sample:
+            q = gfam_divisor(rt, a, params, n)
+            if q is not None: hits[n] = q
+        if len(hits) >= floor: rows.append((params, hits))
+    # Greedy by what each adds: the family that represents most of the numbers still uncovered is stated first, and a
+    # family whose numbers are all covered by those already stated (a twin giving the same representations) is not.
+    out = []; uncovered = set(sample)
+    while rows and len(out) < MAX_SHAPES_PER_SEARCH:
+        params, hits = max(rows, key=lambda r: (len(uncovered & set(r[1])), tuple(-x for x in r[0])))
+        gain = uncovered & set(hits)
+        if len(gain) < floor: break
+        rows.remove((params, hits))
+        instances = [[n, hits[n]] for n in sorted(gain)[:C.MAX_GFAM_INSTANCES // 2]]
+        claim = rt.propose('gfam', dict(a=a, terms=3, i=params[0], j=params[1], h1=params[2], h2=params[3], instances=instances), (esq,))
+        if rt.check(claim): out.append(claim); uncovered -= gain
+    return out or [rt.residual(esq, [str(len(sample))], NO_SHAPE + str(H))]
+
+
+def family_row(o):
+    """A family claim as the row a composed theorem names it by: [shape, h], or ['gfam', [i, j, h1, h2]]."""
+    d = o['data']
+    return [d['shape'], d['h']] if o['kind'] == 'dfam' else ['gfam', [d['i'], d['j'], d['h1'], d['h2']]]
+
+
 @op('egypt_theorem_families', 'NS', ('esq',), ('derived',),
     'Compose her theorem with its admitted divisor families: a theorem_families derivation stating that an unresolved '
     'n lies in an open class and meets no family\'s divisor condition. Derived again when the families grow.')
 def egypt_theorem_families(rt, esq):
     d = esq['data']; a, terms, lo = d['a'], d['terms'], d['min']
-    fams = sorted((o for o in rt.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked'
-                   and o['data']['a'] == a and o['data']['terms'] == terms), key=lambda o: (o['data']['shape'], o['data']['h']))
+    fams = sorted((o for o in rt.objects.values() if o['kind'] in ('dfam', 'gfam') and o['status'] == 'checked'
+                   and o['data']['a'] == a and o['data']['terms'] == terms), key=family_row)
     if not fams: return []
     fams = fams[:rt.checker.MAX_PREMISES - 1]
-    shapes = sorted([o['data']['shape'], o['data']['h']] for o in fams)
+    shapes = sorted(family_row(o) for o in fams)
     rows = [(row[3], rt_statement(row[3])) for row in theorem_statements(rt, a, terms) if row[0] == lo]
     plain = [(o, s) for o, s in rows if 'families' not in s]
     if not plain: return []
@@ -1390,7 +1485,7 @@ def egypt_finite_verify(rt, esq):
         if any(n >= row.get(n % m, n + 1) for m, row in thresholds.items()): done.add(n); continue
         rt.budget.use(max(4, n.bit_length() // 2)); p = next((q for q in sorted(L.factor(n)) if q < n and q in done), None)
         if p is not None: divisors[str(n)] = p; done.add(n); continue
-        hit = next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [dfam_divisor(rt, a, shape, h, n)] if q is not None), None)
+        hit = next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [family_divisor(rt, a, shape, h, n)] if q is not None), None)
         if hit is not None: table[str(n)] = [hit[0], hit[1]]; done.add(n); continue
         xs = witness(a, n, rt.budget, max_excess=4 * a * 256) if terms == 3 else None
         if xs is None: missing.append(n); continue
@@ -1554,15 +1649,14 @@ def _residual_range(rt, esq, lo, hi, forced=()):
     an admitted family, then an exact witness (a forced number is witnessed even where a family applies). A finite
     claim from the least n, a range_extend derivation past the admitted range otherwise."""
     d = esq['data']; a, terms = d['a'], d['terms']
-    shapes = sorted((o['data']['shape'], o['data']['h']) for o in rt.objects.values() if o['kind'] == 'dfam' and o['status'] == 'checked'
-                    and o['data']['a'] == a and o['data']['terms'] == terms)
+    shapes = divisor_families(rt, a, terms)
     witnesses = {}; table = {}; divisors = {}; done = set()
     for n in range(lo, hi):
         ps = L.factor(n); p = min(ps) if ps else n
         if p < n and n // p >= d['min']:
             if lo == d['min']: divisors[str(n)] = n // p  # a finite claim declares the checked divisor it scales
             done.add(n); continue
-        hit = None if n in forced else next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [dfam_divisor(rt, a, shape, h, n)] if q is not None), None)
+        hit = None if n in forced else next(((i, q) for i, (shape, h) in enumerate(shapes) for q in [family_divisor(rt, a, shape, h, n)] if q is not None), None)
         if hit is not None: table[str(n)] = [hit[0], hit[1]]; done.add(n); continue
         witnesses[str(n)] = sorted(witness(a, n, rt.budget))[:-1]; done.add(n)
     families = dict(shapes=[[s, h] for s, h in shapes], table=table)
@@ -1581,6 +1675,12 @@ def _residual_level(rt, a=RESIDUAL_FIXTURE_A, chunks=RESIDUAL_FIXTURE_CHUNKS, sh
     lo = 2
     for hi in chunks: _residual_range(rt, esq, lo, hi); lo = hi
     rt.carried = frozenset(rt.objects); return [esq]
+
+
+def _shape_level(rt):
+    """A level with one family only (plus 1) and the fifty-one numbers witnessed in [300, 3000): the search finds
+    general families that represent them, times 2 among them, and states them with their instances."""
+    return _residual_level(rt, shapes=(('plus', 1),))
 
 
 def _falsified_level(rt):
@@ -1641,6 +1741,7 @@ FIXTURES = {
     'egypt_divisor_families': [_ranged_level, lambda rt: [_esq(rt, 24, terms=4, verify_to=5)]],
     'egypt_theorem_families': [_composed_level],
     'egypt_residual_profile': [_residual_level],
+    'egypt_shape_search': [_shape_level],
     'egypt_residual_falsify': [_falsified_level],
     'egypt_range_square': [_composed_level, _ranged_level],
     'egypt_range_union': [_two_ranges_level],

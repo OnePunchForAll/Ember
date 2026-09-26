@@ -1056,6 +1056,29 @@ the measurement). The fixture that exercises the rules is 4/n with the
 families plus 1 and times 2 only, where the fifteen numbers witnessed in
 [300, 3000) are all 1 modulo 24 and a forced witness at 3011 breaks that.
 
+The four shapes are points of a space she can search herself. Every Type I
+solution with x = n e, e = (q + 1)/a, comes from a divisor d of (n e)^2 with
+y = (n e + d)/q and z = n e y/d, since then 1/y + 1/z = q/(n e) and the three
+fractions sum to (1 + q)/(n e) = a/n. With d = h1 n^i e^j / h2 (i in {0, 2}, j
+in {0, 1, 2}, h1 and h2 coprime), the divisibility q | n e + d is the
+divisibility of one linear form A n + B by q once q = -1 (mod a h2): plus h is
+(0, 1, h, 1), times h is (0, 1, 1, h), a pair h is (2, 0, h, 1) and the square
+is (0, 2, 1, 1), and the rest of the space, such as n + a (0, 0, 1, 1) or
+h1 n + a h2 (2, 2, h1, h2), was never given to her. A `gfam` claim names the
+four parameters and instances; the checker verifies the identity as a
+polynomial identity on a 12 by 12 grid and every instance exactly (y is an
+integer whenever q divides the form, z when d | n e y, a condition of the
+instance as h | e f is for a pair), and a chunk proof's family table may name
+a general family by its parameters. `egypt_shape_search` enumerates the space
+up to a level of h1, h2 (8 first, doubling while a level pays, up to 32),
+measures each candidate on a sample of the numbers her carried chunk proofs
+had to witness, and states, greedily by what each adds, the families that
+represent at least four of them and one in sixty-four; her ranges then use
+them after the four shapes, and her composed theorem names them with the
+rest. On her fifth-scan residuals the families she found represent 61 to
+88 percent of the sampled witnessed numbers on the four problems probed
+first (CAMPAIGNS.md records the preregistered rounds).
+
 ## Autonomous research agent
 
 ```text
