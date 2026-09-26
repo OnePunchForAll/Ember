@@ -277,6 +277,19 @@ CAMPAIGNS.md records the probe, the preregistration and the rounds: on the
 eleven problems where she found families the witnesses per number fell by
 62 to 90 percent, every family and every chunk verified independently.
 
+The research brief that answered RESEARCH_INQUIRY.md (RESEARCH_RESULTS.md)
+ranks what one exact-checking machine can finish. Its first target in her own
+domain is installed: certified exception sets (`exceptions` claims), the set
+of every n up to 2a^2 + 1 for which a/n is not a sum of three unit fractions,
+each exception certified by a complete divisor-method search that the
+verdict repeats in its own code and the package build checks against brute
+force. Her scan states the set for a question once, the library's window for
+the numerators she does not state asks for eight of them, and her agent
+settles that window in a second. A set says nothing beyond its bound; for
+every a from 20 to 44 it holds a prime exception in (a^2, 2a^2), as the
+calculations the brief cites report, and for a = 24, 32, 33, 36 and 42 the
+bound itself is one.
+
 ## 6. Limits of this note
 
 The depth table is one state and four problems; the residues were counted,

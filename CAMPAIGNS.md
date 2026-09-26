@@ -2197,3 +2197,81 @@ form by q. That space, not its four points, is now hers.
   policy constants, and 18/n carried nine family chunks, not ten. The four
   probed problems were not blind. The residual profile and its falsifier now
   see a residual a fifth of what it was and have not been run on it.
+
+## Certified exception sets: what a numerator's question leaves out (commit edee579, fingerprint 674e2388)
+
+- **Source.** RESEARCH_RESULTS.md, the research brief that answers
+  RESEARCH_INQUIRY.md, ranks certified exception sets for Schinzel's
+  numerators among the targets one exact-checking machine can finish (its
+  row 5) and cites Pomerance and Weingartner (arXiv 2511.16817) for
+  calculations that support an exceptional prime in (a^2, 2a^2) for every a
+  from 20. The brief is source-reported: arxiv.org is not reachable from this
+  session, so the citation stays as the brief gives it, and nothing in the
+  brief is evidence she uses.
+
+- **Instrument (implemented).** The claim kind `exceptions` (a, three terms,
+  a bound at most 4,000, the exceptions, a witness table); the checker's
+  complete search `three_term_search` by the divisor method (README, under
+  the general families); the verdict's own `three_unit_fractions` and
+  `exceptions_verdict`, with four self-tests; the operator
+  `egypt_exception_scan` (a unit fraction question to its set up to
+  2a^2 + 1, 4,000 from a = 45, once per question, a residual on refusal);
+  the explore goal takes the goal `exceptions` on unit fraction questions
+  (bound at binding to numerators 2..64 and three terms) and confines such a
+  question to the scan and verification; the result rows carry the count,
+  the largest and the first 24; the library window
+  `window-schinzel-beyond-bounds` (a = 20 and 22 to 28) under the catalog
+  problem that had no window, and the tool entry `esq`. Package checks: the
+  set of 21/n up to 883 holds 761 and not 7 and a witness at the bound, and
+  the verdict says VERIFIED; a dropped exception, an added one and a wrong
+  witness are refused by the checker and REFUTED by the verdict; a second
+  scan of the question proposes nothing; the complete search agrees with a
+  brute force on every a <= 12, n <= 40.
+
+- **Locally checked.** The complete search against a brute force on every a
+  from 2 to 12 and n from 1 to 80: 880 cases, no disagreement, every
+  representation exact. The scan on every numerator from 4 to 64 in a
+  scratch run: 61 sets, 26.7 s in all, every one VERIFIED by the
+  verdict. Her agent on the window task settled it in one second with eight
+  sets; the verdict on that state: 8 VERIFIED, 0 REFUTED, self-test passed.
+  The stated theorem problems ask her to prove nothing false: the least n of
+  each (7/n 3, 8/n 242, 9/n 20, 10/n 182, 11/n 38, 12/n 12,242, 13/n 282, 14/n 842, 15/n 20,522, 16/n 83,450, 17/n 2,082, 18/n 35,282, 19/n 354, 21/n 14,052) minus one has no representation by the complete search
+  (0.3 s at most), so the minima the library's earlier search gave are
+  confirmed at those n.
+
+| a | bound | exceptions | largest | primes in (a^2, 2a^2) | seconds (scan + verdict) |
+|---|---|---|---|---|---|
+| 20 | 801 | 47 | 761 | 6 | 0.05 |
+| 21 | 883 | 30 | 761 | 5 | 0.05 |
+| 22 | 969 | 51 | 929 | 5 | 0.10 |
+| 23 | 1,059 | 49 | 991 | 5 | 0.05 |
+| 24 | 1,153 | 80 | 1,153 | 13 | 0.11 |
+| 25 | 1,251 | 78 | 1,213 | 14 | 0.10 |
+| 26 | 1,353 | 55 | 1,061 | 7 | 0.06 |
+| 27 | 1,459 | 75 | 1,381 | 12 | 0.11 |
+| 28 | 1,569 | 88 | 1,471 | 17 | 0.14 |
+
+- **Reading of the numerics.** For every a from 20 to 44 her set holds a
+  prime exception in (a^2, 2a^2) (all), consistent with what the
+  brief reports of Pomerance and Weingartner. The sets also hold the bound
+  2a^2 + 1 itself as an exception for a = 24, 32, 33, 36 and 42, so the
+  interval bounds nothing above, and the library's 90,001 for a = 20 (no
+  representation by the complete search) stands.
+
+- **Scope.** A set is exact up to its bound and says nothing beyond it; it
+  settles nothing about Schinzel's conjecture for any a. The bound 4,000 is
+  a policy constant (the checker's cost is a witness search per n and a
+  complete search per exception, below two seconds per numerator here).
+  The complete search rests on the identity (e y - n x)(e z - n x) = (n x)^2
+  with e = a x - n and on x in (n/a, 3n/a] for the least denominator, checked
+  against brute force on small cases only; the verdict repeats it in its own
+  code.
+
+- **Open obligations.** Her loop has not run on the new window at the
+  committed fingerprint (the next entry). The theorem problems' rounds do not
+  use the sets: a stated minimum could be checked against the set, and a
+  cover asked from the least n above the largest certified exception rather
+  than from a given minimum. Exceptions above 2a^2 + 1 are not certified.
+  The search kinds the brief ranks first (no-three-in-line at 61, van der
+  Waerden colourings, covering systems, circulant Ramsey graphs) are not
+  installed.
