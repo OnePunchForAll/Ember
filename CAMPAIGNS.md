@@ -2325,3 +2325,114 @@ the frontier of forty chunks, until her loop's own end.
   The search kinds the brief ranks first (no-three-in-line at 61, van der
   Waerden colourings, covering systems, circulant Ramsey graphs) are not
   installed.
+
+## Exact certificates at the frontier: four searches installed, calibrated and bounded (commits e9cfa04 and 3fe7bd6, fingerprint 3b3d61ef)
+
+- **Source.** RESEARCH_RESULTS.md ranks, above the exception sets, four
+  targets whose records were set by symmetric or local search: 2n points of
+  the n x n grid with no three in a line at n = 61 (Prellberg settled every
+  n <= 60 and found nothing at 61 and 62 in 10^7 s), the van der Waerden
+  numbers W(r, 3) for r = 7 to 17 (Komkov's SAT extensions of Heule's
+  colorings, 2017), the Ramsey numbers R(3, k) in the mid range (circulant
+  constructions, R(3, 16) >= 82) and the least lcm of a covering system with
+  a given least modulus (10,080 for 7, proved in 2026; 8 open). The brief is
+  source-reported and none of it is evidence she uses.
+
+- **Instrument (implemented).** Three window families with the verdict's own
+  rules: `waerden_coloring` (an r-coloring of 1..n as a letter string, every
+  k-term progression checked), `circulant_ramsey` (a connection set; the
+  cliques of size s and the independent sets of size t are searched through
+  vertex 0 only, by vertex transitivity, with a branch and bound whose bound
+  is a greedy partition into independent sets) and `min_modulus_covering`
+  (distinct moduli at least m0, an exact sieve); `no_three_in_line` now takes
+  n up to 64. Four search moves that resume across calls: each runs within
+  its move's work bound and, finding nothing, leaves a residual whose items
+  carry its state; the next call reads the latest such residual (the one
+  with the most steps) and continues. The agent lists them as
+  workspace-reading and repeatable moves, and the explore goal versions them
+  as once per call on each target; a round that ends with such a state saved
+  is not exhausted, so the problem stays eligible and her next round on it
+  resumes (commit 3fe7bd6, after her first round on the covering problem
+  ended as out of moves). `waerden_search`: backtracking for n <=
+  30; Rabung's power-residue colorings for primes p = 1 (mod r) within 60
+  below and 40 above n/(k-1), cut to the longest progression-free prefix and
+  extended at either end by backtracking; then min-conflicts tabu on a
+  coloring of Z_m (the least m >= n/(k-1) with no prime factor below k, so
+  the periodic extension to (k-1)m is progression-free when the cyclic one
+  is), the period escalating when 4,000 or 40m steps pass without a better
+  count. `nothree_search`: exhaustive backtracking for n <= 12; otherwise
+  restarts with node limits 500 to 32,000 of a backtracking that fills the
+  most constrained row first, blocks every cell on a line through two placed
+  points by row bitmasks, and places orbits: rot4 for even n, and for odd n
+  a pair of points on the main diagonal symmetric about the centre followed
+  by rot4 orbits off the diagonals (Prellberg's description of the known
+  large odd solutions). `covering_lcm_search`: 13-smooth candidate lcms with
+  divisor reciprocal sum at least 1, in increasing order; for each, 24
+  attempts of a greedy residue choice for the smaller half to all of the
+  moduli (the class with the most uncovered residues, ties at random) and a
+  depth-first completion with the larger ones (branch on the modulus taking
+  the least uncovered residue, classes covering most first, 4,000 nodes),
+  resumed at the candidate and attempt reached. `circulant_search`: tabu over
+  connection sets, one distance flipped per step among a sample of 12,
+  scored by the exact triangle count through vertex 0 and the independent
+  t-sets through it counted up to 200 within 3,000 nodes; a zero score is
+  checked exactly before it counts. Seven open problems state the records
+  one past their frontier (`no-three-in-line-61`, `van-der-waerden-7-3`,
+  `-8-3`, `-10-3`, `-11-3`, `ramsey-3-16`, `covering-modulus-8`); each scope
+  says that not finding a witness shows nothing. Package checks (680 pass):
+  the families tell true from false and agree with the verdict on eight
+  cases; the searches find W(3, 3) > 26, the 16 and 17 grids, the coverings
+  of lcm 12 (least modulus 2) and 120 (least modulus 3) and the circulant
+  (3, 5)- and (3, 6)-graphs, each VERIFIED; a search that finds nothing
+  (the 13 grid) leaves a state the next call resumes.
+
+- **Calibrations (locally checked).** Each call ran with 2,000,000 work
+  units, the move bound of these scratch runs; her scan gives a move
+  50,000,000. Found means a witness the checker admitted and the verdict
+  VERIFIED.
+
+| search | instance | outcome | known |
+|---|---|---|---|
+| van der Waerden | 1..8 in 2, 1..26 in 3, 1..75 in 4 colors | found in the first call (0.0, 0.4, 1.6 s; the 75 by Rabung's p = 37 extended by one) | W(2, 3) = 9, W(3, 3) = 27, W(4, 3) = 76 |
+| van der Waerden | 1..169 in 5 colors | not in 4 calls (75 s): Rabung's primes near 85 (61, 71, 101) leave no extendable prefix; the tabu escalated the period to 123 with 175 conflicts left | W(5, 3) = 170 |
+| van der Waerden | 1..344 in 7 colors | not in 3 calls (51 s): Rabung's p = 113, 127, 197, 211 give no prefix that extends; the tabu left 131 conflicts on Z_179 | W(7, 3) > 343 |
+| van der Waerden | 1..516 in 8, 1..893 in 10, 1..1188 in 11 colors | not in 2 calls each (31, 31, 35 s): the tabu left 260, 414 and 682 conflicts on Z_259, Z_447 and Z_595 | W(8, 3) > 515, W(10, 3) > 892, W(11, 3) > 1187 |
+| grid | n = 14, 16, 18, 20 (rot4) | found in the first call, below 0.2 s | every n <= 60 has a solution |
+| grid | n = 24 (rot4); n = 17, 25 (rct4) | found in the second, third and second call (5, 12, 6 s) | |
+| grid | n = 13, 15, 21 (rct4) | not in 8 calls (about 60 s each): 22 of 26, 26 of 30 and 38 of 42 points at best | solutions exist with other symmetries |
+| grid | n = 30, 36, 40 (rot4), 47 (rct4), 52 (rot4) | not in 6 calls (about 40 s): 52 of 60, 56 of 72, 60 of 80, 70 of 94, 72 of 104 points at best | Flammenkamp's symmetric search found these |
+| grid | n = 61 (rct4) | not in 3 calls (26 s, 7 restarts, 46,860 nodes): 86 of 122 points at best | open |
+| covering | least modulus 2, 3, 4, 5, 6 | lcm 12, 120, 360, 2,520 and 10,080 found in the first call (10,080 in the second with 6,000,000 units) | 12 and 120 are the least; the rest her values |
+| covering | least modulus 7 | not found at any candidate up to 10,080 in 30 calls (83 s): the greedy choice and its completion miss the 10,080 covering | 10,080 is the least (arXiv 2607.19029) |
+| covering | least modulus 8 | none found at any of the 172 candidates below 78,000 in 80 calls (about 250 s) | open |
+| circulant Ramsey | (3, 5) on 13, (3, 6) on 16, (3, 9) on 35 vertices | found in the first call (S = {2, 3}, {1, 3, 8}, {4, 6, 7, 9}; 0.0, 0.0, 0.7 s) | R(3, 5) = 14, R(3, 6) = 18, R(3, 9) = 36 (the 35-vertex graph is circulant) |
+| circulant Ramsey | (3, 6) on 17, (3, 8) on 27, (3, 10) on 39 vertices | not in 3 to 4 calls: score 3 at best (a few bad sets through vertex 0) | R(3, 7) = 23, R(3, 8) = 28, R(3, 10) >= 40 (a circulant on 39 vertices is known) |
+| circulant Ramsey | (3, 16) on 82 vertices | not in 2 calls (8 s, 144 steps): score 30, 6 at best | R(3, 16) >= 82 |
+
+- **Reading.** The instruments reproduce the small and some mid-size records
+  exactly and independently verified, and fall short of the frontier by
+  margins the table measures: the van der Waerden tabu is two orders from
+  zero at r = 7, and the Rabung route, which is how the records were set,
+  needs an extension her backtracking limit does not reach; the grid search
+  reproduces every even n to 24 and the odd 17 and 25, and stops in the
+  thirties where Flammenkamp's symmetric search reached the fifties; the
+  covering search gives the least lcm for least moduli 2 and 3 and misses
+  the proved least at 7, so an lcm it finds for 8 is an upper bound and
+  weak evidence of the least; the circulant tabu reproduces (3, 9) on 35
+  vertices but not (3, 8) or (3, 10). Nothing here is a record, and each
+  problem's scope says so.
+
+- **Scope.** The node limits, restart schedule, split points, the counting
+  cap of 200, the flip sample of 12, the 13-smooth candidates and the
+  symmetry classes are policy constants of this installation, not
+  properties of the problems; a symmetric search finds only symmetric
+  solutions, and the cyclic route only cyclic colorings. Timings are one
+  machine, one run, the work units above.
+
+- **Open obligations.** Her loop on the seven problems at this fingerprint
+  (the next entry). The failures name the next instruments: a SAT-style
+  extension (unit propagation over progressions) for the van der Waerden
+  ends; Flammenkamp's other symmetry classes and an incremental line count
+  for the grid; an exact cover over all moduli with a capacity bound for
+  the coverings, to reach 10,080 before 8 means anything; the multiplier
+  symmetry and incremental scoring for circulants.
