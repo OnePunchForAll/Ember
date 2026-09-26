@@ -2198,6 +2198,56 @@ form by q. That space, not its four points, is now hers.
   probed problems were not blind. The residual profile and its falsifier now
   see a residual a fifth of what it was and have not been run on it.
 
+## Her sixth scan, end to end (calls 1,485 to 1,709, fingerprint 0110f839)
+
+Asked whether she can solve an open problem now, and to run her end to end:
+the answer to the first is no, and she holds the reason herself. Her checked
+obstruction lemmas state that no polynomial family reaches a coprime square
+class, so no list of families, mine or hers, covers every residue class of
+Erdős–Straus or of Schinzel's numerators; her theorems reduce each to finitely
+many open classes and a verified range, and her families shrink what is left
+to witness, and that is the whole of what these instruments can do. The
+second was done: her own loop on her whole library, from her state after the
+fifth scan and the verdict on it, at the fingerprint of the shape search and
+the frontier of forty chunks, until her loop's own end.
+
+- **The scan.** Calls 1,485 to 1,709 of the one state (225 calls, 7,174 s) in her own loop from her state after the fifth scan with its verdict ingested, at fingerprint 0110f839, until the loop's wall cap. The core had changed, so it began with the re-check wave: 175 calls of settled windows and maps, 188 calls in all settled by checked results, 37 came back UNKNOWN (the window values without a rule, the theorem rounds and the open maps). From call 176 she chose her fifteen theorem problems in turn, 1,525 s of the 7,174, then 35 other calls until the cap: her own widenings of settled windows, the Collatz map, and the two Schinzel numerators without a theorem (6/n and 9/n, whose rounds run to their allowance in about twenty minutes each and gain thousands of checked results without a reduction theorem).
+- **What her theorem rounds did.** Every theorem round searched the general family space (once per level object of the problem, so a level that paid was followed by the next in the same round: levels 8, 16 and 32 on the problems with a residual), stated its families, added chunks with them to the frontier of forty (twenty on 5/n and 18/n, which stood at twenty and nineteen), composed and closed its theorem at the new range, and profiled its residual. In all: 170 chunks, 14,951,390 numbers, 265,936 by a family divisor, 3,055 of them by a family she found herself, 2,005 by a witness; the added chunks' witness counts equal those of the third preregistered run on every problem it covered (the same seed and code give the same proofs). On 4/n, 5/n, 7/n and 11/n the residual held fewer than ten numbers, so no family was stated and none was needed. 5/n's theorem, at a modulus past the closure bound, is not closed under multiples.
+
+| a | call | s | new checked | chunks added | numbers | by a family | by her own families | witnesses | range reached | families (four shapes, hers) | levels searched | closure (open, coprime, closed at) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 10 | 176 | 52 | 353 | 10 | 998,180 | 3,538 | 32 | 14 | 3,992,902 | 23, 13 | up to 18 | 18,724, 924, 3,992,902 |
+| 13 | 177 | 45 | 293 | 10 | 997,180 | 49,650 | 68 | 17 | 3,989,002 | 30, 16 | up to 18 | 7,920, 1,440, 3,989,002 |
+| 11 | 185 | 59 | 163 | 10 | 999,620 | 192 | 0 | 2 | 3,998,518 | 18, 0 | nothing to measure | 26,969, 51, 3,998,518 |
+| 8 | 186 | 63 | 260 | 10 | 997,580 | 3,543 | 7 | 6 | 3,990,562 | 22, 6 | up to 7 | 30,922, 919, 3,990,562 |
+| 14 | 188 | 69 | 297 | 10 | 991,580 | 1,985 | 47 | 20 | 3,967,162 | 23, 16 | up to 16 | 38,738, 535, 3,967,162 |
+| 15 | 193 | 88 | 316 | 10 | 794,780 | 6,405 | 96 | 74 | 3,199,642 | 27, 24 | up to 25 | 25,623, 1,254, 3,199,642 |
+| 16 | 194 | 45 | 488 | 10 | 165,500 | 32,495 | 476 | 335 | 745,450 | 36, 20 | up to 31 | 8,952, 1,680, 745,450 |
+| 17 | 196 | 52 | 146 | 10 | 979,180 | 66,907 | 217 | 84 | 3,918,802 | 36, 16 | up to 27 | 8,400, 1,920, 3,918,802 |
+| 21 | 198 | 116 | 238 | 10 | 859,480 | 10,082 | 341 | 296 | 3,451,972 | 30, 25 | up to 25 | 21,703, 2,004, 3,451,972 |
+| 4 | 204 | 87 | 176 | 10 | 999,980 | 224 | 0 | 1 | 3,999,922 | 18, 0 | nothing to measure | 26,262, 26,262, 3,999,922 |
+| 19 | 208 | 109 | 377 | 10 | 996,460 | 57,121 | 351 | 139 | 3,986,194 | 36, 18 | up to 27 | 27,261, 5,416, 3,986,194 |
+| 12 | 210 | 136 | 235 | 10 | 877,580 | 6,462 | 96 | 77 | 3,522,562 | 29, 25 | up to 25 | 48,585, 1,272, 3,522,562 |
+| 7 | 214 | 125 | 335 | 10 | 999,970 | 4 | 0 | 0 | 3,999,883 | 17, 0 | nothing to measure | 798, 792, 3,999,883 |
+| 18 | 216 | 250 | 364 | 20 | 1,294,360 | 27,327 | 1,324 | 940 | 2,624,002 | 35, 25 | up to 23 | 41,658, 2,763, 2,624,002 |
+| 5 | 218 | 227 | 419 | 20 | 1,999,960 | 1 | 0 | 0 | 3,999,922 | 17, 0 | nothing to measure | beyond the closure bound |
+
+- **The verdict on her final state.** The verdict on her final state after call 1,709 found 112,847 claims VERIFIED (102,544 of them walls), 0 refuted, 27 UNRESOLVED (the window values without an independent rule), 57 self-test cases passing, in 5,208 s; the bit returned to her is `no, keep thinking`.
+- **Open obligations.** The shape search ran once per level object of a problem rather
+  than once per call, so a level that paid was followed by the next within
+  the round (levels 8, 16, 32 in one call): more than the rule said, and to
+  be made one level per call or stated as the rule. 5/n's theorem stands at a
+  modulus past the closure bound and is not closed under multiples; 6/n and
+  9/n have no reduction theorem at all, and their rounds spend twenty
+  minutes each on classes without one. The residual profile ran on residuals
+  a fifth of what they were and stated nothing, as before. The verified
+  ranges now end at the frontier of forty chunks on nine problems; the next
+  frontier is a constant to raise or a rule to write. What she cannot do
+  remains what her obstruction lemma says: no polynomial family reaches a
+  coprime square class, so no family list closes these conjectures; the
+  research inquiry written for a research session (RESEARCH_INQUIRY.md) asks
+  which open problems a finite certificate can settle instead.
+
 ## Certified exception sets: what a numerator's question leaves out (commit edee579, fingerprint 674e2388)
 
 - **Source.** RESEARCH_RESULTS.md, the research brief that answers
